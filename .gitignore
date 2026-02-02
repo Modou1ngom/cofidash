@@ -44,3 +44,6 @@ venv/
 env/
 ENV/
 .venv
+
+# Python service config (contains sensitive data)
+python-service/config/settings.py
