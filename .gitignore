@@ -16,3 +16,31 @@ yarn-error.log
 /.idea
 /.vscode
 
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# Logs
+*.log
+storage/logs/*
+python-service/*.log
+
+# Laravel storage
+/storage/framework/sessions/*
+!/storage/framework/sessions/.gitignore
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
+/storage/framework/cache/*
+!/storage/framework/cache/.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
