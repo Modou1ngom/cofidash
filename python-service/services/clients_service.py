@@ -25,8 +25,18 @@ def get_clients_data(period: str = "month", zone: Optional[str] = None,
     """
     logger.info(f"🔍 get_clients_data appelé avec period={period}, zone={zone}, month={month}, year={year}, date={date}")
     
-    conn = get_oracle_connection()
-    cursor = conn.cursor()
+    # Utiliser le pool de connexions et le cache
+    from database.oracle_pool import get_pool
+    from services.cache_service import get_cache, set_cache, generate_cache_key
+    
+    # Générer une clé de cache basée sur les paramètres
+    cache_key = f"clients:{generate_cache_key(period, zone, month, year, date)}"
+    
+    # Vérifier le cache
+    cached_result = get_cache(cache_key)
+    if cached_result is not None:
+        logger.info("✅ Données clients récupérées depuis le cache")
+        return cached_result
     
     # Calculer les dates
     dates = calculate_period_dates(period, month, year, date)
@@ -174,47 +184,54 @@ def get_clients_data(period: str = "month", zone: Optional[str] = None,
     order by COALESCE(nb.CODE_BUREAU, nb1.CODE_BUREAU, fm.CODE_AGENCE, gc.CODE_BUREAU)
     """
     
-    # Exécuter la requête avec les paramètres positionnels
-    # Oracle compte chaque occurrence de :1, :2, :3, :4 dans toute la requête
-    # Comme ils sont utilisés deux fois (clients et frais), on doit passer les valeurs deux fois
-    cursor.execute(query, [
-        date_m_debut_str,      # :1 pour RESULT_M
-        date_m_fin_str,        # :2 pour RESULT_M
-        date_m1_debut_str,     # :3 pour RESULT_M_1
-        date_m1_fin_str,       # :4 pour RESULT_M_1
-        date_m_debut_str,      # :1 pour RESULT_FRAIS_M (réutilisé mais Oracle le compte)
-        date_m_fin_str,        # :2 pour RESULT_FRAIS_M
-        date_m1_debut_str,     # :3 pour RESULT_FRAIS_M_1
-        date_m1_fin_str        # :4 pour RESULT_FRAIS_M_1
-    ])
-    
-    # Récupérer les colonnes et les données
-    columns = [desc[0] for desc in cursor.description]
-    rows = cursor.fetchall()
-    logger.info(f"📊 Nombre de lignes retournées par Oracle (clients): {len(rows)}")
-    if len(rows) > 0:
-        logger.info(f"   Première ligne: {dict(zip(columns, rows[0]))}")
-    
+    pool = get_pool()
+    with pool.get_connection_context() as conn:
+        cursor = conn.cursor()
+        
+        # Optimisations Oracle
+        cursor.arraysize = 1000
+        cursor.prefetchrows = 1000
+        
+        # Exécuter la requête avec les paramètres positionnels
+        # Oracle compte chaque occurrence de :1, :2, :3, :4 dans toute la requête
+        # Comme ils sont utilisés deux fois (clients et frais), on doit passer les valeurs deux fois
+        cursor.execute(query, [
+            date_m_debut_str,      # :1 pour RESULT_M
+            date_m_fin_str,        # :2 pour RESULT_M
+            date_m1_debut_str,     # :3 pour RESULT_M_1
+            date_m1_fin_str,       # :4 pour RESULT_M_1
+            date_m_debut_str,      # :1 pour RESULT_FRAIS_M (réutilisé mais Oracle le compte)
+            date_m_fin_str,        # :2 pour RESULT_FRAIS_M
+            date_m1_debut_str,     # :3 pour RESULT_FRAIS_M_1
+            date_m1_fin_str        # :4 pour RESULT_FRAIS_M_1
+        ])
+        
+        # Récupérer les colonnes et les données
+        columns = [desc[0] for desc in cursor.description]
+        rows = cursor.fetchall()
+        logger.info(f"📊 Nombre de lignes retournées par Oracle (clients): {len(rows)}")
+        if len(rows) > 0:
+            logger.info(f"   Première ligne: {dict(zip(columns, rows[0]))}")
+        
         # Convertir en liste de dictionnaires
-    results = []
-    for row in rows:
-        row_dict = dict(zip(columns, row))
-        # Convertir les Decimal en float pour JSON et gérer les valeurs NULL
-        for key, value in row_dict.items():
-            if value is None:
-                if key in ['Nbre_Client_M', 'Nbre_Client_M_1', 'VARIATION_POURCENT', 'POURCENT_REALISATION', 'FRAIS_M', 'FRAIS_M_1']:
-                    row_dict[key] = 0
-                else:
-                    row_dict[key] = None
-            elif hasattr(value, '__float__') and not isinstance(value, (int, float, bool, str, type(None))):
-                try:
-                    row_dict[key] = float(value)
-                except (ValueError, TypeError):
-                    row_dict[key] = 0
-        results.append(row_dict)
-    
-    cursor.close()
-    conn.close()
+        results = []
+        for row in rows:
+            row_dict = dict(zip(columns, row))
+            # Convertir les Decimal en float pour JSON et gérer les valeurs NULL
+            for key, value in row_dict.items():
+                if value is None:
+                    if key in ['Nbre_Client_M', 'Nbre_Client_M_1', 'VARIATION_POURCENT', 'POURCENT_REALISATION', 'FRAIS_M', 'FRAIS_M_1']:
+                        row_dict[key] = 0
+                    else:
+                        row_dict[key] = None
+                elif hasattr(value, '__float__') and not isinstance(value, (int, float, bool, str, type(None))):
+                    try:
+                        row_dict[key] = float(value)
+                    except (ValueError, TypeError):
+                        row_dict[key] = 0
+            results.append(row_dict)
+        
+        cursor.close()
     
     logger.info(f"📊 Nombre d'agences après traitement: {len(results)}")
     
@@ -553,6 +570,9 @@ def get_clients_data(period: str = "month", zone: Optional[str] = None,
             'tauxCroissanceFrais': 0
         }
         logger.info("⚠️ Grand compte créé avec des valeurs à 0 (aucune donnée trouvée)")
+    
+    # Mettre en cache le résultat (TTL de 5 minutes)
+    set_cache(cache_key, response_data, ttl=300)
     
     return response_data
 

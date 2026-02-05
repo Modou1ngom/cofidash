@@ -48,7 +48,7 @@
     <!-- Résultat Global -->
     <div class="global-result-section">
       <div v-if="loading" class="loading-message">
-        <p>🔄 Chargement des données depuis Oracle...</p>
+        <p>🔄 Chargement des données ...</p>
         <p style="font-size: 12px; color: #666; margin-top: 5px;">
           ⏱️ Cette opération peut prendre jusqu'à 5 minutes en raison de la complexité des calculs.
         </p>
@@ -60,19 +60,35 @@
 
     <!-- Tableaux hiérarchiques par niveaux - Scindés en Collecte et Solde -->
     
-    <!-- Menu d'onglets pour basculer entre Collecte et Solde -->
+    <!-- Menu d'onglets pour basculer entre Collecte, Solde, Volume DAT et Epargne -->
     <div class="tabs-menu">
       <button 
         :class="['tab-button', { active: activeTab === 'collecte' }]"
-        @click="activeTab = 'collecte'"
+        @click="setActiveTab('collecte')"
       >
         📊 DOMICILIATION DE FLUX
       </button>
       <button 
         :class="['tab-button', { active: activeTab === 'solde' }]"
-        @click="activeTab = 'solde'"
+        @click="setActiveTab('solde')"
       >
         💰 SOLDE
+      </button>
+      <button 
+        :class="['tab-button', { active: activeTab === 'volume_dat' }]"
+        @click="setActiveTab('volume_dat')"
+        style="opacity: 0.5; cursor: not-allowed;"
+        disabled
+      >
+        📈 VOLUME DAT (Bientôt disponible)
+      </button>
+      <button 
+        :class="['tab-button', { active: activeTab === 'epargne' }]"
+        @click="setActiveTab('epargne')"
+        style="opacity: 0.5; cursor: not-allowed;"
+        disabled
+      >
+        💵 EPARGNE (Bientôt disponible)
       </button>
     </div>
     
@@ -554,6 +570,26 @@
       </div>
     </div>
 
+    <!-- Tableau VOLUME DAT -->
+    <div v-if="activeTab === 'volume_dat'" class="zone-agencies-section">
+      <div class="table-container">
+        <div style="text-align: center; padding: 40px; color: #666;">
+          <p>📈 Page Volume DAT en cours de développement</p>
+          <p style="font-size: 12px; margin-top: 10px;">Cette fonctionnalité sera bientôt disponible.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tableau EPARGNE -->
+    <div v-if="activeTab === 'epargne'" class="zone-agencies-section">
+      <div class="table-container">
+        <div style="text-align: center; padding: 40px; color: #666;">
+          <p>💵 Page Epargne en cours de développement</p>
+          <p style="font-size: 12px; margin-top: 10px;">Cette fonctionnalité sera bientôt disponible.</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Section Graphique d'évolution -->
     <div class="chart-evolution-section" v-if="hasChartData">
       <div class="chart-header">
@@ -588,6 +624,24 @@
         </div>
       </div>
       
+      <!-- Menu pour basculer entre Graphique et Performance -->
+      <div class="chart-view-tabs">
+        <button 
+          :class="['chart-view-tab', { active: chartViewMode === 'graph' }]"
+          @click="chartViewMode = 'graph'"
+        >
+          📈 Graphique
+        </button>
+        <button 
+          :class="['chart-view-tab', { active: chartViewMode === 'performance' }]"
+          @click="chartViewMode = 'performance'"
+        >
+          🏆 Performance
+        </button>
+      </div>
+      
+      <!-- Vue Graphique -->
+      <div v-if="chartViewMode === 'graph'">
       <div class="chart-tabs">
         <button 
           :class="['chart-tab', { active: selectedChartType === 'line' }]"
@@ -624,20 +678,11 @@
         <label>
           <input 
             type="radio" 
-            value="recouvrement" 
-            v-model="selectedDataType"
-            @change="updateChart"
-          />
-          Collecte M
-        </label>
-        <label>
-          <input 
-            type="radio" 
             value="collection" 
             v-model="selectedDataType"
             @change="updateChart"
           />
-          Collecte S1
+          Collecte S
         </label>
       </div>
       
@@ -648,6 +693,15 @@
           :chartData="currentChartData"
           :height="600"
           ref="chartComponent"
+        />
+      </div>
+      </div>
+      
+      <!-- Vue Performance -->
+      <div v-if="chartViewMode === 'performance'">
+        <AgencyPerformanceSection 
+          :dataType="'collection'" 
+          :tableData="performanceTableData"
         />
       </div>
     </div>
@@ -663,15 +717,36 @@
 <script>
 import KPICard from './KPICard.vue';
 import PythonChart from './charts/PythonChart.vue';
+import AgencyPerformanceSection from './AgencyPerformanceSection.vue';
 import { ProfileManager, PERMISSIONS } from '../utils/profiles.js';
 
 export default {
   name: 'CollectionSection',
+  emits: ['tab-changed'],
   components: {
     KPICard,
-    PythonChart
+    PythonChart,
+    AgencyPerformanceSection
+  },
+  provide() {
+    return {
+      collectionTab: () => this.activeTab,
+      updateCollectionTab: (tab) => {
+        this.setActiveTab(tab);
+      }
+    };
   },
   computed: {
+    performanceTableData() {
+      // Propriété calculée pour éviter de recréer l'objet à chaque rendu
+      if (this.hierarchicalDataFromBackend) {
+        return {
+          hierarchicalData: this.hierarchicalDataFromBackend,
+          chargeAffaireDetails: this.chargeAffaireDetails
+        };
+      }
+      return null;
+    },
     canEditObjectives() {
       return ProfileManager.canEditObjectives();
     },
@@ -991,19 +1066,15 @@ export default {
       return null;
     },
     chartLabels() {
-      const labels = [];
-      const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
-      const currentDate = new Date();
-      for (let i = 11; i >= 0; i--) {
-        const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
-        labels.push(`${monthNames[date.getMonth()]} ${date.getFullYear()}`);
-      }
-      return labels;
+      // Afficher les labels S1, S2, S3, S4 pour les volumes collectés
+      return ['S1', 'S2', 'S3', 'S4'];
     },
     hasChartData() {
+      // Vérifier qu'on a des labels et des données, et qu'ils correspondent (4 valeurs: S1, S2, S3, S4)
       return this.chartLabels.length > 0 && 
              this.chartCurrentData.length > 0 && 
-             this.chartCurrentData.length === this.chartLabels.length;
+             this.chartCurrentData.length === this.chartLabels.length &&
+             this.chartCurrentData.length === 4;
     },
     activeLevel() {
       if (this.selectedAgency) {
@@ -1051,54 +1122,98 @@ export default {
       const level = this.activeLevel;
       return `Évolution - ${level.name}`;
     },
+    getValueByDataType(data, totals = null) {
+      // Helper pour obtenir la valeur selon le type de données sélectionné
+      switch (this.selectedDataType) {
+        case 'recouvrement':
+          return data?.collecteM || data?.COLLECTE_M || totals?.collecteM || 0;
+        case 'collection':
+          return data?.collecteS1 || data?.COLLECTE_S1 || totals?.collecteS1 || 0;
+        case 'volume_dat':
+          return data?.volumeDat || data?.VOLUME_DAT || data?.volumeDAT || totals?.volumeDat || totals?.VOLUME_DAT || 0;
+        case 'epargne':
+          return data?.epargne || data?.EPARGNE || totals?.epargne || totals?.EPARGNE || 0;
+        default:
+          return 0;
+      }
+    },
     chartCurrentData() {
       const level = this.activeLevel;
-      let baseValue;
+      let data = [];
       
+      // Fonction helper pour normaliser une valeur en nombre
+      const normalizeValue = (value) => {
+        const num = parseFloat(value);
+        return isNaN(num) || num === null || num === undefined ? 0 : num;
+      };
+      
+      // Récupérer les vraies valeurs S1, S2, S3, S4 du tableau (sans M)
       if (level.type === 'agency') {
         const zoneData = this.hierarchicalData[level.category][level.zone];
         const agency = zoneData?.agencies?.find(a => a.name === level.name);
-        baseValue = this.selectedDataType === 'recouvrement' 
-          ? (agency?.collecteM || agency?.COLLECTE_M || 0)
-          : (agency?.collecteS1 || agency?.COLLECTE_S1 || 0);
+        if (agency) {
+          data = [
+            normalizeValue(agency.collecteS1 || agency.COLLECTE_S1),
+            normalizeValue(agency.collecteS2 || agency.COLLECTE_S2),
+            normalizeValue(agency.collecteS3 || agency.COLLECTE_S3),
+            normalizeValue(agency.collecteS4 || agency.COLLECTE_S4)
+          ];
+        }
       } else if (level.type === 'zone') {
         const zoneData = this.hierarchicalData[level.category][level.zone];
-        baseValue = this.selectedDataType === 'recouvrement'
-          ? (zoneData?.totals?.collecteM || 0)
-          : (zoneData?.totals?.collecteS1 || 0);
+        if (zoneData?.totals) {
+          data = [
+            normalizeValue(zoneData.totals.collecteS1),
+            normalizeValue(zoneData.totals.collecteS2),
+            normalizeValue(zoneData.totals.collecteS3),
+            normalizeValue(zoneData.totals.collecteS4)
+          ];
+        }
       } else if (level.type === 'category') {
         if (level.category === 'TERRITOIRE') {
-          baseValue = this.selectedDataType === 'recouvrement'
-            ? this.territoireTotal.collecteM
-            : this.territoireTotal.collecteS1;
+          data = [
+            normalizeValue(this.territoireTotal.collecteS1),
+            normalizeValue(this.territoireTotal.collecteS2),
+            normalizeValue(this.territoireTotal.collecteS3),
+            normalizeValue(this.territoireTotal.collecteS4)
+          ];
         } else {
-          baseValue = this.selectedDataType === 'recouvrement'
-            ? this.pointServicesTotal.collecteM
-            : this.pointServicesTotal.collecteS1;
+          data = [
+            normalizeValue(this.pointServicesTotal.collecteS1),
+            normalizeValue(this.pointServicesTotal.collecteS2),
+            normalizeValue(this.pointServicesTotal.collecteS3),
+            normalizeValue(this.pointServicesTotal.collecteS4)
+          ];
         }
       } else {
-        baseValue = this.selectedDataType === 'recouvrement'
-          ? (this.getGrandTotal('collecteM') || 0)
-          : (this.getGrandTotal('collecteS1') || 0);
+        // Total général
+        data = [
+          normalizeValue(this.getGrandTotal('collecteS1')),
+          normalizeValue(this.getGrandTotal('collecteS2')),
+          normalizeValue(this.getGrandTotal('collecteS3')),
+          normalizeValue(this.getGrandTotal('collecteS4'))
+        ];
       }
       
-      const variations = [0.85, 0.90, 0.95, 1.0, 1.05, 1.10, 1.08, 1.02, 0.98, 1.03, 1.07, 1.12];
-      const data = [];
-      for (let i = 0; i < 12; i++) {
-        data.push(Math.round(baseValue * variations[i]));
-      }
-      return data;
+      // Normaliser toutes les valeurs pour s'assurer qu'elles sont des nombres
+      return data.map(v => normalizeValue(v));
     },
     currentChartData() {
       const labels = this.chartLabels;
       const current = this.chartCurrentData;
-      const ylabel = this.selectedDataType === 'recouvrement' ? 'Collecte M (FCFA)' : 'Collecte S1 (FCFA)';
-      const title = `${this.chartTitle} - ${this.selectedDataType === 'recouvrement' ? 'Collecte M' : 'Collecte S1'}`;
+      const title = `${this.chartTitle} - Volume Collecté`;
+      const ylabel = 'Volume Collecté (FCFA)';
+      
+      // S'assurer que current est un tableau de nombres valides
+      const normalizedCurrent = current.map(v => {
+        const num = parseFloat(v);
+        return isNaN(num) || num === null || num === undefined ? 0 : num;
+      });
       
       if (this.selectedChartType === 'bar') {
         return {
           labels: labels,
-          values: current,
+          values: normalizedCurrent,
           title: title,
           xlabel: 'Période',
           ylabel: ylabel
@@ -1106,21 +1221,23 @@ export default {
       } else if (this.selectedChartType === 'area') {
         return {
           labels: labels,
-          values: current,
+          values: normalizedCurrent,
           title: title,
           ylabel: ylabel
         };
       } else if (this.selectedChartType === 'pie') {
         return {
           labels: labels,
-          values: current,
+          values: normalizedCurrent,
           title: title
         };
       } else {
+        // Pour les graphiques en ligne, on affiche seulement les valeurs actuelles
+        // Pas besoin de previous car on affiche M, S1, S2, S3, S4
         return {
           labels: labels,
-          current: current,
-          previous: current.map(v => v * 0.9),
+          current: normalizedCurrent,
+          previous: normalizedCurrent, // Même valeur pour éviter les erreurs
           title: title,
           ylabel: ylabel
         };
@@ -1169,7 +1286,8 @@ export default {
       servicePoints: [],
       selectedAgency: null,
       selectedChartType: 'line',
-      selectedDataType: 'recouvrement',
+      selectedDataType: 'collection',
+      chartViewMode: 'graph', // 'graph' ou 'performance'
       months: [
         'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
         'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
@@ -1209,6 +1327,10 @@ export default {
     this.fetchDataFromOracle();
   },
   watch: {
+    activeTab(newVal) {
+      // Émettre l'événement quand l'onglet change
+      this.$emit('tab-changed', newVal);
+    },
     selectedZoneProp(newVal) {
       this.selectedZone = newVal;
       this.fetchDataFromOracle();
@@ -1243,6 +1365,10 @@ export default {
     }
   },
   methods: {
+    setActiveTab(tab) {
+      this.activeTab = tab;
+      this.$emit('tab-changed', tab);
+    },
     getTerritoryName(zone) {
       const territoryMap = {
         'territoire_dakar_ville': 'TERRITOIRE DAKAR VILLE',
@@ -2109,7 +2235,13 @@ export default {
         if (format === 'csv') {
           const labels = this.chartLabels;
           const current = this.chartCurrentData;
-          const typeLabel = this.selectedDataType === 'recouvrement' ? 'Collecte M' : 'Collecte S1';
+          const typeLabels = {
+            'recouvrement': 'Collecte M',
+            'collection': 'Collecte S1',
+            'volume_dat': 'Volume DAT',
+            'epargne': 'Epargne'
+          };
+          const typeLabel = typeLabels[this.selectedDataType] || 'Collecte M';
           let csv = 'Période,' + typeLabel + '\n';
           
           for (let i = 0; i < labels.length; i++) {
@@ -2931,6 +3063,39 @@ export default {
 }
 
 .chart-tab.active {
+  color: #1A4D3A;
+  font-weight: 600;
+  border-bottom-color: #1A4D3A;
+  background: transparent;
+}
+
+.chart-view-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 0;
+  border-bottom: 2px solid #DDD;
+}
+
+.chart-view-tab {
+  padding: 12px 24px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 500;
+  color: #666;
+  border-bottom: 3px solid transparent;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.chart-view-tab:hover {
+  color: #1A4D3A;
+  background: #f5f5f5;
+}
+
+.chart-view-tab.active {
   color: #1A4D3A;
   font-weight: 600;
   border-bottom-color: #1A4D3A;

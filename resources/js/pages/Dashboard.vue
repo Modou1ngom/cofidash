@@ -15,7 +15,10 @@
       />
       <div class="main-content">
         <ClientSection v-if="activeSection === 'client'" :selectedZoneProp="selectedZone" />
-        <CollectionSection v-if="activeSection === 'collection'" :selectedZoneProp="selectedZone" />
+        <CollectionSection 
+          v-if="activeSection === 'collection'" 
+          :selectedZoneProp="selectedZone"
+        />
         
         <!-- Section Production avec boutons de navigation -->
         <div v-if="activeSection === 'production'" class="production-wrapper">
@@ -70,7 +73,10 @@
         <ValidationSection v-if="activeSection === 'objectives' && activeSubSection === 'validation'" />
         <AgencyPerformanceSection v-if="activeSection === 'performance'" />
         <AgencyPerformanceSection v-if="activeSection === 'performance-client'" :dataType="'client'" />
-        <AgencyPerformanceSection v-if="activeSection === 'performance-collection'" :dataType="'collection'" />
+        <AgencyPerformanceSection 
+          v-if="activeSection === 'performance-collection'" 
+          :dataType="'collection'"
+        />
         <AgencyPerformanceSection v-if="activeSection === 'performance-credit'" :dataType="'credit'" />
         <AgencyPerformanceSection v-if="activeSection === 'performance-prepaid-cards'" :dataType="'prepaid-cards'" />
         <AgencyPerformanceSection v-if="activeSection === 'performance-money-transfers'" :dataType="'money-transfers'" />
@@ -80,6 +86,7 @@
         <PrepaidCardRechargeSection v-if="activeSection === 'prepaid-cards' && activeSubSection === 'recharge'" />
         <TerritoryAgencyManagement v-if="activeSection === 'management'" />
         <MoneyTransferSection v-if="activeSection === 'money-transfers'" />
+        <EnvironmentsSection v-if="activeSection === 'environments'" />
       </div>
     </div>
   </div>
@@ -100,6 +107,7 @@ import PrepaidCardSalesSection from '../components/PrepaidCardSalesSection.vue';
 import PrepaidCardRechargeSection from '../components/PrepaidCardRechargeSection.vue';
 import TerritoryAgencyManagement from '../components/TerritoryAgencyManagement.vue';
 import MoneyTransferSection from '../components/MoneyTransferSection.vue';
+import EnvironmentsSection from '../components/EnvironmentsSection.vue';
 import { ProfileManager } from '../utils/profiles.js';
 
 export default {
@@ -118,7 +126,8 @@ export default {
     PrepaidCardSalesSection,
     PrepaidCardRechargeSection,
     TerritoryAgencyManagement,
-    MoneyTransferSection
+    MoneyTransferSection,
+    EnvironmentsSection
   },
   data() {
     return {
@@ -145,6 +154,8 @@ export default {
       } else if (section === 'client') {
         this.activeSubSection = null;
       } else if (section === 'collection') {
+        this.activeSubSection = null;
+      } else if (section === 'environments') {
         this.activeSubSection = null;
       } else if (section === 'prepaid-cards') {
         this.activeSubSection = 'sales';

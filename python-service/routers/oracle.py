@@ -4,11 +4,13 @@ Router pour les endpoints Oracle
 from fastapi import APIRouter, HTTPException
 from typing import Optional
 import logging
+from datetime import datetime
 from database.oracle import get_oracle_connection
 from services.clients_service import get_clients_data
 from services.production_service import get_production_nombre_data, get_production_volume_data, get_encours_credit_data
 from services.collection_service import get_collection_data
 from services.transfer_service import get_transfer_data
+from services.performance_service import get_agency_performance
 
 logger = logging.getLogger(__name__)
 
@@ -360,5 +362,58 @@ async def get_transfer_data_endpoint(
         raise HTTPException(
             status_code=500, 
             detail=f"Erreur lors de la récupération des données de transferts: {error_message}"
+        )
+
+
+@router.get("/data/agency-performance")
+async def get_agency_performance_endpoint(
+    data_type: str = "client",
+    period: Optional[str] = "month",
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    collection_tab: Optional[str] = None
+):
+    """
+    Récupère les performances des agences (Top 5 et Flop 5) selon le type de données
+    
+    Args:
+        data_type: Type de données ('client', 'collection', 'credit', etc.)
+        period: Période d'analyse ("week", "month", "year")
+        month: Mois à analyser (1-12)
+        year: Année à analyser
+        collection_tab: Pour data_type='collection', spécifie l'onglet ('collecte' ou 'solde')
+    
+    Returns:
+        {
+            "top5Nombre": ["Agence 1", "Agence 2", ...],
+            "flop5Nombre": ["Agence 1", "Agence 2", ...],
+            "top5Volume": ["Agence 1", "Agence 2", ...],
+            "flop5Volume": ["Agence 1", "Agence 2", ...]
+        }
+    """
+    try:
+        # Si month et year ne sont pas fournis, utiliser le mois en cours
+        if month is None or year is None:
+            now = datetime.now()
+            month = month or now.month
+            year = year or now.year
+        
+        result = get_agency_performance(
+            data_type=data_type,
+            period=period,
+            month=month,
+            year=year,
+            collection_tab=collection_tab
+        )
+        
+        return result
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        logger.error(f"Erreur lors de la récupération des performances: {str(e)}\n{error_detail}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors de la récupération des performances: {str(e)}"
         )
 

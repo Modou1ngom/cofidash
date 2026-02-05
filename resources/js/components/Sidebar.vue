@@ -17,20 +17,11 @@
             📊 Performance
           </a>
         </div>
-        <div class="nav-section-header" @click.stop="toggleCollection" :class="{ active: activeSection === 'collection' || activeSection === 'performance-collection' }">
+        <div class="nav-section-header" @click.stop="selectSection('collection')" :class="{ active: activeSection === 'collection' || activeSection === 'performance-collection' }">
           <span class="nav-title">
             <span class="nav-icon">💰</span>
             <span class="nav-label">DEPOT</span>
           </span>
-          <span class="toggle-icon">{{ collectionExpanded ? '▼' : '▶' }}</span>
-        </div>
-        <div v-if="collectionExpanded" class="nav-section-items">
-          <a href="#" @click.stop.prevent="selectSection('collection')" class="nav-link indent" :class="{ active: activeSection === 'collection' }">
-            Données
-          </a>
-          <a href="#" @click.stop.prevent="selectSection('performance-collection')" class="nav-link indent" :class="{ active: activeSection === 'performance-collection' }">
-            📊 Performance
-          </a>
         </div>
        <!-- <div v-if="activeSection === 'client'" class="nav-section-items">
           <div class="nav-section">
@@ -151,7 +142,7 @@
          
         </div>
 
-        <div class="nav-section-header" @click.stop="toggleManagement" :class="{ active: activeSection === 'management' || activeSection === 'performance-management' }">
+        <div class="nav-section-header" @click.stop="toggleManagement" :class="{ active: activeSection === 'management' || activeSection === 'performance-management' || activeSection === 'environments' }">
           <span class="nav-title">
             <span class="nav-icon">⚙️</span>
             <span class="nav-label">Gestion</span>
@@ -161,6 +152,9 @@
         <div v-if="managementExpanded" class="nav-section-items">
           <a href="#" @click.stop.prevent="selectSection('management')" class="nav-link indent" :class="{ active: activeSection === 'management' }">
             Données
+          </a>
+          <a href="#" @click.stop.prevent="selectSection('environments')" class="nav-link indent" :class="{ active: activeSection === 'environments' }">
+            Environnements
           </a>
          
         </div>
@@ -194,7 +188,6 @@ export default {
   data() {
     return {
       clientExpanded: true,
-      collectionExpanded: false,
       creditExpanded: false,
       zoneExpanded: true,
       objectivesExpanded: false,
@@ -210,18 +203,15 @@ export default {
     activeSection(newVal) {
       if (newVal === 'client' || newVal === 'performance-client') {
         this.clientExpanded = true;
-        this.collectionExpanded = false;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
       } else if (newVal === 'collection' || newVal === 'performance-collection') {
-        this.collectionExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
       } else if (newVal === 'production' || newVal === 'renouvellement' || newVal === 'restructuration' || newVal === 'commission-credit' || newVal === 'recouvrement' || newVal === 'performance-credit') {
         this.creditExpanded = true;
         this.clientExpanded = false;
-        this.collectionExpanded = false;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
       } else if (newVal === 'objectives' || newVal === 'performance-objectives') {
@@ -261,7 +251,7 @@ export default {
         this.performanceExpanded = false;
         this.prepaidCardsExpanded = false;
         this.managementExpanded = false;
-      } else if (newVal === 'management' || newVal === 'performance-management') {
+      } else if (newVal === 'management' || newVal === 'performance-management' || newVal === 'environments') {
         this.managementExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;
@@ -274,18 +264,15 @@ export default {
     // Initialiser l'état selon la section active
     if (this.activeSection === 'client' || this.activeSection === 'performance-client') {
       this.clientExpanded = true;
-      this.collectionExpanded = false;
       this.objectivesExpanded = false;
       this.managementExpanded = false;
     } else if (this.activeSection === 'collection' || this.activeSection === 'performance-collection') {
-      this.collectionExpanded = true;
       this.clientExpanded = false;
       this.objectivesExpanded = false;
       this.managementExpanded = false;
     } else if (this.activeSection === 'production' || this.activeSection === 'renouvellement' || this.activeSection === 'restructuration' || this.activeSection === 'commission-credit' || this.activeSection === 'recouvrement' || this.activeSection === 'performance-credit') {
       this.creditExpanded = true;
       this.clientExpanded = false;
-      this.collectionExpanded = false;
       this.objectivesExpanded = false;
       this.managementExpanded = false;
     } else if (this.activeSection === 'objectives' || this.activeSection === 'performance-objectives') {
@@ -325,7 +312,7 @@ export default {
       this.performanceExpanded = false;
       this.prepaidCardsExpanded = false;
       this.managementExpanded = false;
-    } else if (this.activeSection === 'management' || this.activeSection === 'performance-management') {
+    } else if (this.activeSection === 'management' || this.activeSection === 'performance-management' || this.activeSection === 'environments') {
       this.clientExpanded = false;
       this.objectivesExpanded = false;
       this.performanceExpanded = false;
@@ -341,9 +328,6 @@ export default {
   methods: {
     toggleClient() {
       this.clientExpanded = !this.clientExpanded;
-    },
-    toggleCollection() {
-      this.collectionExpanded = !this.collectionExpanded;
     },
     toggleCredit() {
       this.creditExpanded = !this.creditExpanded;
@@ -373,18 +357,15 @@ export default {
       // Gérer l'expansion des sections selon la section sélectionnée
       if (section === 'client' || section === 'performance-client') {
         this.clientExpanded = true;
-        this.collectionExpanded = false;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
       } else if (section === 'collection' || section === 'performance-collection') {
-        this.collectionExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
       } else if (section === 'production' || section === 'renouvellement' || section === 'restructuration' || section === 'commission-credit' || section === 'recouvrement' || section === 'performance-credit') {
         this.creditExpanded = true;
         this.clientExpanded = false;
-        this.collectionExpanded = false;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
       } else if (section === 'objectives' || section === 'performance-objectives') {
@@ -424,7 +405,7 @@ export default {
         this.performanceExpanded = false;
         this.prepaidCardsExpanded = false;
         this.managementExpanded = false;
-      } else if (section === 'management' || section === 'performance-management') {
+      } else if (section === 'management' || section === 'performance-management' || section === 'environments') {
         this.managementExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;

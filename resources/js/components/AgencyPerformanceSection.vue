@@ -15,8 +15,68 @@
     </div>
 
     <div class="performance-container">
-      <!-- Section NOMBRE -->
-      <div class="performance-category" data-category="nombre">
+      <!-- Section AGENCE (uniquement pour collection) -->
+      <div v-if="dataType === 'collection'" class="performance-category" data-category="agence">
+        <div class="category-label">
+          <span class="label-text">AGENCE</span>
+        </div>
+        <div class="top-flop-container">
+          <!-- Top 5 Agence -->
+          <div class="agency-list top-list">
+            <div class="list-header top-header">
+              <div class="header-content">
+                <span class="thumbs-icon">👍</span>
+                <span class="list-title">Top 5 Agence</span>
+              </div>
+              <div class="header-decoration"></div>
+            </div>
+            <ol class="agency-items">
+              <li 
+                v-for="(agency, index) in top5Agence" 
+                :key="index" 
+                class="agency-item"
+                :style="{ animationDelay: `${index * 0.1}s` }"
+              >
+                <span class="agency-number-badge">{{ index + 1 }}</span>
+                <span class="agency-name">{{ agency }}</span>
+                <span class="rank-indicator top-indicator">▲</span>
+              </li>
+              <li v-if="top5Agence.length === 0" class="agency-item no-data">
+                <span class="agency-name">Aucune donnée disponible</span>
+              </li>
+            </ol>
+          </div>
+
+          <!-- Flop 5 Agence -->
+          <div class="agency-list flop-list">
+            <div class="list-header flop-header">
+              <div class="header-content">
+                <span class="thumbs-icon">👎</span>
+                <span class="list-title">Flop 5 Agence</span>
+              </div>
+              <div class="header-decoration"></div>
+            </div>
+            <ol class="agency-items">
+              <li 
+                v-for="(agency, index) in flop5Agence" 
+                :key="index" 
+                class="agency-item"
+                :style="{ animationDelay: `${index * 0.1}s` }"
+              >
+                <span class="agency-number-badge">{{ index + 1 }}</span>
+                <span class="agency-name">{{ agency }}</span>
+                <span class="rank-indicator flop-indicator">▼</span>
+              </li>
+              <li v-if="flop5Agence.length === 0" class="agency-item no-data">
+                <span class="agency-name">Aucune donnée disponible</span>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section NOMBRE (pour les autres types de données) -->
+      <div v-else class="performance-category" data-category="nombre">
         <div class="category-label">
           <span class="label-text">NOMBRE</span>
         </div>
@@ -80,8 +140,68 @@
         <div class="separator-glow"></div>
       </div>
 
-      <!-- Section VOLUME -->
-      <div class="performance-category" data-category="volume">
+      <!-- Section CAF (uniquement pour collection) -->
+      <div v-if="dataType === 'collection'" class="performance-category" data-category="caf">
+        <div class="category-label">
+          <span class="label-text">CAF</span>
+        </div>
+        <div class="top-flop-container">
+          <!-- Top 5 CAF -->
+          <div class="agency-list top-list">
+            <div class="list-header top-header">
+              <div class="header-content">
+                <span class="thumbs-icon">👍</span>
+                <span class="list-title">Top 5 CAF</span>
+              </div>
+              <div class="header-decoration"></div>
+            </div>
+            <ol class="agency-items">
+              <li 
+                v-for="(caf, index) in top5CAF" 
+                :key="index" 
+                class="agency-item"
+                :style="{ animationDelay: `${index * 0.1}s` }"
+              >
+                <span class="agency-number-badge">{{ index + 1 }}</span>
+                <span class="agency-name">{{ caf }}</span>
+                <span class="rank-indicator top-indicator">▲</span>
+              </li>
+              <li v-if="top5CAF.length === 0" class="agency-item no-data">
+                <span class="agency-name">Aucune donnée disponible</span>
+              </li>
+            </ol>
+          </div>
+
+          <!-- Flop 5 CAF -->
+          <div class="agency-list flop-list">
+            <div class="list-header flop-header">
+              <div class="header-content">
+                <span class="thumbs-icon">👎</span>
+                <span class="list-title">Flop 5 CAF</span>
+              </div>
+              <div class="header-decoration"></div>
+            </div>
+            <ol class="agency-items">
+              <li 
+                v-for="(caf, index) in flop5CAF" 
+                :key="index" 
+                class="agency-item"
+                :style="{ animationDelay: `${index * 0.1}s` }"
+              >
+                <span class="agency-number-badge">{{ index + 1 }}</span>
+                <span class="agency-name">{{ caf }}</span>
+                <span class="rank-indicator flop-indicator">▼</span>
+              </li>
+              <li v-if="flop5CAF.length === 0" class="agency-item no-data">
+                <span class="agency-name">Aucune donnée disponible</span>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section VOLUME (pour les autres types de données) -->
+      <div v-else class="performance-category" data-category="volume">
         <div class="category-label">
           <span class="label-text">VOLUME</span>
         </div>
@@ -144,6 +264,8 @@
 </template>
 
 <script>
+import { extractAgencies, getPerformanceMetrics } from '../utils/performanceMetrics.js';
+
 export default {
   name: 'AgencyPerformanceSection',
   props: {
@@ -153,6 +275,25 @@ export default {
       validator: (value) => {
         return ['default', 'client', 'collection', 'credit', 'prepaid-cards', 'money-transfers', 'eps', 'divers'].includes(value);
       }
+    },
+    tableData: {
+      type: Object,
+      default: null
+    }
+  },
+  inject: {
+    collectionTab: {
+      from: 'collectionTab',
+      default: () => () => 'collecte'
+    }
+  },
+  computed: {
+    currentCollectionTab() {
+      // Si on est dans le contexte de collection, utiliser l'onglet injecté
+      if (this.dataType === 'collection') {
+        return this.collectionTab();
+      }
+      return 'collecte';
     }
   },
   data() {
@@ -160,72 +301,205 @@ export default {
       loading: false,
       errorMessage: null,
       allAgencies: [], // Toutes les agences avec leurs données
-      // Données calculées pour la section NOMBRE
+      allCAFs: [], // Tous les CAF avec leurs données agrégées
+      // Données calculées pour la section AGENCE (collection)
+      top5Agence: [],
+      flop5Agence: [],
+      // Données calculées pour la section CAF (collection)
+      top5CAF: [],
+      flop5CAF: [],
+      // Données calculées pour la section NOMBRE (autres types)
       top5Nombre: [],
       flop5Nombre: [],
-      // Données calculées pour la section VOLUME
+      // Données calculées pour la section VOLUME (autres types)
       top5Volume: [],
-      flop5Volume: []
+      flop5Volume: [],
+      // Cache pour éviter de retraiter les mêmes données
+      lastProcessedDataHash: null,
+      processingTimeout: null
     }
   },
   mounted() {
-    // Charger les données depuis l'API si nécessaire
-    this.fetchPerformanceData();
+    // Traiter les données (depuis props ou API)
+    this.processPerformanceData();
   },
   watch: {
     dataType() {
       // Recharger les données quand le type change
-      this.fetchPerformanceData();
+      this.lastProcessedDataHash = null; // Réinitialiser le cache
+      this.processPerformanceData();
+    },
+    currentCollectionTab() {
+      // Recharger les données quand l'onglet collection change
+      if (this.dataType === 'collection') {
+        this.lastProcessedDataHash = null; // Réinitialiser le cache
+        this.processPerformanceData();
+      }
+    },
+    tableData: {
+      handler(newVal) {
+        // Vérifier si les données ont vraiment changé
+        if (!newVal || !newVal.hierarchicalData) {
+          return;
+        }
+        
+        // Créer un hash simple pour éviter de retraiter les mêmes données
+        const dataHash = this.getDataHash(newVal);
+        if (dataHash === this.lastProcessedDataHash) {
+          return; // Les données n'ont pas changé, ne pas retraiter
+        }
+        
+        // Débouncer le traitement pour éviter les appels multiples
+        if (this.processingTimeout) {
+          clearTimeout(this.processingTimeout);
+        }
+        
+        this.processingTimeout = setTimeout(() => {
+          this.processPerformanceData();
+        }, 100);
+      },
+      immediate: true
     }
   },
   methods: {
+    getDataHash(data) {
+      // Créer un hash simple basé sur la structure des données
+      if (!data || !data.hierarchicalData) {
+        return null;
+      }
+      
+      // Utiliser le nombre d'agences et de CAF comme hash simple
+      let agencyCount = 0;
+      let cafCount = 0;
+      
+      if (data.hierarchicalData.TERRITOIRE) {
+        Object.values(data.hierarchicalData.TERRITOIRE).forEach(territory => {
+          if (territory.agencies) {
+            agencyCount += territory.agencies.length;
+          }
+        });
+      }
+      
+      if (data.chargeAffaireDetails) {
+        cafCount = Object.keys(data.chargeAffaireDetails).length;
+      }
+      
+      return `${this.dataType}-${this.currentCollectionTab}-${agencyCount}-${cafCount}`;
+    },
+    
+    processPerformanceData() {
+      // Utiliser les données des tableaux si disponibles, sinon faire un appel API
+      if (this.tableData && this.tableData.hierarchicalData) {
+        // Vérifier le hash pour éviter de retraiter
+        const dataHash = this.getDataHash(this.tableData);
+        if (dataHash === this.lastProcessedDataHash) {
+          return; // Déjà traité
+        }
+        
+        this.lastProcessedDataHash = dataHash;
+        this.loading = false;
+        this.errorMessage = null;
+        
+        // Utiliser nextTick pour différer le traitement lourd
+        this.$nextTick(() => {
+          try {
+            // Préparer les données au format attendu
+            const data = {
+              data: {
+                hierarchicalData: this.tableData.hierarchicalData,
+                chargeAffaireDetails: this.tableData.chargeAffaireDetails || {}
+              }
+            };
+            
+            // Extraire les agences depuis les données
+            const agencies = extractAgencies(data, this.dataType, this.currentCollectionTab, (agency) => this.getAgencyName(agency));
+            
+            // Extraire et agréger les CAF si c'est pour la collection
+            if (this.dataType === 'collection') {
+              const cafs = this.extractCAFs(data);
+              this.classifyCAFs(cafs);
+            } else {
+              this.top5CAF = [];
+              this.flop5CAF = [];
+            }
+            
+            // Classer les agences
+            this.classifyAgencies(agencies);
+          } catch (error) {
+            console.error('Erreur lors du traitement des données de performance:', error);
+            this.errorMessage = 'Erreur lors du traitement des données.';
+            this.setDefaultData();
+          }
+        });
+      } else {
+        // Si pas de données en props, faire un appel API (fallback)
+        this.fetchPerformanceData();
+      }
+    },
+    
     async fetchPerformanceData() {
       this.loading = true;
       this.errorMessage = null;
       
       try {
-        // Déterminer l'endpoint selon le type de données
-        let endpoint = '/api/oracle/data/clients';
-        
-        // Mapper les types de données vers les endpoints appropriés
-        const endpointMap = {
-          'client': '/api/oracle/data/clients',
-          'collection': '/api/oracle/data/collection',
-          'credit': '/api/oracle/data/production',
-          'prepaid-cards': '/api/oracle/data/prepaid-cards',
-          'money-transfers': '/api/oracle/data/money-transfers',
-          'eps': '/api/oracle/data/eps',
-          'divers': '/api/oracle/data/divers',
-          'default': '/api/oracle/data/clients'
-        };
-        
-        endpoint = endpointMap[this.dataType] || endpointMap['default'];
-        
-        // Paramètres pour la requête (utiliser les valeurs par défaut pour le mois en cours)
         const now = new Date();
-        const params = {
-          period: 'month',
-          month: now.getMonth() + 1,
-          year: now.getFullYear(),
-          _t: Date.now()
-        };
         
-        console.log('Chargement des données de performance pour:', this.dataType, 'depuis:', endpoint);
-        
-        const response = await window.axios.get(endpoint, { 
-          params,
-          timeout: 120000,
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        });
-        
-        // Extraire toutes les agences depuis la réponse
-        const agencies = this.extractAgenciesFromResponse(response.data);
-        
-        // Classer les agences
-        this.classifyAgencies(agencies);
+        // Pour la collection, utiliser l'endpoint de collection pour obtenir les détails CAF
+        if (this.dataType === 'collection') {
+          const collectionEndpoint = '/api/oracle/data/collection';
+          const collectionParams = {
+            period: 'month',
+            month: now.getMonth() + 1,
+            year: now.getFullYear()
+          };
+          
+          const collectionResponse = await window.axios.get(collectionEndpoint, {
+            params: collectionParams,
+            timeout: 120000,
+            headers: {
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
+            }
+          });
+          
+          // Extraire les agences depuis la réponse
+          const agencies = extractAgencies(collectionResponse.data, this.dataType, this.currentCollectionTab, (agency) => this.getAgencyName(agency));
+          
+          // Extraire et agréger les CAF
+          const cafs = this.extractCAFs(collectionResponse.data);
+          this.classifyCAFs(cafs);
+          
+          // Classer les agences
+          this.classifyAgencies(agencies);
+        } else {
+          // Pour les autres types, utiliser l'endpoint de performance
+          const endpoint = '/api/oracle/data/agency-performance';
+          const params = {
+            data_type: this.dataType,
+            period: 'month',
+            month: now.getMonth() + 1,
+            year: now.getFullYear()
+          };
+          
+          const response = await window.axios.get(endpoint, { 
+            params,
+            timeout: 120000,
+            headers: {
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
+            }
+          });
+          
+          // Extraire les agences depuis la réponse
+          const agencies = extractAgencies(response.data, this.dataType, this.currentCollectionTab, (agency) => this.getAgencyName(agency));
+          
+          // Pas de CAF pour les autres types
+          this.top5CAF = [];
+          this.flop5CAF = [];
+          
+          // Classer les agences
+          this.classifyAgencies(agencies);
+        }
         
       } catch (error) {
         console.error('Erreur lors du chargement des données de performance:', error);
@@ -237,10 +511,45 @@ export default {
       }
     },
     
-    extractAgenciesFromResponse(data) {
-      const agencies = [];
+    classifyAgencies(agencies) {
+      if (!agencies || agencies.length === 0) {
+        this.setDefaultData();
+        return;
+      }
+
+      if (this.dataType === 'collection') {
+        // Pour la collection : trier par collecteM
+        const sortedByCollecteM = [...agencies].sort((a, b) => {
+          const aValue = a.collecteM || a.COLLECTE_M || 0;
+          const bValue = b.collecteM || b.COLLECTE_M || 0;
+          return bValue - aValue;
+        });
+        this.top5Agence = sortedByCollecteM.slice(0, 5).map(a => a.name);
+        this.flop5Agence = sortedByCollecteM.slice(-5).reverse().map(a => a.name);
+      } else {
+        // Pour les autres types : trier par nombre et volume
+        const sortedByNombre = [...agencies].sort((a, b) => b.nombre - a.nombre);
+        this.top5Nombre = sortedByNombre.slice(0, 5).map(a => a.name);
+        this.flop5Nombre = sortedByNombre.slice(-5).reverse().map(a => a.name);
+
+        const sortedByVolume = [...agencies].sort((a, b) => b.volume - a.volume);
+        this.top5Volume = sortedByVolume.slice(0, 5).map(a => a.name);
+        this.flop5Volume = sortedByVolume.slice(-5).reverse().map(a => a.name);
+      }
+    },
+    
+    extractCAFs(data) {
+      const cafMap = new Map();
       
-      // Extraire les données selon le format de réponse
+      // Accéder aux chargeAffaireDetails depuis la réponse
+      let chargeAffaireDetails = null;
+      if (data && data.data && data.data.chargeAffaireDetails) {
+        chargeAffaireDetails = data.data.chargeAffaireDetails;
+      } else if (data && data.chargeAffaireDetails) {
+        chargeAffaireDetails = data.chargeAffaireDetails;
+      }
+      
+      // Extraire les données hiérarchiques pour obtenir les branch codes
       let hierarchicalData = null;
       if (data && data.data && data.data.hierarchicalData) {
         hierarchicalData = data.data.hierarchicalData;
@@ -250,182 +559,108 @@ export default {
         hierarchicalData = data.data;
       }
       
-      if (!hierarchicalData) {
-        return agencies;
+      if (!chargeAffaireDetails || !hierarchicalData) {
+        return [];
       }
       
-      // Extraire les agences des territoires
-      if (hierarchicalData.TERRITOIRE) {
-        Object.values(hierarchicalData.TERRITOIRE).forEach(territory => {
-          if (territory.agencies && Array.isArray(territory.agencies)) {
-            territory.agencies.forEach(agency => {
-              const agencyName = this.getAgencyName(agency);
-              if (agencyName && agencyName.toUpperCase() !== 'INCONNU' && agencyName.toUpperCase() !== 'UNKNOWN') {
-                agencies.push({
-                  name: agencyName,
-                  nouveauxClientsM: agency.nouveauxClientsM || 0,
-                  nouveauxClientsM1: agency.nouveauxClientsM1 || 0,
-                  fraisM: agency.fraisM || 0,
-                  fraisM1: agency.fraisM1 || 0,
-                  volume: agency.fraisM || 0, // Volume = frais pour l'instant
-                  nombre: agency.nouveauxClientsM || 0 // Nombre = nouveaux clients
-                });
+      // Parcourir tous les détails de chargé d'affaire
+      Object.keys(chargeAffaireDetails).forEach(branchCode => {
+        const chargeDetails = chargeAffaireDetails[branchCode];
+        if (chargeDetails && Array.isArray(chargeDetails)) {
+          chargeDetails.forEach(charge => {
+            const cafName = charge.chargeAffaire || charge.CHARGE_AFFAIRE || '-';
+            if (cafName && cafName !== '-') {
+              const collecteM = parseFloat(charge.collecteM || charge.COLLECTE_M || 0);
+              
+              if (cafMap.has(cafName)) {
+                cafMap.set(cafName, cafMap.get(cafName) + collecteM);
+              } else {
+                cafMap.set(cafName, collecteM);
               }
-            });
-          }
-        });
-      }
+            }
+          });
+        }
+      });
       
-      // Extraire les agences des points de service
-      if (hierarchicalData['POINT SERVICES']) {
-        Object.values(hierarchicalData['POINT SERVICES']).forEach(servicePoint => {
-          if (servicePoint.agencies && Array.isArray(servicePoint.agencies)) {
-            servicePoint.agencies.forEach(agency => {
-              const agencyName = this.getAgencyName(agency);
-              if (agencyName && agencyName.toUpperCase() !== 'INCONNU' && agencyName.toUpperCase() !== 'UNKNOWN') {
-                agencies.push({
-                  name: agencyName,
-                  nouveauxClientsM: agency.nouveauxClientsM || 0,
-                  nouveauxClientsM1: agency.nouveauxClientsM1 || 0,
-                  fraisM: agency.fraisM || 0,
-                  fraisM1: agency.fraisM1 || 0,
-                  volume: agency.fraisM || 0,
-                  nombre: agency.nouveauxClientsM || 0
-                });
-              }
-            });
-          }
-        });
+      // Convertir la Map en tableau d'objets
+      return Array.from(cafMap.entries()).map(([name, collecteM]) => ({
+        name,
+        collecteM
+      }));
+    },
+    
+    classifyCAFs(cafs) {
+      if (!cafs || cafs.length === 0) {
+        this.top5CAF = [];
+        this.flop5CAF = [];
+        return;
       }
-      
-      // Si pas de données hiérarchiques, essayer d'autres formats
-      if (agencies.length === 0 && data.territories) {
-        Object.values(data.territories).forEach(territory => {
-          if (territory.agencies && Array.isArray(territory.agencies)) {
-            territory.agencies.forEach(agency => {
-              const agencyName = this.getAgencyName(agency);
-              if (agencyName && agencyName.toUpperCase() !== 'INCONNU' && agencyName.toUpperCase() !== 'UNKNOWN') {
-                agencies.push({
-                  name: agencyName,
-                  nouveauxClientsM: agency.nouveauxClientsM || 0,
-                  nouveauxClientsM1: agency.nouveauxClientsM1 || 0,
-                  fraisM: agency.fraisM || 0,
-                  fraisM1: agency.fraisM1 || 0,
-                  volume: agency.fraisM || 0,
-                  nombre: agency.nouveauxClientsM || 0
-                });
-              }
-            });
-          }
-        });
-      }
-      
-      return agencies;
+
+      // Trier par collecteM (croissant pour flop, décroissant pour top)
+      const sortedByCollecteM = [...cafs].sort((a, b) => b.collecteM - a.collecteM);
+      this.top5CAF = sortedByCollecteM.slice(0, 5).map(c => c.name);
+      this.flop5CAF = sortedByCollecteM.slice(-5).reverse().map(c => c.name);
     },
     
     getAgencyName(agency) {
-      return agency.name || agency.AGENCE || agency.NOM_AGENCE || agency.agence || '';
-    },
-    
-    classifyAgencies(agencies) {
-      if (!agencies || agencies.length === 0) {
-        console.warn('Aucune agence trouvée, utilisation des données par défaut');
-        this.setDefaultData();
-        return;
-      }
-      
-      // Filtrer les agences avec des données valides
-      const validAgencies = agencies.filter(a => 
-        a.name && 
-        a.name.trim() !== '' && 
-        (a.nombre > 0 || a.volume > 0)
-      );
-      
-      if (validAgencies.length === 0) {
-        console.warn('Aucune agence avec des données valides, utilisation des données par défaut');
-        this.setDefaultData();
-        return;
-      }
-      
-      // Classer par NOMBRE (nouveaux clients) - décroissant
-      const sortedByNombre = [...validAgencies].sort((a, b) => {
-        // Si les valeurs sont égales, trier par nom
-        if (b.nombre === a.nombre) {
-          return a.name.localeCompare(b.name);
-        }
-        return b.nombre - a.nombre;
-      });
-      
-      // Top 5 par nombre (les meilleures)
-      this.top5Nombre = sortedByNombre.slice(0, Math.min(5, sortedByNombre.length)).map(a => a.name);
-      
-      // Flop 5 par nombre (les moins performantes) - prendre les 5 dernières
-      const flopByNombre = sortedByNombre.filter(a => a.nombre > 0); // Exclure les agences à 0
-      if (flopByNombre.length > 0) {
-        this.flop5Nombre = flopByNombre.slice(-Math.min(5, flopByNombre.length)).reverse().map(a => a.name);
-      } else {
-        this.flop5Nombre = [];
-      }
-      
-      // Classer par VOLUME (frais ou autre métrique) - décroissant
-      const sortedByVolume = [...validAgencies].sort((a, b) => {
-        // Si les valeurs sont égales, trier par nom
-        if (b.volume === a.volume) {
-          return a.name.localeCompare(b.name);
-        }
-        return b.volume - a.volume;
-      });
-      
-      // Top 5 par volume (les meilleures)
-      this.top5Volume = sortedByVolume.slice(0, Math.min(5, sortedByVolume.length)).map(a => a.name);
-      
-      // Flop 5 par volume (les moins performantes) - prendre les 5 dernières
-      const flopByVolume = sortedByVolume.filter(a => a.volume > 0); // Exclure les agences à 0
-      if (flopByVolume.length > 0) {
-        this.flop5Volume = flopByVolume.slice(-Math.min(5, flopByVolume.length)).reverse().map(a => a.name);
-      } else {
-        this.flop5Volume = [];
-      }
-      
-      console.log('Agences classées:', {
-        total: validAgencies.length,
-        top5Nombre: this.top5Nombre,
-        flop5Nombre: this.flop5Nombre,
-        top5Volume: this.top5Volume,
-        flop5Volume: this.flop5Volume
-      });
+      // Essayer différents champs pour obtenir le nom de l'agence
+      return agency.name || 
+             agency.AGENCE || 
+             agency.agency || 
+             agency.agencyName ||
+             (agency.BRANCH_CODE ? `Agence ${agency.BRANCH_CODE}` : null) ||
+             'Agence inconnue';
     },
     
     setDefaultData() {
       // Données par défaut si aucune donnée n'est disponible
-      this.top5Nombre = [
-        'SAINT-LOUIS',
-        'LOUGA',
-        'DIOURBEL',
-        'LINGUERE LA',
-        'RUFISQUE'
-      ];
-      this.flop5Nombre = [
-        'GRAND COMPTE',
-        'OUROSSOGUI',
-        'THIES',
-        'SCAT URBAM',
-        'CASTOR'
-      ];
-      this.top5Volume = [
-        'LOUGA',
-        'POINT E',
-        'NIARRY TALLY',
-        'RUFISQUE',
-        'CASTOR'
-      ];
-      this.flop5Volume = [
-        'GRAND COMPTE',
-        'THIES',
-        'KAOLACK',
-        'LAMINE GUEYE',
-        'MBOUR'
-      ];
+      if (this.dataType === 'collection') {
+        this.top5Agence = [
+          'SAINT-LOUIS',
+          'LOUGA',
+          'DIOURBEL',
+          'LINGUERE LA',
+          'RUFISQUE'
+        ];
+        this.flop5Agence = [
+          'GRAND COMPTE',
+          'OUROSSOGUI',
+          'THIES',
+          'SCAT URBAM',
+          'CASTOR'
+        ];
+        this.top5CAF = [];
+        this.flop5CAF = [];
+      } else {
+        this.top5Nombre = [
+          'SAINT-LOUIS',
+          'LOUGA',
+          'DIOURBEL',
+          'LINGUERE LA',
+          'RUFISQUE'
+        ];
+        this.flop5Nombre = [
+          'GRAND COMPTE',
+          'OUROSSOGUI',
+          'THIES',
+          'SCAT URBAM',
+          'CASTOR'
+        ];
+        this.top5Volume = [
+          'LOUGA',
+          'POINT E',
+          'NIARRY TALLY',
+          'RUFISQUE',
+          'CASTOR'
+        ];
+        this.flop5Volume = [
+          'GRAND COMPTE',
+          'THIES',
+          'KAOLACK',
+          'LAMINE GUEYE',
+          'MBOUR'
+        ];
+      }
     }
   }
 }
@@ -435,70 +670,12 @@ export default {
 .agency-performance-section {
   width: 100%;
   padding: 50px;
-  background: 
-    radial-gradient(ellipse at top left, rgba(220, 38, 38, 0.15) 0%, transparent 50%),
-    radial-gradient(ellipse at bottom right, rgba(16, 185, 129, 0.15) 0%, transparent 50%),
-    linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 25%, #2a2a2a 50%, #1f1f1f 75%, #0f0f0f 100%);
+  background: transparent;
   min-height: calc(100vh - 100px);
   position: relative;
   overflow: hidden;
 }
 
-.agency-performance-section::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: 
-    radial-gradient(circle at 20% 30%, rgba(220, 38, 38, 0.2) 0%, transparent 40%),
-    radial-gradient(circle at 80% 70%, rgba(16, 185, 129, 0.2) 0%, transparent 40%),
-    radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
-  pointer-events: none;
-  z-index: 0;
-  animation: backgroundPulse 8s ease-in-out infinite;
-}
-
-.agency-performance-section::after {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: 
-    repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(255, 255, 255, 0.03) 2px,
-      rgba(255, 255, 255, 0.03) 4px
-    );
-  pointer-events: none;
-  z-index: 0;
-  animation: gridMove 20s linear infinite;
-}
-
-@keyframes backgroundPulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.1);
-  }
-}
-
-@keyframes gridMove {
-  0% {
-    transform: translate(0, 0);
-  }
-  100% {
-    transform: translate(50px, 50px);
-  }
-}
 
 .section-header {
   display: flex;
@@ -512,50 +689,20 @@ export default {
 .section-title {
   font-size: 42px;
   font-weight: 800;
-  color: white;
+  color: #333;
   margin: 0;
   display: flex;
   align-items: center;
   gap: 20px;
-  text-shadow: 
-    0 0 20px rgba(255, 255, 255, 0.3),
-    0 4px 15px rgba(0, 0, 0, 0.5);
   letter-spacing: 1px;
   position: relative;
 }
 
 .title-text {
-  background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 30%, #ffffff 60%, #e8e8e8 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  background-size: 200% 200%;
-  animation: gradientShift 3s ease infinite;
+  color: #333;
   position: relative;
 }
 
-.title-text::after {
-  content: 'Performance des Agences';
-  position: absolute;
-  top: 0;
-  left: 0;
-  background: linear-gradient(135deg, rgba(220, 38, 38, 0.3) 0%, rgba(16, 185, 129, 0.3) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  z-index: -1;
-  filter: blur(10px);
-  opacity: 0.7;
-}
-
-@keyframes gradientShift {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
 
 .chart-icon {
   font-size: 48px;
@@ -619,58 +766,26 @@ export default {
   text-orientation: mixed;
   font-size: 28px;
   font-weight: 900;
-  color: white;
+  color: #333;
   padding: 25px 15px;
   min-width: 100px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: 
-    linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.15) 100%),
-    linear-gradient(90deg, rgba(220, 38, 38, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
+  background: transparent;
   border-radius: 20px;
   letter-spacing: 6px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.3),
-    inset 0 0 20px rgba(255, 255, 255, 0.1),
-    0 0 30px rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px) saturate(180%);
+  border: 2px solid #ddd;
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   position: relative;
   overflow: hidden;
 }
 
-.category-label::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-  animation: shine 3s infinite;
-}
-
-@keyframes shine {
-  0% {
-    transform: translateX(-100%) translateY(-100%) rotate(45deg);
-  }
-  100% {
-    transform: translateX(100%) translateY(100%) rotate(45deg);
-  }
-}
 
 .category-label:hover {
-  background: 
-    linear-gradient(180deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.25) 100%),
-    linear-gradient(90deg, rgba(220, 38, 38, 0.2) 0%, rgba(16, 185, 129, 0.2) 100%);
+  background: transparent;
   transform: scale(1.08) translateX(-5px);
-  box-shadow: 
-    0 12px 40px rgba(0, 0, 0, 0.4),
-    inset 0 0 30px rgba(255, 255, 255, 0.2),
-    0 0 50px rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.4);
+  border-color: #999;
 }
 
 .top-flop-container {
@@ -681,97 +796,38 @@ export default {
 
 .agency-list {
   flex: 1;
-  background: 
-    linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 250, 250, 0.95) 100%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, transparent 100%);
+  background: transparent;
   border-radius: 24px;
   padding: 30px;
-  box-shadow: 
-    0 20px 60px rgba(0, 0, 0, 0.2),
-    0 0 0 1px rgba(255, 255, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  box-shadow: none;
   min-height: 260px;
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   position: relative;
   overflow: hidden;
-  backdrop-filter: blur(10px);
+  border: 2px solid #ddd;
 }
 
-.agency-list::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 5px;
-  background: linear-gradient(90deg, 
-    transparent 0%, 
-    currentColor 20%, 
-    currentColor 80%, 
-    transparent 100%);
-  opacity: 0.6;
-  box-shadow: 0 0 20px currentColor;
-}
-
-.top-list::before {
-  color: #10B981;
-  background: linear-gradient(90deg, 
-    transparent 0%, 
-    #10B981 20%, 
-    #34D399 50%,
-    #10B981 80%, 
-    transparent 100%);
-}
-
-.flop-list::before {
-  color: #DC2626;
-  background: linear-gradient(90deg, 
-    transparent 0%, 
-    #DC2626 20%, 
-    #F87171 50%,
-    #DC2626 80%, 
-    transparent 100%);
-}
-
-.agency-list::after {
-  content: '';
-  position: absolute;
-  top: -50%;
-  right: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
-  opacity: 0;
-  transition: opacity 0.4s ease;
-}
 
 .agency-list:hover {
   transform: translateY(-8px) scale(1.02);
-  box-shadow: 
-    0 30px 80px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(255, 255, 255, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8),
-    0 0 40px rgba(0, 0, 0, 0.1);
 }
 
-.agency-list:hover::after {
-  opacity: 1;
+.top-list {
+  border-color: #10B981;
 }
 
 .top-list:hover {
-  box-shadow: 
-    0 30px 80px rgba(16, 185, 129, 0.2),
-    0 0 0 1px rgba(16, 185, 129, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8),
-    0 0 40px rgba(16, 185, 129, 0.15);
+  border-color: #059669;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.flop-list {
+  border-color: #DC2626;
 }
 
 .flop-list:hover {
-  box-shadow: 
-    0 30px 80px rgba(220, 38, 38, 0.2),
-    0 0 0 1px rgba(220, 38, 38, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8),
-    0 0 40px rgba(220, 38, 38, 0.15);
+  border-color: #B91C1C;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
 }
 
 .list-header {
@@ -799,16 +855,16 @@ export default {
 .header-decoration {
   height: 3px;
   border-radius: 2px;
-  background: linear-gradient(90deg, transparent, currentColor, transparent);
+  background: transparent;
   opacity: 0.6;
 }
 
 .top-header .header-decoration {
-  background: linear-gradient(90deg, transparent, #10B981, transparent);
+  background: #10B981;
 }
 
 .flop-header .header-decoration {
-  background: linear-gradient(90deg, transparent, #DC2626, transparent);
+  background: #DC2626;
 }
 
 .thumbs-icon {
@@ -871,9 +927,7 @@ export default {
   padding: 18px 16px;
   margin-bottom: 10px;
   border-radius: 14px;
-  background: 
-    linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.02) 50%, transparent 100%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, transparent 100%);
+  background: transparent;
   border-left: 4px solid transparent;
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   animation: slideIn 0.6s ease-out backwards;
@@ -893,39 +947,10 @@ export default {
   }
 }
 
-.agency-item::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 0;
-  transition: width 0.3s ease;
-  z-index: 0;
-}
-
-.top-list .agency-item::before {
-  background: linear-gradient(90deg, rgba(16, 185, 129, 0.1), transparent);
-}
-
-.flop-list .agency-item::before {
-  background: linear-gradient(90deg, rgba(220, 38, 38, 0.1), transparent);
-}
-
 .agency-item:hover {
   transform: translateX(8px) scale(1.02);
-  background: 
-    linear-gradient(90deg, rgba(0, 0, 0, 0.06) 0%, rgba(0, 0, 0, 0.03) 50%, transparent 100%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.3) 100%);
-  box-shadow: 
-    0 4px 15px rgba(0, 0, 0, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  background: transparent;
   border-left-width: 5px;
-}
-
-.agency-item:hover::before {
-  width: 100%;
-  opacity: 0.8;
 }
 
 .top-list .agency-item:hover {
@@ -979,23 +1004,13 @@ export default {
 }
 
 .top-list .agency-number-badge {
-  background: linear-gradient(135deg, #10B981 0%, #059669 50%, #047857 100%);
+  background: #10B981;
   color: white;
-  box-shadow: 
-    0 4px 12px rgba(16, 185, 129, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
-    0 0 15px rgba(16, 185, 129, 0.3);
 }
 
 .flop-list .agency-number-badge {
-  background: linear-gradient(135deg, #DC2626 0%, #B91C1C 50%, #991B1B 100%);
+  background: #DC2626;
   color: white;
-  box-shadow: 
-    0 4px 12px rgba(220, 38, 38, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
-    0 0 15px rgba(220, 38, 38, 0.3);
 }
 
 .agency-item:hover .agency-number-badge {
@@ -1072,35 +1087,15 @@ export default {
 .separator-line {
   width: 100%;
   height: 6px;
-  background: linear-gradient(90deg, 
-    transparent 0%, 
-    rgba(220, 38, 38, 0.3) 10%,
-    #DC2626 30%,
-    #EF4444 50%,
-    #DC2626 70%,
-    rgba(220, 38, 38, 0.3) 90%,
-    transparent 100%);
+  background: #DC2626;
   margin: 50px 0;
   border-radius: 3px;
   position: relative;
   overflow: hidden;
-  box-shadow: 
-    0 0 20px rgba(220, 38, 38, 0.5),
-    inset 0 0 10px rgba(220, 38, 38, 0.3);
 }
 
 .separator-glow {
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, 
-    transparent 0%, 
-    rgba(255, 255, 255, 0.8) 50%, 
-    transparent 100%);
-  animation: shimmer 2s infinite;
-  box-shadow: 0 0 30px rgba(255, 255, 255, 0.8);
+  display: none;
 }
 
 @keyframes shimmer {
