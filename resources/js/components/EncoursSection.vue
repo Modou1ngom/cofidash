@@ -82,7 +82,7 @@ export default {
   },
   data() {
     return {
-      activeTab: 'compte-courant'
+      activeTab: 'epargne-pep-simple'
     }
   },
   computed: {

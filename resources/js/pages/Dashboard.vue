@@ -75,7 +75,7 @@
           <p>Section Domiciliation de flux en cours de développement</p>
         </div>
         <VolumeDatSection v-if="activeSection === 'encours-dat'" />
-        <DashboardEpargneSection v-if="activeSection === 'encours-epargne'" />
+        <EncoursSection v-if="activeSection === 'encours-epargne'" :selectedZoneProp="selectedZone" />
         <DepotGarantieSection v-if="activeSection === 'depot-garantie'" />
         
         <AddObjectiveSection v-if="activeSection === 'objectives' && activeSubSection === 'add'" />
@@ -119,7 +119,7 @@ import MoneyTransferSection from '../components/MoneyTransferSection.vue';
 import EnvironmentsSection from '../components/EnvironmentsSection.vue';
 import DepotGarantieSection from '../components/DepotGarantieSection.vue';
 import VolumeDatSection from '../components/VolumeDatSection.vue';
-import DashboardEpargneSection from '../components/DashboardEpargneSection.vue';
+import EncoursSection from '../components/EncoursSection.vue';
 import { ProfileManager } from '../utils/profiles.js';
 
 export default {
@@ -142,7 +142,7 @@ export default {
     EnvironmentsSection,
     DepotGarantieSection,
     VolumeDatSection,
-    DashboardEpargneSection
+    EncoursSection
   },
   data() {
     return {
