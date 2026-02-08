@@ -113,15 +113,15 @@
             📊 Performance
           </a>
         </div>
-        <div class="nav-section-header" @click.stop="toggleEps" :class="{ active: activeSection === 'eps ' || activeSection === 'performance-eps' }">
+        <div class="nav-section-header" @click.stop="toggleEps" :class="{ active: activeSection === 'eps' || activeSection === 'performance-eps' }">
           <span class="nav-title">
             <span class="nav-icon">💵</span>
-            <span class="nav-label">DESC EPS </span>
+            <span class="nav-label">DESC EPS</span>
           </span>
           <span class="toggle-icon">{{ epsExpanded ? '▼' : '▶' }}</span>
         </div>
         <div v-if="epsExpanded" class="nav-section-items">
-          <a href="#" @click.stop.prevent="selectSection('eps ')" class="nav-link indent" :class="{ active: activeSection === 'eps ' }">
+          <a href="#" @click.stop.prevent="selectSection('eps')" class="nav-link indent" :class="{ active: activeSection === 'eps' }">
             Données
           </a>
           <a href="#" @click.stop.prevent="selectSection('performance-eps')" class="nav-link indent" :class="{ active: activeSection === 'performance-eps' }">
@@ -129,29 +129,29 @@
           </a>
         </div>
 
-          <div class="nav-section-header" @click.stop="toggleDivers" :class="{ active: activeSection === 'divers ' || activeSection === 'performance-divers' }">
+          <div class="nav-section-header" @click.stop="toggleDivers" :class="{ active: activeSection === 'divers' || activeSection === 'performance-divers' }">
           <span class="nav-title">
             <span class="nav-icon">💼</span>
-            <span class="nav-label">PRODUITS DIVERS </span>
+            <span class="nav-label">PRODUITS DIVERS</span>
           </span>
           <span class="toggle-icon">{{ diversExpanded ? '▼' : '▶' }}</span>
         </div>
         <div v-if="diversExpanded" class="nav-section-items">
-          <a href="#" @click.stop.prevent="selectSection('divers ')" class="nav-link indent" :class="{ active: activeSection === 'divers ' }">
+          <a href="#" @click.stop.prevent="selectSection('divers')" class="nav-link indent" :class="{ active: activeSection === 'divers' }">
             Données
           </a>
           <a href="#" @click.stop.prevent="selectSection('performance-divers')" class="nav-link indent" :class="{ active: activeSection === 'performance-divers' }">
             📊 Performance
           </a>
         </div>
-        <div class="nav-section-header" @click.stop="selectSection('objectives')" :class="{ active: activeSection === 'objectives' }">
+        <div class="nav-section-header" @click.stop="toggleObjectives" :class="{ active: activeSection === 'objectives' }">
           <span class="nav-title">
             <span class="nav-icon">🎯</span>
             <span class="nav-label">Objectifs</span>
           </span>
           <span class="toggle-icon">{{ objectivesExpanded ? '▼' : '▶' }}</span>
         </div>
-        <div v-if="activeSection === 'objectives'" class="nav-section-items">
+        <div v-if="objectivesExpanded" class="nav-section-items">
           <a v-if="profileCode !== 'MD'" href="#" @click.stop.prevent="selectSubSection('add')" class="nav-link indent" :class="{ active: activeSubSection === 'add' }">➕ Ajouter</a>
           <a href="#" @click.stop.prevent="selectSubSection('validation')" class="nav-link indent" :class="{ active: activeSubSection === 'validation' }">✅ Valider</a>
          
@@ -254,14 +254,16 @@ export default {
         this.objectivesExpanded = false;
         this.performanceExpanded = false;
         this.prepaidCardsExpanded = false;
-      } else if (newVal === 'eps ' || newVal === 'performance-eps') {
+        this.epsExpanded = false;
+        this.diversExpanded = false;
+      } else if (newVal === 'eps' || newVal === 'performance-eps') {
         this.epsExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;
         this.performanceExpanded = false;
         this.prepaidCardsExpanded = false;
         this.managementExpanded = false;
-      } else if (newVal === 'divers ' || newVal === 'performance-divers') {
+      } else if (newVal === 'divers' || newVal === 'performance-divers') {
         this.diversExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;
@@ -274,6 +276,9 @@ export default {
         this.objectivesExpanded = false;
         this.performanceExpanded = false;
         this.prepaidCardsExpanded = false;
+        this.moneyTransfersExpanded = false;
+        this.epsExpanded = false;
+        this.diversExpanded = false;
       }
     }
   },
@@ -316,14 +321,16 @@ export default {
       this.performanceExpanded = false;
       this.prepaidCardsExpanded = false;
       this.managementExpanded = false;
-    } else if (this.activeSection === 'eps ' || this.activeSection === 'performance-eps') {
-      this.epsExpanded = true;
-      this.clientExpanded = false;
-      this.objectivesExpanded = false;
-      this.performanceExpanded = false;
-      this.prepaidCardsExpanded = false;
-      this.managementExpanded = false;
-    } else if (this.activeSection === 'divers ' || this.activeSection === 'performance-divers') {
+      this.epsExpanded = false;
+      this.diversExpanded = false;
+    } else if (this.activeSection === 'eps' || this.activeSection === 'performance-eps') {
+        this.epsExpanded = true;
+        this.clientExpanded = false;
+        this.objectivesExpanded = false;
+        this.performanceExpanded = false;
+        this.prepaidCardsExpanded = false;
+        this.managementExpanded = false;
+      } else if (this.activeSection === 'divers' || this.activeSection === 'performance-divers') {
       this.diversExpanded = true;
       this.clientExpanded = false;
       this.objectivesExpanded = false;
@@ -336,6 +343,9 @@ export default {
       this.performanceExpanded = false;
       this.prepaidCardsExpanded = false;
       this.managementExpanded = true;
+      this.moneyTransfersExpanded = false;
+      this.epsExpanded = false;
+      this.diversExpanded = false;
     }
   },
   computed: {
@@ -364,6 +374,9 @@ export default {
     },
     toggleDivers() {
       this.diversExpanded = !this.diversExpanded;
+    },
+    toggleObjectives() {
+      this.objectivesExpanded = !this.objectivesExpanded;
     },
     toggleManagement() {
       this.managementExpanded = !this.managementExpanded;
@@ -413,14 +426,16 @@ export default {
         this.objectivesExpanded = false;
         this.performanceExpanded = false;
         this.prepaidCardsExpanded = false;
-      } else if (section === 'eps ' || section === 'performance-eps') {
+        this.epsExpanded = false;
+        this.diversExpanded = false;
+      } else if (section === 'eps' || section === 'performance-eps') {
         this.epsExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;
         this.performanceExpanded = false;
         this.prepaidCardsExpanded = false;
         this.managementExpanded = false;
-      } else if (section === 'divers ' || section === 'performance-divers') {
+      } else if (section === 'divers' || section === 'performance-divers') {
         this.diversExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;
@@ -433,6 +448,9 @@ export default {
         this.objectivesExpanded = false;
         this.performanceExpanded = false;
         this.prepaidCardsExpanded = false;
+        this.moneyTransfersExpanded = false;
+        this.epsExpanded = false;
+        this.diversExpanded = false;
       }
       this.$emit('section-selected', section);
     },
