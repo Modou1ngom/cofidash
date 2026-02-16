@@ -34,6 +34,7 @@ Route::prefix('oracle')->group(function () {
     Route::get('/data/collection', [DataController::class, 'getCollectionData']);
     Route::get('/data/volume-dat', [DataController::class, 'getVolumeDatData']);
     Route::get('/data/depot-garantie', [DataController::class, 'getDepotGarantieData']);
+    Route::get('/data/prepaid-card-sales', [DataController::class, 'getPrepaidCardSalesData']);
 });
 
 // Routes pour les objectifs (protégées)

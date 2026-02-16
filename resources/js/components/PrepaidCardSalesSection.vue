@@ -8,8 +8,26 @@
     </div>
 
     <div class="content-container">
+      <!-- Message de chargement en haut -->
+      <div v-if="loading" class="loading-banner">
+        <div class="loading-spinner"></div>
+        <span>Chargement des données en cours... Cette opération peut prendre quelques instants.</span>
+      </div>
+      
+      <!-- Message d'erreur -->
+      <div v-if="error && !loading" class="error-message">
+        <p>{{ error }}</p>
+        <button @click="fetchPrepaidCardSalesData" class="retry-btn">Réessayer</button>
+      </div>
+      
+      <!-- Message si pas de données -->
+      <div v-if="!loading && !error && !hierarchicalData" class="info-message">
+        <p>ℹ️ Aucune donnée disponible.</p>
+        <button @click="fetchPrepaidCardSalesData" class="retry-btn">Charger les données</button>
+      </div>
+      
       <!-- Tableau de données -->
-      <div class="table-container">
+      <div v-if="!loading" class="table-container">
         <table class="sales-table">
           <thead>
             <tr>
@@ -25,309 +43,157 @@
           </thead>
           <tbody>
             <!-- TERRITOIRE -->
-            <tr class="category-row">
+            <tr v-if="territoireTotal" class="category-row">
               <td class="category-cell">
-                <button class="expand-btn">+</button>
+                <button @click="toggleSection('TERRITOIRE')" class="expand-btn">
+                  {{ expandedSections.TERRITOIRE ? '-' : '+' }}
+                </button>
                 <strong>TERRITOIRE</strong>
               </td>
-              <td><strong>729</strong></td>
-              <td><strong>246</strong></td>
-              <td><strong>288</strong></td>
-              <td class="positive"><strong>42</strong></td>
-              <td class="positive"><strong>17%</strong></td>
-              <td class="negative"><strong>40%</strong></td>
-              <td class="contribution"><strong>64%</strong></td>
+              <td><strong>{{ formatNumber(territoireTotal.objectif) }}</strong></td>
+              <td><strong>{{ formatNumber(territoireTotal.m1) }}</strong></td>
+              <td><strong>{{ formatNumber(territoireTotal.m) }}</strong></td>
+              <td :class="getVariationClass(territoireTotal.variation)">
+                <strong>{{ formatNumber(territoireTotal.variation) }}</strong>
+              </td>
+              <td :class="getVariationClass(territoireTotal.variation_pourcent)">
+                <strong>{{ formatPercent(territoireTotal.variation_pourcent) }}</strong>
+              </td>
+              <td :class="getAtteinteClass(territoireTotal.atteinte)">
+                <strong>{{ formatPercent(territoireTotal.atteinte) }}</strong>
+              </td>
+              <td class="contribution">
+                <strong>{{ formatPercent(territoireTotal.contribution) }}</strong>
+              </td>
             </tr>
 
-            <!-- TERRITOIRE DAKAR VILLE -->
-            <tr class="sub-agency level-2-row">
-              <td class="indent-cell level-2">
-                <button class="expand-btn">+</button>
-                TERRITOIRE DAKAR VILLE
-              </td>
-              <td><strong>428</strong></td>
-              <td><strong>109</strong></td>
-              <td><strong>116</strong></td>
-              <td class="positive"><strong>7</strong></td>
-              <td class="positive"><strong>6%</strong></td>
-              <td class="negative"><strong>27%</strong></td>
-              <td class="contribution"><strong>26%</strong></td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-3">POINT E</td>
-              <td>95</td>
-              <td>22</td>
-              <td>32</td>
-              <td class="positive">10</td>
-              <td class="positive">45%</td>
-              <td class="negative">34%</td>
-              <td class="contribution">28%</td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-3">NIARRY TALLY</td>
-              <td>60</td>
-              <td>14</td>
-              <td>20</td>
-              <td class="positive">6</td>
-              <td class="positive">43%</td>
-              <td class="negative">33%</td>
-              <td class="contribution">17%</td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-3">CASTOR</td>
-              <td>55</td>
-              <td>27</td>
-              <td>11</td>
-              <td class="negative">-16</td>
-              <td class="negative">-59%</td>
-              <td class="negative">20%</td>
-              <td class="contribution">9%</td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-3">PARCELLES</td>
-              <td>95</td>
-              <td>13</td>
-              <td>14</td>
-              <td class="positive">1</td>
-              <td class="positive">8%</td>
-              <td class="negative">15%</td>
-              <td class="contribution">12%</td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-3">LAMINE GUEYE</td>
-              <td>60</td>
-              <td>11</td>
-              <td>12</td>
-              <td class="positive">1</td>
-              <td class="positive">9%</td>
-              <td class="negative">20%</td>
-              <td class="contribution">10%</td>
-            </tr>
-
-            <!-- TERRITOIRE DAKAR BANLIEUE -->
-            <tr class="sub-agency level-2-row">
-              <td class="indent-cell level-2">
-                <button class="expand-btn">+</button>
-                TERRITOIRE DAKAR BANLIEUE
-              </td>
-              <td><strong>171</strong></td>
-              <td><strong>113</strong></td>
-              <td>
-                <strong>
-                  <span class="with-indicator">164</span>
-                  <span class="indicator-up">▲</span>
-                </strong>
-              </td>
-              <td class="positive"><strong>51</strong></td>
-              <td class="positive"><strong>45%</strong></td>
-              <td class="negative"><strong>96%</strong></td>
-              <td class="contribution"><strong>36%</strong></td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-3">PIKINE</td>
-              <td>38</td>
-              <td>3</td>
-              <td>7</td>
-              <td class="positive">4</td>
-              <td class="positive">133%</td>
-              <td class="negative">18%</td>
-              <td class="contribution">6%</td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-3">RUFISQUE</td>
-              <td>40</td>
-              <td>34</td>
-              <td>54</td>
-              <td class="positive">20</td>
-              <td class="positive">59%</td>
-              <td class="positive">135%</td>
-              <td class="contribution">33%</td>
-            </tr>
-
-            <!-- TERRITOIRE PROVINCE CENTRE-SUD -->
-            <tr class="sub-agency level-2-row">
-              <td class="indent-cell level-2">
-                <button class="expand-btn">+</button>
-                TERRITOIRE PROVINCE CENTRE-SUD
-              </td>
-              <td><strong>201</strong></td>
-              <td><strong>113</strong></td>
-              <td>
-                <strong>
-                  <span class="with-indicator">100</span>
-                  <span class="indicator-up">▲</span>
-                </strong>
-              </td>
-              <td class="negative"><strong>-13</strong></td>
-              <td class="negative"><strong>-12%</strong></td>
-              <td class="negative"><strong>50%</strong></td>
-              <td class="contribution"><strong>22%</strong></td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-3">MBOUR</td>
-              <td>78</td>
-              <td>83</td>
-              <td>91</td>
-              <td class="positive">8</td>
-              <td class="positive">10%</td>
-              <td class="positive">117%</td>
-              <td class="contribution">53%</td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-3">KAOLACK</td>
-              <td>40</td>
-              <td>9</td>
-              <td>7</td>
-              <td class="negative">-2</td>
-              <td class="negative">-22%</td>
-              <td class="negative">18%</td>
-              <td class="contribution">4%</td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-3">THIES</td>
-              <td>73</td>
-              <td>12</td>
-              <td>1</td>
-              <td class="negative">-11</td>
-              <td class="negative">-92%</td>
-              <td class="negative">1%</td>
-              <td class="contribution">1%</td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-3">TOUBA</td>
-              <td>60</td>
-              <td>9</td>
-              <td>2</td>
-              <td class="negative">-7</td>
-              <td class="negative">-78%</td>
-              <td class="negative">3%</td>
-              <td class="contribution">1%</td>
-            </tr>
-
-            <!-- TERRITOIRE PROVINCE NORD -->
-            <tr class="sub-agency level-2-row">
-              <td class="indent-cell level-2">
-                <button class="expand-btn">+</button>
-                TERRITOIRE PROVINCE NORD
-              </td>
-              <td><strong>100</strong></td>
-              <td><strong>24</strong></td>
-              <td>
-                <strong>
-                  <span class="with-indicator">72</span>
-                  <span class="indicator-up">▲</span>
-                </strong>
-              </td>
-              <td class="positive"><strong>48</strong></td>
-              <td class="positive"><strong>200%</strong></td>
-              <td class="negative"><strong>72%</strong></td>
-              <td class="contribution"><strong>16%</strong></td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-3">SAINT-LOUIS</td>
-              <td>50</td>
-              <td>24</td>
-              <td>71</td>
-              <td class="positive">47</td>
-              <td class="positive">196%</td>
-              <td class="positive">142%</td>
-              <td class="contribution">41%</td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-3">DIOURBEL</td>
-              <td>20</td>
-              <td>-</td>
-              <td>-</td>
-              <td>-</td>
-              <td>0%</td>
-              <td class="negative">0%</td>
-              <td class="contribution">0%</td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-3">LOUGA</td>
-              <td>20</td>
-              <td>2</td>
-              <td>18</td>
-              <td class="positive">16</td>
-              <td class="positive">800%</td>
-              <td class="negative">90%</td>
-              <td class="contribution">11%</td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-3">OUROSSOGUI</td>
-              <td>18</td>
-              <td>-</td>
-              <td>1</td>
-              <td class="positive">1</td>
-              <td>-</td>
-              <td class="negative">6%</td>
-              <td class="contribution">1%</td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-3">TAMBA</td>
-              <td>18</td>
-              <td>9</td>
-              <td>25</td>
-              <td class="positive">16</td>
-              <td class="positive">178%</td>
-              <td class="positive">139%</td>
-              <td class="contribution">15%</td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-3">LINGUERE'LA</td>
-              <td>25</td>
-              <td>46</td>
-              <td>44</td>
-              <td class="negative">-2</td>
-              <td class="negative">-4%</td>
-              <td class="positive">176%</td>
-              <td class="contribution">27%</td>
-            </tr>
+            <!-- TERRITOIRES -->
+            <template v-if="hierarchicalData && hierarchicalData.TERRITOIRE && Object.keys(hierarchicalData.TERRITOIRE).length > 0">
+              <template v-for="(territory, territoryKey) in hierarchicalData.TERRITOIRE" :key="territoryKey">
+                <tr class="sub-agency level-2-row">
+                  <td class="indent-cell level-2">
+                    <button @click="toggleSection(`TERRITOIRE_${territoryKey}`)" class="expand-btn">
+                      {{ expandedSections[`TERRITOIRE_${territoryKey}`] ? '-' : '+' }}
+                    </button>
+                    {{ territory.name || territoryKey }}
+                  </td>
+                  <td><strong>{{ formatNumber(territory.total?.objectif) }}</strong></td>
+                  <td><strong>{{ formatNumber(territory.total?.m1) }}</strong></td>
+                  <td>
+                    <strong>
+                      <span class="with-indicator">{{ formatNumber(territory.total?.m) }}</span>
+                      <span v-if="territory.total && territory.total.m > territory.total.m1" class="indicator-up">▲</span>
+                    </strong>
+                  </td>
+                  <td :class="getVariationClass(territory.total?.variation)">
+                    <strong>{{ formatNumber(territory.total?.variation) }}</strong>
+                  </td>
+                  <td :class="getVariationClass(territory.total?.variation_pourcent)">
+                    <strong>{{ formatPercent(territory.total?.variation_pourcent) }}</strong>
+                  </td>
+                  <td :class="getAtteinteClass(territory.total?.atteinte)">
+                    <strong>{{ formatPercent(territory.total?.atteinte) }}</strong>
+                  </td>
+                  <td class="contribution">
+                    <strong>{{ formatPercent(territory.total?.contribution) }}</strong>
+                  </td>
+                </tr>
+                
+                <!-- Agences du territoire -->
+                <template v-if="expandedSections[`TERRITOIRE_${territoryKey}`] && territory.data">
+                  <tr v-for="agency in territory.data" :key="agency.CODE_AGENCE || agency.AGENCE" class="sub-agency">
+                    <td class="indent-cell level-3">{{ agency.AGENCE || agency.DESCRIPTION }}</td>
+                    <td>{{ formatNumber(agency.OBJECTIF_COFICARTE || agency.objectif) }}</td>
+                    <td>{{ formatNumber(agency.NOMBRE_COFICARTE_VENDU_M_1 || agency.m1) }}</td>
+                    <td>{{ formatNumber(agency.NOMBRE_COFICARTE_VENDU_M || agency.m) }}</td>
+                    <td :class="getVariationClass(agency.Variation_Nombre || agency.variationNombre)">
+                      {{ formatNumber(agency.Variation_Nombre || agency.variationNombre) }}
+                    </td>
+                    <td :class="getVariationClass(agency['VARIATION%'] || agency.variationPourcent)">
+                      {{ formatPercent(agency['VARIATION%'] || agency.variationPourcent) }}
+                    </td>
+                    <td :class="getAtteinteClass(agency.TAUX_REALISATION || agency.atteinte)">
+                      {{ formatPercent(agency.TAUX_REALISATION || agency.atteinte) }}
+                    </td>
+                    <td class="contribution">
+                      {{ formatPercent(agency.CONTRIBUTION || agency.contribution) }}
+                    </td>
+                  </tr>
+                </template>
+              </template>
+            </template>
 
             <!-- POINT SERVICES -->
-            <tr class="category-row">
+            <tr v-if="servicePointsTotal && hierarchicalData && hierarchicalData['POINT SERVICES']" class="category-row">
               <td class="category-cell">
-                <button class="expand-btn">+</button>
+                <button @click="toggleSection('POINT SERVICES')" class="expand-btn">
+                  {{ expandedSections['POINT SERVICES'] ? '-' : '+' }}
+                </button>
                 <strong>POINT SERVICES</strong>
               </td>
-              <td><strong>55</strong></td>
-              <td><strong>41</strong></td>
-              <td><strong>40</strong></td>
-              <td class="negative"><strong>-1</strong></td>
-              <td class="negative"><strong>-2%</strong></td>
-              <td class="negative"><strong>73%</strong></td>
-              <td class="contribution"><strong>9%</strong></td>
+              <td><strong>{{ formatNumber(servicePointsTotal.objectif) }}</strong></td>
+              <td><strong>{{ formatNumber(servicePointsTotal.m1) }}</strong></td>
+              <td><strong>{{ formatNumber(servicePointsTotal.m) }}</strong></td>
+              <td :class="getVariationClass(servicePointsTotal.variation)">
+                <strong>{{ formatNumber(servicePointsTotal.variation) }}</strong>
+              </td>
+              <td :class="getVariationClass(servicePointsTotal.variation_pourcent)">
+                <strong>{{ formatPercent(servicePointsTotal.variation_pourcent) }}</strong>
+              </td>
+              <td :class="getAtteinteClass(servicePointsTotal.atteinte)">
+                <strong>{{ formatPercent(servicePointsTotal.atteinte) }}</strong>
+              </td>
+              <td class="contribution">
+                <strong>{{ formatPercent(servicePointsTotal.contribution) }}</strong>
+              </td>
             </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-2">SCAT URBAM</td>
-              <td>25</td>
-              <td>19</td>
-              <td>20</td>
-              <td class="positive">1</td>
-              <td class="positive">5%</td>
-              <td class="negative">80%</td>
-              <td class="contribution">17%</td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-2">MARISTES</td>
-              <td>30</td>
-              <td>22</td>
-              <td>22</td>
-              <td>-</td>
-              <td>0%</td>
-              <td class="negative">73%</td>
-              <td class="contribution">13%</td>
-            </tr>
+            
+            <!-- Agences des points de service -->
+            <template v-if="expandedSections['POINT SERVICES'] && hierarchicalData && hierarchicalData['POINT SERVICES']">
+              <template v-if="hierarchicalData['POINT SERVICES'].service_points && hierarchicalData['POINT SERVICES'].service_points.data && hierarchicalData['POINT SERVICES'].service_points.data.length > 0">
+                <tr v-for="(agency, index) in hierarchicalData['POINT SERVICES'].service_points.data" 
+                    :key="`sp-${agency.CODE_AGENCE || agency.AGENCE || index}`" 
+                    class="sub-agency">
+                  <td class="indent-cell level-2">{{ agency.AGENCE || agency.DESCRIPTION || 'N/A' }}</td>
+                  <td>{{ formatNumber(agency.OBJECTIF_COFICARTE || agency.objectif) }}</td>
+                  <td>{{ formatNumber(agency.NOMBRE_COFICARTE_VENDU_M_1 || agency.m1) }}</td>
+                  <td>{{ formatNumber(agency.NOMBRE_COFICARTE_VENDU_M || agency.m) }}</td>
+                  <td :class="getVariationClass(agency.Variation_Nombre || agency.variationNombre)">
+                    {{ formatNumber(agency.Variation_Nombre || agency.variationNombre) }}
+                  </td>
+                  <td :class="getVariationClass(agency['VARIATION%'] || agency.variationPourcent)">
+                    {{ formatPercent(agency['VARIATION%'] || agency.variationPourcent) }}
+                  </td>
+                  <td :class="getAtteinteClass(agency.TAUX_REALISATION || agency.atteinte)">
+                    {{ formatPercent(agency.TAUX_REALISATION || agency.atteinte) }}
+                  </td>
+                  <td class="contribution">
+                    {{ formatPercent(agency.CONTRIBUTION || agency.contribution) }}
+                  </td>
+                </tr>
+              </template>
+              <tr v-else class="no-data-sub-row">
+                <td colspan="8" class="indent-cell level-2" style="text-align: center; color: #999; padding: 20px;">
+                  Aucune agence de point de service disponible
+                </td>
+              </tr>
+            </template>
 
             <!-- TOTAL -->
-            <tr class="total-row">
+            <tr v-if="globalTotal && hierarchicalData" class="total-row">
               <td class="category-cell">TOTAL</td>
-              <td>900</td>
-              <td>359</td>
-              <td>452</td>
-              <td class="positive">93</td>
-              <td class="positive">26%</td>
-              <td class="negative">50%</td>
+              <td>{{ formatNumber(globalTotal.objectif) }}</td>
+              <td>{{ formatNumber(globalTotal.m1) }}</td>
+              <td>{{ formatNumber(globalTotal.m) }}</td>
+              <td :class="getVariationClass(globalTotal.variation)">
+                {{ formatNumber(globalTotal.variation) }}
+              </td>
+              <td :class="getVariationClass(globalTotal.variation_pourcent)">
+                {{ formatPercent(globalTotal.variation_pourcent) }}
+              </td>
+              <td :class="getAtteinteClass(globalTotal.atteinte)">
+                {{ formatPercent(globalTotal.atteinte) }}
+              </td>
               <td>-</td>
             </tr>
           </tbody>
@@ -357,230 +223,528 @@
 </template>
 
 <script>
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   BarElement,
+  BarController,
   Title,
   Tooltip,
   Legend
 } from 'chart.js';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend
-);
+// S'assurer que tous les composants nécessaires sont enregistrés
+// Dans Chart.js v4, BarElement inclut automatiquement le contrôleur
+function ensureChartRegistered() {
+  if (typeof ChartJS === 'undefined') {
+    console.error('❌ Chart.js n\'est pas défini');
+    return false;
+  }
+  
+  try {
+    // Vérifier si le contrôleur est déjà enregistré
+    const registry = ChartJS.registry;
+    if (registry) {
+      try {
+        const barController = registry.getController('bar');
+        if (barController) {
+          console.log('✅ Contrôleur bar déjà enregistré');
+          return true;
+        }
+      } catch (e) {
+        // Le contrôleur n'est pas enregistré, continuer
+      }
+    }
+    
+    // Enregistrer les composants
+    ChartJS.register(
+      CategoryScale,
+      LinearScale,
+      BarElement,
+      BarController,
+      Title,
+      Tooltip,
+      Legend
+    );
+    console.log('✅ Chart.js composants enregistrés avec succès (incluant BarController)');
+    return true;
+  } catch (error) {
+    // Ignorer si déjà enregistré
+    if (error.message && error.message.includes('already registered')) {
+      console.log('✅ Chart.js déjà enregistré');
+      return true;
+    }
+    console.error('❌ Erreur lors de l\'enregistrement de Chart.js:', error);
+    return false;
+  }
+}
+
+// Enregistrer immédiatement
+ensureChartRegistered();
 
 export default {
   name: 'PrepaidCardSalesSection',
-  setup() {
-    const top5Chart = ref(null);
-    const flop5Chart = ref(null);
-    let top5ChartInstance = null;
-    let flop5ChartInstance = null;
-
-    const createCharts = async () => {
-      await nextTick();
-      
-      // TOP 5 Chart
-      if (top5Chart.value) {
-        try {
-          const ctx = top5Chart.value.getContext('2d');
-          
-          if (!ctx) {
-            console.error('Impossible d\'obtenir le contexte 2D pour TOP 5');
-            return;
-          }
-          
-          if (top5ChartInstance) {
-            top5ChartInstance.destroy();
-          }
-
-          top5ChartInstance = new ChartJS(ctx, {
-          type: 'bar',
-          data: {
-            labels: ["LINGUERE'LA", 'TAMBA', 'RUFISQUE', 'SAINT-LOUIS', 'MBOUR'],
-            datasets: [{
-              label: 'Vente Cofi\'cartes',
-              data: [1.75, 1.4, 1.35, 1.3, 1.2],
-              backgroundColor: '#DC2626',
-              borderRadius: 0
-            }]
-          },
-          options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                display: false
-              },
-              tooltip: {
-                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                titleColor: '#fff',
-                bodyColor: '#fff',
-                padding: 10,
-                callbacks: {
-                  label: function(context) {
-                    return `Vente: ${context.parsed.x}`;
-                  }
-                }
-              }
-            },
-            scales: {
-              x: {
-                beginAtZero: true,
-                max: 2,
-                ticks: {
-                  stepSize: 0.5,
-                  font: {
-                    size: 11
-                  },
-                  color: '#e5e7eb'
-                },
-                grid: {
-                  color: 'rgba(255, 255, 255, 0.1)',
-                  lineWidth: 1
-                }
-              },
-              y: {
-                ticks: {
-                  font: {
-                    size: 11
-                  },
-                  color: '#e5e7eb'
-                },
-                grid: {
-                  color: 'rgba(255, 255, 255, 0.1)',
-                  lineWidth: 1
-                }
-              }
-            }
-          }
-        });
-        } catch (error) {
-          console.error('Erreur lors de la création du graphique TOP 5:', error);
-        }
-      } else {
-        console.warn('Référence top5Chart.value est null');
-      }
-
-      // FLOP 5 Chart
-      if (flop5Chart.value) {
-        try {
-          const ctx = flop5Chart.value.getContext('2d');
-          
-          if (!ctx) {
-            console.error('Impossible d\'obtenir le contexte 2D pour FLOP 5');
-            return;
-          }
-          
-          if (flop5ChartInstance) {
-            flop5ChartInstance.destroy();
-          }
-
-          flop5ChartInstance = new ChartJS(ctx, {
-          type: 'bar',
-          data: {
-            labels: ['OUROSSOGUI', 'DIOURBEL', 'TOUBA', 'THIES', 'PARCELLES'],
-            datasets: [{
-              label: 'Vente Cofi\'cartes',
-              data: [0.058, 0.005, 0.035, 0.015, 0.145],
-              backgroundColor: '#DC2626',
-              borderRadius: 0
-            }]
-          },
-          options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                display: false
-              },
-              tooltip: {
-                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                titleColor: '#fff',
-                bodyColor: '#fff',
-                padding: 10,
-                callbacks: {
-                  label: function(context) {
-                    return `Vente: ${context.parsed.x}`;
-                  }
-                }
-              }
-            },
-            scales: {
-              x: {
-                beginAtZero: true,
-                max: 0.16,
-                ticks: {
-                  stepSize: 0.02,
-                  font: {
-                    size: 11
-                  },
-                  color: '#e5e7eb'
-                },
-                grid: {
-                  color: 'rgba(255, 255, 255, 0.1)',
-                  lineWidth: 1
-                }
-              },
-              y: {
-                ticks: {
-                  font: {
-                    size: 11
-                  },
-                  color: '#e5e7eb'
-                },
-                grid: {
-                  color: 'rgba(255, 255, 255, 0.1)',
-                  lineWidth: 1
-                }
-              }
-            }
-          }
-        });
-        } catch (error) {
-          console.error('Erreur lors de la création du graphique FLOP 5:', error);
-        }
-      } else {
-        console.warn('Référence flop5Chart.value est null');
-      }
-    };
-
-    onMounted(async () => {
-      await nextTick();
-      // Attendre que le DOM soit complètement rendu
-      setTimeout(async () => {
-        await nextTick();
-        console.log('Initialisation des graphiques...', {
-          top5Chart: top5Chart.value,
-          flop5Chart: flop5Chart.value
-        });
-        await createCharts();
-      }, 200);
-    });
-
-    onBeforeUnmount(() => {
-      if (top5ChartInstance) {
-        top5ChartInstance.destroy();
-      }
-      if (flop5ChartInstance) {
-        flop5ChartInstance.destroy();
-      }
-    });
-
+  data() {
+    const now = new Date();
     return {
-      top5Chart,
-      flop5Chart
+      loading: false,
+      error: null,
+      hierarchicalData: null,
+      expandedSections: {
+        TERRITOIRE: true,
+        'POINT SERVICES': false,
+        'TERRITOIRE_territoire_dakar_ville': false,
+        'TERRITOIRE_territoire_dakar_banlieue': false,
+        'TERRITOIRE_territoire_province_centre_sud': false,
+        'TERRITOIRE_territoire_province_nord': false,
+        'POINT SERVICES_service_points': false
+      },
+      selectedPeriod: 'month',
+      selectedMonth: now.getMonth() + 1,
+      selectedYear: now.getFullYear(),
+      top5ChartInstance: null,
+      flop5ChartInstance: null
     };
+  },
+  computed: {
+    territoireTotal() {
+      if (!this.hierarchicalData || !this.hierarchicalData.TERRITOIRE) return null;
+      const territories = this.hierarchicalData.TERRITOIRE;
+      let total = { objectif: 0, m1: 0, m: 0, variation: 0, variation_pourcent: 0, atteinte: 0, contribution: 0 };
+      Object.values(territories).forEach(territory => {
+        if (territory && territory.total) {
+          total.objectif += territory.total.objectif || 0;
+          total.m1 += territory.total.m1 || 0;
+          total.m += territory.total.m || 0;
+        }
+      });
+      total.variation = total.m - total.m1;
+      if (total.m1 > 0) {
+        total.variation_pourcent = Math.round((total.variation / total.m1) * 100);
+      }
+      if (total.objectif > 0) {
+        total.atteinte = Math.round((total.m / total.objectif) * 100);
+      }
+      const globalTotal = total.m + (this.servicePointsTotal?.m || 0);
+      if (globalTotal > 0) {
+        total.contribution = Math.round((total.m / globalTotal) * 100);
+      }
+      return total;
+    },
+    servicePointsTotal() {
+      if (!this.hierarchicalData || !this.hierarchicalData['POINT SERVICES']) return null;
+      const sp = this.hierarchicalData['POINT SERVICES'].service_points;
+      return sp && sp.total ? sp.total : null;
+    },
+    globalTotal() {
+      const territoire = this.territoireTotal || { m: 0, m1: 0, objectif: 0 };
+      const servicePoints = this.servicePointsTotal || { m: 0, m1: 0, objectif: 0 };
+      return {
+        objectif: territoire.objectif + servicePoints.objectif,
+        m1: territoire.m1 + servicePoints.m1,
+        m: territoire.m + servicePoints.m,
+        variation: (territoire.m + servicePoints.m) - (territoire.m1 + servicePoints.m1),
+        variation_pourcent: territoire.m1 + servicePoints.m1 > 0 
+          ? Math.round((((territoire.m + servicePoints.m) - (territoire.m1 + servicePoints.m1)) / (territoire.m1 + servicePoints.m1)) * 100)
+          : 0,
+        atteinte: territoire.objectif + servicePoints.objectif > 0
+          ? Math.round(((territoire.m + servicePoints.m) / (territoire.objectif + servicePoints.objectif)) * 100)
+          : 0
+      };
+    },
+    top5Agencies() {
+      if (!this.hierarchicalData) return [];
+      const allAgencies = [];
+      if (this.hierarchicalData.TERRITOIRE) {
+        Object.values(this.hierarchicalData.TERRITOIRE).forEach(territory => {
+          if (territory && territory.data) {
+            allAgencies.push(...territory.data);
+          }
+        });
+      }
+      if (this.hierarchicalData['POINT SERVICES'] && this.hierarchicalData['POINT SERVICES'].service_points) {
+        allAgencies.push(...(this.hierarchicalData['POINT SERVICES'].service_points.data || []));
+      }
+      return allAgencies
+        .sort((a, b) => (b.NOMBRE_COFICARTE_VENDU_M || 0) - (a.NOMBRE_COFICARTE_VENDU_M || 0))
+        .slice(0, 5);
+    },
+    flop5Agencies() {
+      if (!this.hierarchicalData) return [];
+      const allAgencies = [];
+      if (this.hierarchicalData.TERRITOIRE) {
+        Object.values(this.hierarchicalData.TERRITOIRE).forEach(territory => {
+          if (territory && territory.data) {
+            allAgencies.push(...territory.data);
+          }
+        });
+      }
+      if (this.hierarchicalData['POINT SERVICES'] && this.hierarchicalData['POINT SERVICES'].service_points) {
+        allAgencies.push(...(this.hierarchicalData['POINT SERVICES'].service_points.data || []));
+      }
+      return allAgencies
+        .filter(a => (a.NOMBRE_COFICARTE_VENDU_M || 0) > 0)
+        .sort((a, b) => (a.NOMBRE_COFICARTE_VENDU_M || 0) - (b.NOMBRE_COFICARTE_VENDU_M || 0))
+        .slice(0, 5);
+    }
+  },
+  mounted() {
+    this.fetchPrepaidCardSalesData();
+  },
+  beforeUnmount() {
+    if (this.top5ChartInstance) {
+      try {
+        this.top5ChartInstance.destroy();
+      } catch (e) {
+        console.warn('Erreur lors de la destruction du graphique TOP 5:', e);
+      }
+      this.top5ChartInstance = null;
+    }
+    if (this.flop5ChartInstance) {
+      try {
+        this.flop5ChartInstance.destroy();
+      } catch (e) {
+        console.warn('Erreur lors de la destruction du graphique FLOP 5:', e);
+      }
+      this.flop5ChartInstance = null;
+    }
+  },
+  watch: {
+    hierarchicalData: {
+      handler() {
+        this.$nextTick(() => {
+          this.createCharts();
+        });
+      },
+      deep: true
+    }
+  },
+  methods: {
+    async fetchPrepaidCardSalesData() {
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        const params = {
+          period: this.selectedPeriod
+        };
+        
+        if (this.selectedPeriod === 'month') {
+          params.month = this.selectedMonth;
+          params.year = this.selectedYear;
+        } else if (this.selectedPeriod === 'year') {
+          params.year = this.selectedYear;
+        }
+        
+        params._t = Date.now();
+        
+        const response = await window.axios.get('/api/oracle/data/prepaid-card-sales', {
+          params,
+          timeout: 300000,
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
+        
+        let data = null;
+        if (response.data && response.data.data) {
+          data = response.data.data;
+        } else if (response.data) {
+          data = response.data;
+        }
+        
+        if (data && data.hierarchicalData) {
+          this.hierarchicalData = data.hierarchicalData;
+          console.log('✅ Données récupérées:', this.hierarchicalData);
+          console.log('📋 POINT SERVICES:', this.hierarchicalData['POINT SERVICES']);
+          if (this.hierarchicalData['POINT SERVICES'] && this.hierarchicalData['POINT SERVICES'].service_points) {
+            console.log('📋 service_points.data:', this.hierarchicalData['POINT SERVICES'].service_points.data);
+            console.log('📋 Nombre d\'agences:', this.hierarchicalData['POINT SERVICES'].service_points.data?.length || 0);
+          }
+          // Attendre que le DOM soit mis à jour puis créer les graphiques
+          this.$nextTick(() => {
+            setTimeout(() => {
+              this.createCharts();
+            }, 100);
+          });
+        } else {
+          throw new Error('Format de données inattendu');
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors de la récupération des données:', error);
+        this.error = error.response?.data?.detail || error.message || 'Erreur lors de la récupération des données';
+      } finally {
+        this.loading = false;
+      }
+    },
+    toggleSection(sectionKey) {
+      this.expandedSections[sectionKey] = !this.expandedSections[sectionKey];
+    },
+    createCharts() {
+      console.log('📊 Création des graphiques...');
+      console.log('📊 top5Agencies:', this.top5Agencies);
+      console.log('📊 flop5Agencies:', this.flop5Agencies);
+      
+      // S'assurer que Chart.js est enregistré
+      if (!ensureChartRegistered()) {
+        console.error('❌ Impossible d\'enregistrer Chart.js');
+        return;
+      }
+      
+      // Vérifier que Chart.js est bien chargé
+      if (typeof ChartJS === 'undefined') {
+        console.error('❌ Chart.js n\'est pas chargé');
+        return;
+      }
+      
+      // Vérifier que le contrôleur 'bar' est disponible
+      try {
+        const registry = ChartJS.registry;
+        if (registry) {
+          const barController = registry.getController('bar');
+          if (!barController) {
+            console.error('❌ Contrôleur bar non trouvé dans le registre après enregistrement');
+            return;
+          }
+          console.log('✅ Contrôleur bar trouvé dans le registre');
+        }
+      } catch (e) {
+        console.warn('⚠️ Impossible de vérifier le registre:', e);
+        // Continuer quand même, peut-être que le registre n'est pas accessible de cette façon
+      }
+      
+      // Détruire les graphiques existants d'abord
+      if (this.top5ChartInstance) {
+        try {
+          this.top5ChartInstance.destroy();
+        } catch (e) {
+          console.warn('Erreur lors de la destruction du graphique TOP 5:', e);
+        }
+        this.top5ChartInstance = null;
+      }
+      
+      if (this.flop5ChartInstance) {
+        try {
+          this.flop5ChartInstance.destroy();
+        } catch (e) {
+          console.warn('Erreur lors de la destruction du graphique FLOP 5:', e);
+        }
+        this.flop5ChartInstance = null;
+      }
+      
+      this.$nextTick(() => {
+        // Attendre un peu pour s'assurer que Chart.js est prêt
+        setTimeout(() => {
+          // TOP 5 Chart
+          const top5Canvas = this.$refs.top5Chart;
+          console.log('📊 top5Canvas:', top5Canvas);
+          console.log('📊 top5Agencies.length:', this.top5Agencies?.length || 0);
+          
+          if (top5Canvas) {
+            if (this.top5Agencies && this.top5Agencies.length > 0) {
+              const ctx = top5Canvas.getContext('2d');
+              if (ctx) {
+                // Vérifier si un graphique existe déjà sur ce canvas
+                try {
+                  const existingChart = ChartJS.getChart(ctx);
+                  if (existingChart) {
+                    existingChart.destroy();
+                  }
+                } catch (e) {
+                  console.warn('⚠️ Erreur lors de la vérification du graphique existant:', e);
+                }
+              
+              const maxValue = Math.max(...this.top5Agencies.map(a => a.NOMBRE_COFICARTE_VENDU_M || 0));
+              const normalizedData = this.top5Agencies.map(a => {
+                const value = a.NOMBRE_COFICARTE_VENDU_M || 0;
+                return maxValue > 0 ? (value / maxValue) * 2 : 0;
+              });
+              
+              this.top5ChartInstance = new ChartJS(ctx, {
+                type: 'bar',
+                data: {
+                  labels: this.top5Agencies.map(a => a.AGENCE || 'N/A'),
+                  datasets: [{
+                    label: 'Vente Cofi\'cartes',
+                    data: normalizedData,
+                    backgroundColor: '#DC2626',
+                    borderRadius: 0
+                  }]
+                },
+                options: {
+                  indexAxis: 'y',
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                      backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                      titleColor: '#fff',
+                      bodyColor: '#fff',
+                      padding: 10,
+                      callbacks: {
+                        label: (context) => {
+                          const index = context.dataIndex;
+                          const agency = this.top5Agencies[index];
+                          return `Vente: ${agency.NOMBRE_COFICARTE_VENDU_M || 0}`;
+                        }
+                      }
+                    }
+                  },
+                  scales: {
+                    x: {
+                      beginAtZero: true,
+                      max: 2,
+                      ticks: {
+                        stepSize: 0.5,
+                        font: { size: 11 },
+                        color: '#e5e7eb'
+                      },
+                      grid: {
+                        color: 'rgba(255, 255, 255, 0.1)',
+                        lineWidth: 1
+                      }
+                    },
+                    y: {
+                      ticks: {
+                        font: { size: 11 },
+                        color: '#e5e7eb'
+                      },
+                      grid: {
+                        color: 'rgba(255, 255, 255, 0.1)',
+                        lineWidth: 1
+                      }
+                    }
+                  }
+                }
+              });
+              console.log('✅ Graphique TOP 5 créé');
+            } else {
+              console.warn('⚠️ Impossible d\'obtenir le contexte 2D pour TOP 5');
+            }
+          } else {
+            console.warn('⚠️ Pas de données pour TOP 5');
+          }
+        } else {
+          console.warn('⚠️ Canvas TOP 5 non trouvé');
+        }
+          
+          // FLOP 5 Chart
+          const flop5Canvas = this.$refs.flop5Chart;
+          console.log('📊 flop5Canvas:', flop5Canvas);
+          console.log('📊 flop5Agencies.length:', this.flop5Agencies?.length || 0);
+          
+          if (flop5Canvas) {
+            if (this.flop5Agencies && this.flop5Agencies.length > 0) {
+              const ctx = flop5Canvas.getContext('2d');
+              if (ctx) {
+                // Vérifier si un graphique existe déjà sur ce canvas
+                try {
+                  const existingChart = ChartJS.getChart(ctx);
+                  if (existingChart) {
+                    existingChart.destroy();
+                  }
+                } catch (e) {
+                  console.warn('⚠️ Erreur lors de la vérification du graphique existant:', e);
+                }
+              
+              const maxValue = Math.max(...this.flop5Agencies.map(a => a.NOMBRE_COFICARTE_VENDU_M || 0));
+              const normalizedData = this.flop5Agencies.map(a => {
+                const value = a.NOMBRE_COFICARTE_VENDU_M || 0;
+                return maxValue > 0 ? (value / maxValue) * 0.16 : 0;
+              });
+              
+              this.flop5ChartInstance = new ChartJS(ctx, {
+                type: 'bar',
+                data: {
+                  labels: this.flop5Agencies.map(a => a.AGENCE || 'N/A'),
+                  datasets: [{
+                    label: 'Vente Cofi\'cartes',
+                    data: normalizedData,
+                    backgroundColor: '#DC2626',
+                    borderRadius: 0
+                  }]
+                },
+                options: {
+                  indexAxis: 'y',
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                      backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                      titleColor: '#fff',
+                      bodyColor: '#fff',
+                      padding: 10,
+                      callbacks: {
+                        label: (context) => {
+                          const index = context.dataIndex;
+                          const agency = this.flop5Agencies[index];
+                          return `Vente: ${agency.NOMBRE_COFICARTE_VENDU_M || 0}`;
+                        }
+                      }
+                    }
+                  },
+                  scales: {
+                    x: {
+                      beginAtZero: true,
+                      max: 0.16,
+                      ticks: {
+                        stepSize: 0.02,
+                        font: { size: 11 },
+                        color: '#e5e7eb'
+                      },
+                      grid: {
+                        color: 'rgba(255, 255, 255, 0.1)',
+                        lineWidth: 1
+                      }
+                    },
+                    y: {
+                      ticks: {
+                        font: { size: 11 },
+                        color: '#e5e7eb'
+                      },
+                      grid: {
+                        color: 'rgba(255, 255, 255, 0.1)',
+                        lineWidth: 1
+                      }
+                    }
+                  }
+                }
+              });
+              console.log('✅ Graphique FLOP 5 créé');
+            } else {
+              console.warn('⚠️ Impossible d\'obtenir le contexte 2D pour FLOP 5');
+            }
+          } else {
+            console.warn('⚠️ Pas de données pour FLOP 5');
+          }
+        } else {
+          console.warn('⚠️ Canvas FLOP 5 non trouvé');
+        }
+        }, 100);
+      });
+    },
+    formatNumber(value) {
+      if (value === null || value === undefined || value === '') return '-';
+      return Number(value).toLocaleString('fr-FR');
+    },
+    formatPercent(value) {
+      if (value === null || value === undefined || value === '') return '-';
+      return `${Math.round(Number(value))}%`;
+    },
+    getVariationClass(variation) {
+      if (variation === null || variation === undefined || variation === '') return '';
+      const num = Number(variation);
+      return num >= 0 ? 'positive' : 'negative';
+    },
+    getAtteinteClass(atteinte) {
+      if (atteinte === null || atteinte === undefined || atteinte === '') return '';
+      const num = Number(atteinte);
+      return num >= 100 ? 'positive' : 'negative';
+    }
   }
 }
 </script>
@@ -911,4 +1075,66 @@ export default {
     padding: 8px 4px;
   }
 }
+
+.loading-banner {
+  padding: 15px 20px;
+  background: #f0f9ff;
+  border: 1px solid #0ea5e9;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #0369a1;
+  font-weight: 500;
+}
+
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid #e0f2fe;
+  border-top-color: #0ea5e9;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-message {
+  padding: 20px;
+  text-align: center;
+  background: #fee;
+  border: 1px solid #DC2626;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  color: #DC2626;
+}
+
+.info-message {
+  padding: 20px;
+  text-align: center;
+  background: #f0f9ff;
+  border: 1px solid #0ea5e9;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  color: #0369a1;
+}
+
+.retry-btn {
+  margin-top: 10px;
+  padding: 8px 16px;
+  background: #DC2626;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.retry-btn:hover {
+  background: #b91c1c;
+}
+
 </style>

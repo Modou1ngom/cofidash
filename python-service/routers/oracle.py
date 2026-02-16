@@ -14,6 +14,7 @@ from services.performance_service import get_agency_performance
 from services.volume_dat_service import get_volume_dat_data
 from services.encours_service import get_encours_data
 from services.depot_garantie_service import get_depot_garantie_data
+from services.prepaid_card_service import get_prepaid_card_sales_data
 
 logger = logging.getLogger(__name__)
 
@@ -533,6 +534,45 @@ async def get_transfer_data_endpoint(
         raise HTTPException(
             status_code=500, 
             detail=f"Erreur lors de la récupération des données de transferts: {error_message}"
+        )
+
+
+@router.get("/data/prepaid-card-sales")
+async def get_prepaid_card_sales_data_endpoint(
+    period: Optional[str] = "month", 
+    zone: Optional[str] = None,
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    date: Optional[str] = None
+):
+    """
+    Récupère les données de ventes de cartes prépayées (CofiCarte) depuis Oracle
+    
+    Args:
+        period: Période d'analyse ("week", "month", "year")
+        zone: Zone géographique (optionnel)
+        month: Mois à analyser (1-12) - pour period="month"
+        year: Année à analyser
+        date: Date au format YYYY-MM-DD - pour period="week"
+    
+    Returns:
+        Structure hiérarchique avec:
+        - hierarchicalData.TERRITOIRE: territoires avec leurs agences et totaux
+        - hierarchicalData.POINT SERVICES: points de service avec leurs données
+    """
+    try:
+        logger.info(f"📅 Paramètres reçus pour get_prepaid_card_sales_data: period={period}, zone={zone}, month={month}, year={year}, date={date}")
+        result = get_prepaid_card_sales_data(period=period, zone=zone, month=month, year=year, date=date)
+        # Le service retourne déjà la structure avec hierarchicalData
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_message = str(e) if str(e) else repr(e)
+        logger.error(f"Erreur lors de la récupération des données de ventes de cartes prépayées: {error_message}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Erreur lors de la récupération des données de ventes de cartes prépayées: {error_message}"
         )
 
 

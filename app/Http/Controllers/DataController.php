@@ -659,10 +659,18 @@ class DataController extends Controller
                                 
                                 if ($objective) {
                                     // Fusionner l'objectif (priorité aux objectifs personnalisés)
-                                    $oldValue = $value['objectif'] ?? $value['OBJECTIF_CLIENT'] ?? $value['OBJECTIF_PRODUCTION'] ?? 0;
+                                    $oldValue = $value['objectif'] ?? $value['OBJECTIF_CLIENT'] ?? $value['OBJECTIF_PRODUCTION'] ?? $value['OBJECTIF_COFICARTE'] ?? 0;
                                     if ($type === 'CLIENT') {
                                         $value['OBJECTIF_CLIENT'] = (int)$objective->value;
                                         $value['objectif'] = (int)$objective->value;
+                                    } elseif ($type === 'PREPAID_CARD') {
+                                        $value['OBJECTIF_COFICARTE'] = (int)$objective->value;
+                                        $value['objectif'] = (int)$objective->value;
+                                        // Recalculer le taux de réalisation si nécessaire
+                                        $nombreM = $value['NOMBRE_COFICARTE_VENDU_M'] ?? 0;
+                                        if ($nombreM > 0 && (int)$objective->value > 0) {
+                                            $value['TAUX_REALISATION'] = round(($nombreM / (int)$objective->value) * 100, 2);
+                                        }
                                     } else {
                                         $value['OBJECTIF_PRODUCTION'] = (int)$objective->value;
                                         $value['objectif'] = (int)$objective->value;
@@ -1206,6 +1214,116 @@ class DataController extends Controller
             return response()->json([
                 'error' => 'Erreur interne',
                 'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Récupère les données de ventes de cartes prépayées depuis Oracle via l'API Python
+     */
+    public function getPrepaidCardSalesData(Request $request): JsonResponse
+    {
+        try {
+            $period = $request->input('period', 'month');
+            $zone = $request->input('zone');
+            $month = $request->input('month');
+            $year = $request->input('year');
+            $date = $request->input('date'); // Pour la période "week"
+
+            // Construire l'URL de l'API Python
+            $apiUrl = $this->pythonServiceUrl . '/api/oracle/data/prepaid-card-sales';
+            
+            // Construire les paramètres de requête
+            $params = [];
+            if ($period) {
+                $params['period'] = $period;
+            }
+            if ($zone) {
+                $params['zone'] = $zone;
+            }
+            if ($month) {
+                $params['month'] = $month;
+            }
+            if ($year) {
+                $params['year'] = $year;
+            }
+            if ($date) {
+                $params['date'] = $date;
+            }
+            
+            // Faire l'appel à l'API Python
+            $response = Http::timeout(300)->get($apiUrl, $params);
+            
+            if ($response->successful()) {
+                $data = $response->json();
+                
+                // Les données peuvent être dans $data directement ou dans $data['data']
+                $actualData = $data;
+                if (isset($data['data']) && is_array($data['data'])) {
+                    $actualData = $data['data'];
+                }
+                
+                // Fusionner les objectifs personnalisés avec les données Oracle
+                // Utiliser l'année et le mois de la requête, ou les valeurs actuelles
+                $mergeYear = $year ? (int)$year : (int)date('Y');
+                $mergeMonth = null;
+                
+                // Déterminer le mois selon la période
+                if ($period === 'month' && $month) {
+                    $mergeMonth = (int)$month;
+                } elseif ($period === 'week' && $date) {
+                    // Extraire le mois de la date
+                    $dateObj = \DateTime::createFromFormat('Y-m-d', $date);
+                    if ($dateObj) {
+                        $mergeMonth = (int)$dateObj->format('n');
+                    }
+                } elseif ($period === 'month') {
+                    $mergeMonth = (int)date('n');
+                }
+                
+                Log::info('🔄 Début fusion des objectifs PREPAID_CARD', [
+                    'year' => $mergeYear,
+                    'month' => $mergeMonth,
+                    'period' => $period
+                ]);
+                
+                // Fusionner les objectifs (utiliser 'PREPAID_CARD' comme type)
+                $actualData = $this->mergeObjectivesWithData($actualData, 'PREPAID_CARD', $mergeYear, $mergeMonth);
+                
+                // Remettre les données fusionnées dans la structure originale
+                if (isset($data['data'])) {
+                    $data['data'] = $actualData;
+                } else {
+                    $data = $actualData;
+                }
+                
+                Log::info('✅ Données PREPAID_CARD fusionnées retournées au client');
+                
+                return response()->json($data);
+            }
+            
+            // En cas d'erreur, retourner le message d'erreur
+            $errorData = $response->json();
+            Log::error('Erreur API Python Ventes Cartes Prépayées', [
+                'status' => $response->status(),
+                'error' => $errorData
+            ]);
+            
+            return response()->json([
+                'error' => 'Erreur lors de la récupération des données',
+                'detail' => $errorData['detail'] ?? $response->body(),
+                'status' => $response->status()
+            ], $response->status() ?: 500);
+            
+        } catch (\Exception $e) {
+            Log::error('Exception lors de l\'appel API Python Ventes Cartes Prépayées', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'error' => 'Erreur de connexion au service Python',
+                'detail' => $e->getMessage()
             ], 500);
         }
     }

@@ -48,3 +48,4 @@ ENV/
 # Python service config
 # Note: settings.py est maintenant dans Git avec des valeurs par défaut génériques
 # Les valeurs réelles doivent être définies via des variables d'environnement
+setings.py
