@@ -1,8 +1,8 @@
 """
 Router pour les endpoints Oracle
 """
-from fastapi import APIRouter, HTTPException
-from typing import Optional
+from fastapi import APIRouter, HTTPException, Query
+from typing import Optional, List
 import logging
 from datetime import datetime
 from database.oracle import get_oracle_connection
@@ -15,6 +15,13 @@ from services.volume_dat_service import get_volume_dat_data
 from services.encours_service import get_encours_data
 from services.depot_garantie_service import get_depot_garantie_data
 from services.prepaid_card_service import get_prepaid_card_sales_data
+from services.portefeuille_risque_service import (
+    get_portefeuille_risque_data,
+    get_portefeuille_risque_caf_data,
+)
+from services.entrees_par_service import get_entrees_par_data
+from services.reference_compte_service import get_gl_by_code, search_gl
+from services.cr_par_agence_service import get_cr_data_by_parent_gl
 
 logger = logging.getLogger(__name__)
 
@@ -506,7 +513,8 @@ async def get_transfer_data_endpoint(
     period: Optional[str] = "month",
     month: Optional[int] = None,
     year: Optional[int] = None,
-    date: Optional[str] = None
+    date: Optional[str] = None,
+    service: Optional[str] = "om"
 ):
     """
     Récupère les données de transferts d'argent depuis Oracle
@@ -516,6 +524,7 @@ async def get_transfer_data_endpoint(
         month: Mois à analyser (1-12). Si non fourni, utilise le mois courant.
         year: Année à analyser. Si non fourni, utilise l'année courante.
         date: Date au format YYYY-MM-DD - pour period="week"
+        service: Service de transfert ("om", "wave", "ria", "wu"). Par défaut "om" (Orange Money)
     
     Returns:
         Données de transferts d'argent par agence et par service avec:
@@ -523,8 +532,13 @@ async def get_transfer_data_endpoint(
         - Résumé par service de transfert (volume et commission)
     """
     try:
-        logger.info(f"📅 Paramètres reçus pour get_transfer_data: period={period}, month={month}, year={year}, date={date}")
-        data = get_transfer_data(period=period, month=month, year=year, date=date)
+        # S'assurer que month et year sont des entiers
+        if month is not None:
+            month = int(month)
+        if year is not None:
+            year = int(year)
+        logger.info(f"📅 Paramètres reçus pour get_transfer_data: period={period}, month={month} (type: {type(month)}), year={year} (type: {type(year)}), date={date}, service={service}")
+        data = get_transfer_data(period=period, month=month, year=year, date=date, service=service)
         return {"data": data}
     except HTTPException:
         raise
@@ -627,4 +641,233 @@ async def get_agency_performance_endpoint(
             status_code=500,
             detail=f"Erreur lors de la récupération des performances: {str(e)}"
         )
+
+
+@router.get("/data/portefeuille-risque")
+async def get_portefeuille_risque_data_endpoint(
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    month_ref: Optional[int] = None,
+    year_ref: Optional[int] = None
+):
+    """
+    Récupère les données de portefeuille à risque (PAR) depuis Oracle
+    
+    Args:
+        month: Mois en cours (1-12). Si non fourni, utilise le mois courant.
+        year: Année du mois en cours. Si non fourni, utilise l'année courante.
+        month_ref: Mois de référence (1-12). Si non fourni, mois précédent du mois en cours.
+        year_ref: Année du mois de référence. Si non fourni, déduite du mois en cours.
+    
+    Structure retournée:
+    {
+        "data": [...],  # Données brutes
+        "hierarchicalData": {
+            "TERRITOIRE": {
+                "territoire_dakar_ville": {
+                    "name": "TERRITOIRE DAKAR VILLE",
+                    "agencies": [...],
+                    "totals": {...}
+                },
+                ...
+            },
+            "POINT SERVICES": {}
+        }
+    }
+    """
+    try:
+        logger.info(f"📅 Paramètres reçus pour get_portefeuille_risque_data: month={month}, year={year}, month_ref={month_ref}, year_ref={year_ref}")
+        result = get_portefeuille_risque_data(month=month, year=year, month_ref=month_ref, year_ref=year_ref)
+        
+        # Retourner les données dans le format attendu par le frontend
+        return {
+            "data": result.get("data", []),
+            "hierarchicalData": result.get("hierarchicalData", {
+                "TERRITOIRE": {},
+                "POINT SERVICES": {}
+            })
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        error_message = str(e) if str(e) else repr(e)
+        logger.error(f"❌ Erreur lors de la récupération des données portefeuille à risque: {error_message}\n{error_detail}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Erreur lors de la récupération des données portefeuille à risque: {error_message}"
+        )
+
+
+@router.get("/data/stock-provision")
+async def get_stock_provision_data_endpoint(
+    month: Optional[int] = None,
+    year: Optional[int] = None
+):
+    """
+    Récupère les données de stock de provision depuis Oracle
+    
+    Args:
+        month: Mois à analyser (1-12). Si non fourni, utilise le mois courant.
+        year: Année à analyser. Si non fourni, utilise l'année courante.
+    
+    Returns:
+        Liste de dictionnaires avec les données de stock par branche
+    """
+    try:
+        from services.stock_provision_service import get_stock_provision_data
+        logger.info(f"📊 Récupération des données Stock Provision: month={month}, year={year}")
+        result = get_stock_provision_data(month=month, year=year)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        error_message = str(e) if str(e) else repr(e)
+        logger.error(f"❌ Erreur lors de la récupération des données Stock Provision: {error_message}\n{error_detail}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Erreur lors de la récupération des données Stock Provision: {error_message}"
+        )
+
+
+@router.get("/data/portefeuille-risque-caf")
+async def get_portefeuille_risque_caf_endpoint(
+    agency: Optional[str] = None,
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    month_ref: Optional[int] = None,
+    year_ref: Optional[int] = None,
+):
+    """
+    Récupère les données de portefeuille à risque agrégées par CAF
+    (chargé d'affaires) pour une agence donnée.
+
+    Args:
+        agency: Nom de l'agence (doit correspondre à la colonne AGENCE de la requête PAR).
+        month: Mois en cours (1-12).
+        year: Année du mois en cours.
+        month_ref: Mois de référence (1-12).
+        year_ref: Année du mois de référence.
+    """
+    try:
+        agency_param = (agency or "").strip()
+        logger.info(
+            "📊 Récupération des données PAR | CAF: agency=%s, month=%s, year=%s, month_ref=%s, year_ref=%s",
+            agency_param or "(toutes)",
+            month,
+            year,
+            month_ref,
+            year_ref,
+        )
+        caf_list = get_portefeuille_risque_caf_data(
+            agency=agency_param or None,
+            month=month,
+            year=year,
+            month_ref=month_ref,
+            year_ref=year_ref,
+        )
+        return {"agency": agency_param or "", "caf": caf_list}
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+
+        error_detail = traceback.format_exc()
+        error_message = str(e) if str(e) else repr(e)
+        logger.error(
+            "❌ Erreur lors de la récupération des données PAR | CAF: %s\n%s",
+            error_message,
+            error_detail,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors de la récupération des données PAR | CAF: {error_message}",
+        )
+
+
+@router.get("/data/entrees-par")
+async def get_entrees_par_endpoint(
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    par: int = 0,
+):
+    """
+    Récupère les entrées PAR et provisions pour un palier donné (0, 30, 90, 180, 360).
+    Date = dernier jour du mois (month/year).
+    """
+    try:
+        if par not in (0, 30, 90, 180, 360):
+            raise HTTPException(status_code=400, detail="par doit être 0, 30, 90, 180 ou 360")
+        data = get_entrees_par_data(month=month, year=year, par_bucket=par)
+        return {"data": data, "par": par, "month": month, "year": year}
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        error_message = str(e) if str(e) else repr(e)
+        logger.error("❌ Entrées PAR: %s\n%s", error_message, error_detail, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Entrées PAR: {error_message}")
+
+
+@router.get("/data/gl-lookup")
+async def get_gl_lookup_endpoint(gl_code: Optional[str] = None, gl_desc: Optional[str] = None):
+    """
+    Récupère un ou des GL depuis CFSFCUBS145.GLVW_GLMASTER_E.
+    
+    - gl_code: recherche exacte par code (retourne 1 résultat)
+    - gl_desc: recherche partielle par libellé (retourne une liste)
+    
+    Returns:
+        {"numero_gl": ..., "nom_gl": ...} ou liste pour la recherche par libellé
+    """
+    try:
+        if gl_code:
+            result = get_gl_by_code(gl_code)
+            if result:
+                return {"data": result}
+            return {"data": None, "message": "GL non trouvé"}
+        if gl_desc:
+            results = search_gl(gl_desc=gl_desc)
+            return {"data": results}
+        raise HTTPException(status_code=400, detail="Fournir gl_code ou gl_desc")
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logger.error("Erreur GL lookup: %s\n%s", str(e), traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+
+
+@router.post("/data/cr-par-agence")
+async def get_cr_par_agence_data(body: dict):
+    """
+    Données CR par agence pour une liste de parent GL (sous-rubrique).
+    Body: { "date_from": "DD/MM/YYYY", "date_to": "DD/MM/YYYY", "parent_gl_codes": ["702120000000", ...] }
+    Retourne les montants par AC_BRANCH / BRANCH_NAME pour la période VALUE_DT.
+    """
+    try:
+        date_from = (body.get("date_from") or "").strip()
+        date_to = (body.get("date_to") or "").strip()
+        codes = body.get("parent_gl_codes") or []
+        if not date_from or not date_to:
+            raise HTTPException(status_code=400, detail="date_from et date_to requis (DD/MM/YYYY)")
+        if not codes:
+            return {"data": []}
+        rows = get_cr_data_by_parent_gl(
+            date_from=date_from,
+            date_to=date_to,
+            parent_gl_codes=[str(c).strip() for c in codes],
+        )
+        return {"data": rows}
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logger.error("Erreur CR par Agence: %s\n%s", str(e), traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
 

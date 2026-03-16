@@ -7,6 +7,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ChartController;
 use App\Http\Controllers\DataController;
 use App\Http\Controllers\ObjectiveController;
+use App\Http\Controllers\ReferenceCompteController;
 
 // Routes publiques
 Route::post('/login', [AuthController::class, 'login']);
@@ -35,7 +36,17 @@ Route::prefix('oracle')->group(function () {
     Route::get('/data/volume-dat', [DataController::class, 'getVolumeDatData']);
     Route::get('/data/depot-garantie', [DataController::class, 'getDepotGarantieData']);
     Route::get('/data/prepaid-card-sales', [DataController::class, 'getPrepaidCardSalesData']);
+    Route::get('/data/portefeuille-risque', [DataController::class, 'getPortefeuilleRisqueData']);
+    Route::get('/data/portefeuille-risque-caf', [DataController::class, 'getPortefeuilleRisqueCafData']);
+    Route::get('/data/entrees-par', [DataController::class, 'getEntreesParData']);
+    Route::get('/data/stock-provision', [DataController::class, 'getStockProvisionData']);
+    Route::get('/data/gl-lookup', [DataController::class, 'getGlLookup']);
+    Route::post('/data/cr-par-agence', [DataController::class, 'getCrParAgenceData']);
 });
+
+// Référence compte (Reporting Financier)
+Route::get('/reference-compte', [ReferenceCompteController::class, 'index']);
+Route::post('/reference-compte', [ReferenceCompteController::class, 'store']);
 
 // Routes pour les objectifs (protégées)
 Route::middleware('auth:sanctum')->prefix('objectives')->group(function () {

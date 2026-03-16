@@ -1347,5 +1347,227 @@ class DataController extends Controller
             'message' => $result['message']
         ], 500);
     }
+
+    /**
+     * Récupère les données de portefeuille à risque depuis Oracle
+     */
+    public function getPortefeuilleRisqueData(Request $request): JsonResponse
+    {
+        try {
+            $month = $request->input('month');
+            $year = $request->input('year');
+            $monthRef = $request->input('month_ref');
+            $yearRef = $request->input('year_ref');
+
+            // Appeler le service Oracle pour récupérer les données (mois de référence + mois en cours)
+            $result = $this->oracleService->getPortefeuilleRisqueData(
+                $month ? (int) $month : null,
+                $year ? (int) $year : null,
+                $monthRef ? (int) $monthRef : null,
+                $yearRef ? (int) $yearRef : null
+            );
+
+            if ($result['success']) {
+                $data = $result['data'];
+                
+                // Les données peuvent être dans $data directement ou dans $data['data']
+                $actualData = $data;
+                if (isset($data['data']) && is_array($data['data'])) {
+                    $actualData = $data['data'];
+                }
+                
+                // Remettre les données dans la structure originale
+                if (isset($data['data'])) {
+                    $data['data'] = $actualData;
+                } else {
+                    $data = $actualData;
+                }
+                
+                return response()->json($data);
+            }
+
+            return response()->json([
+                'error' => $result['error'],
+                'message' => $result['message']
+            ], 500);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération des données portefeuille à risque: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Récupère les données PAR agrégées par CAF pour une agence donnée
+     */
+    public function getPortefeuilleRisqueCafData(Request $request): JsonResponse
+    {
+        try {
+            $month = $request->input('month');
+            $year = $request->input('year');
+            $monthRef = $request->input('month_ref');
+            $yearRef = $request->input('year_ref');
+            $agency = $request->input('agency');
+
+            $result = $this->oracleService->getPortefeuilleRisqueCafData(
+                $month ? (int) $month : null,
+                $year ? (int) $year : null,
+                $agency ?: null,
+                $monthRef ? (int) $monthRef : null,
+                $yearRef ? (int) $yearRef : null
+            );
+
+            if ($result['success']) {
+                return response()->json($result['data']);
+            }
+
+            return response()->json([
+                'error' => $result['error'],
+                'message' => $result['message'],
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération des données PAR CAF: ' . $e->getMessage());
+
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Récupère les entrées PAR et provisions pour un palier (0, 30, 90, 180, 360)
+     */
+    public function getEntreesParData(Request $request): JsonResponse
+    {
+        try {
+            $month = $request->input('month');
+            $year = $request->input('year');
+            $par = $request->input('par', 0);
+
+            $result = $this->oracleService->getEntreesParData(
+                $month ? (int) $month : null,
+                $year ? (int) $year : null,
+                (int) $par
+            );
+
+            if ($result['success']) {
+                return response()->json($result['data']);
+            }
+
+            return response()->json([
+                'error' => $result['error'],
+                'message' => $result['message']
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération des données entrées PAR: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Récupère les données de stock de provision depuis Oracle
+     */
+    public function getStockProvisionData(Request $request): JsonResponse
+    {
+        try {
+            $month = $request->input('month');
+            $year = $request->input('year');
+
+            // Appeler le service Oracle pour récupérer les données
+            $result = $this->oracleService->getStockProvisionData($month ? (int)$month : null, $year ? (int)$year : null);
+
+            if ($result['success']) {
+                $data = $result['data'];
+                
+                // Les données peuvent être dans $data directement ou dans $data['data']
+                $actualData = $data;
+                if (isset($data['data']) && is_array($data['data'])) {
+                    $actualData = $data['data'];
+                }
+                
+                return response()->json($actualData);
+            }
+
+            return response()->json([
+                'error' => $result['error'],
+                'message' => $result['message']
+            ], 500);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération des données stock provision: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Récupère un GL par code ou recherche par libellé (Référence compte)
+     */
+    public function getGlLookup(Request $request): JsonResponse
+    {
+        try {
+            $glCode = $request->input('gl_code');
+            $glDesc = $request->input('gl_desc');
+
+            $result = $this->oracleService->getGlLookup($glCode, $glDesc);
+
+            if ($result['success']) {
+                return response()->json($result['data']);
+            }
+
+            return response()->json([
+                'error' => $result['error'],
+                'message' => $result['message']
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Erreur GL lookup: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Données CR par agence (DATA CR) pour une liste de parent GL.
+     * Paramètres: date_from, date_to (DD/MM/YYYY), parent_gl_codes (array).
+     */
+    public function getCrParAgenceData(Request $request): JsonResponse
+    {
+        try {
+            $dateFrom = $request->input('date_from', '01/01/' . date('Y'));
+            $dateTo = $request->input('date_to', date('d/m/Y'));
+            $parentGlCodes = $request->input('parent_gl_codes', []);
+            if (!is_array($parentGlCodes)) {
+                $parentGlCodes = [];
+            }
+
+            $result = $this->oracleService->getCrParAgenceData($dateFrom, $dateTo, $parentGlCodes);
+
+            if ($result['success']) {
+                return response()->json($result['data']);
+            }
+
+            return response()->json([
+                'error' => $result['error'] ?? 'Erreur',
+                'message' => $result['message'] ?? ''
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Erreur CR par Agence: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
 

@@ -629,5 +629,293 @@ class OracleService
             ];
         }
     }
+
+    /**
+     * Récupère les données de portefeuille à risque depuis Oracle
+     *
+     * @param  int|null  $month  Mois en cours (1-12)
+     * @param  int|null  $year  Année du mois en cours
+     * @param  int|null  $monthRef  Mois de référence (1-12), optionnel
+     * @param  int|null  $yearRef  Année du mois de référence, optionnel
+     */
+    public function getPortefeuilleRisqueData(?int $month = null, ?int $year = null, ?int $monthRef = null, ?int $yearRef = null): array
+    {
+        try {
+            $params = [];
+            if ($month) {
+                $params['month'] = $month;
+            }
+            if ($year) {
+                $params['year'] = $year;
+            }
+            if ($monthRef) {
+                $params['month_ref'] = $monthRef;
+            }
+            if ($yearRef) {
+                $params['year_ref'] = $yearRef;
+            }
+
+            $response = Http::timeout(300)->get("{$this->pythonServiceUrl}/api/oracle/data/portefeuille-risque", $params);
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'data' => $response->json()
+                ];
+            }
+
+            Log::error('Erreur API Python Portefeuille Risque', [
+                'status' => $response->status(),
+                'body' => $response->body()
+            ]);
+
+            return [
+                'success' => false,
+                'error' => 'Erreur du service Python',
+                'message' => $response->body()
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération des données portefeuille à risque: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Récupère les données PAR agrégées par CAF pour une agence donnée
+     */
+    public function getPortefeuilleRisqueCafData(
+        ?int $month = null,
+        ?int $year = null,
+        ?string $agency = null,
+        ?int $monthRef = null,
+        ?int $yearRef = null
+    ): array {
+        try {
+            $params = [];
+            if ($month) {
+                $params['month'] = $month;
+            }
+            if ($year) {
+                $params['year'] = $year;
+            }
+            if ($monthRef) {
+                $params['month_ref'] = $monthRef;
+            }
+            if ($yearRef) {
+                $params['year_ref'] = $yearRef;
+            }
+            if ($agency) {
+                $params['agency'] = $agency;
+            }
+
+            $response = Http::timeout(300)->get("{$this->pythonServiceUrl}/api/oracle/data/portefeuille-risque-caf", $params);
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'data' => $response->json(),
+                ];
+            }
+
+            Log::error('Erreur API Python Portefeuille Risque CAF', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => 'Erreur du service Python',
+                'message' => $response->body(),
+            ];
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération des données PAR CAF: ' . $e->getMessage());
+
+            return [
+                'success' => false,
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Récupère les données de stock de provision depuis Oracle
+     */
+    public function getStockProvisionData(?int $month = null, ?int $year = null): array
+    {
+        try {
+            $params = [];
+            if ($month) {
+                $params['month'] = $month;
+            }
+            if ($year) {
+                $params['year'] = $year;
+            }
+
+            $response = Http::timeout(300)->get("{$this->pythonServiceUrl}/api/oracle/data/stock-provision", $params);
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'data' => $response->json()
+                ];
+            }
+
+            Log::error('Erreur API Python Stock Provision', [
+                'status' => $response->status(),
+                'body' => $response->body()
+            ]);
+
+            return [
+                'success' => false,
+                'error' => 'Erreur du service Python',
+                'message' => $response->body()
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération des données stock provision: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Récupère les entrées PAR et provisions pour un palier (0, 30, 90, 180, 360)
+     */
+    public function getEntreesParData(?int $month = null, ?int $year = null, ?int $par = 0): array
+    {
+        try {
+            $params = ['par' => (int) $par];
+            if ($month) {
+                $params['month'] = $month;
+            }
+            if ($year) {
+                $params['year'] = $year;
+            }
+
+            $response = Http::timeout(300)->get("{$this->pythonServiceUrl}/api/oracle/data/entrees-par", $params);
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'data' => $response->json()
+                ];
+            }
+
+            Log::error('Erreur API Python Entrées PAR', [
+                'status' => $response->status(),
+                'body' => $response->body()
+            ]);
+
+            return [
+                'success' => false,
+                'error' => 'Erreur du service Python',
+                'message' => $response->body()
+            ];
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération des données entrées PAR: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Récupère un GL par code ou recherche par libellé depuis CFSFCUBS145.GLVW_GLMASTER_E
+     */
+    public function getGlLookup(?string $glCode = null, ?string $glDesc = null): array
+    {
+        try {
+            $params = [];
+            if ($glCode) {
+                $params['gl_code'] = $glCode;
+            }
+            if ($glDesc) {
+                $params['gl_desc'] = $glDesc;
+            }
+
+            $response = Http::timeout(30)->get("{$this->pythonServiceUrl}/api/oracle/data/gl-lookup", $params);
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'data' => $response->json()
+                ];
+            }
+
+            Log::error('Erreur API Python GL lookup', [
+                'status' => $response->status(),
+                'body' => $response->body()
+            ]);
+
+            return [
+                'success' => false,
+                'error' => 'Erreur du service Python',
+                'message' => $response->body()
+            ];
+        } catch (\Exception $e) {
+            Log::error('Erreur lors du lookup GL: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Données CR par agence pour une liste de parent GL (sous-rubrique).
+     * Requête DATA CR : solde par agence pour la période VALUE_DT.
+     *
+     * @param string $dateFrom Date début DD/MM/YYYY
+     * @param string $dateTo Date fin DD/MM/YYYY
+     * @param array $parentGlCodes Liste des codes parent GL
+     * @return array { success, data: [{ AC_BRANCH, BRANCH_NAME, montant }] }
+     */
+    public function getCrParAgenceData(string $dateFrom, string $dateTo, array $parentGlCodes): array
+    {
+        try {
+            $response = Http::timeout(60)->post("{$this->pythonServiceUrl}/api/oracle/data/cr-par-agence", [
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+                'parent_gl_codes' => $parentGlCodes,
+            ]);
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'data' => $response->json()
+                ];
+            }
+
+            Log::error('Erreur API Python CR par Agence', [
+                'status' => $response->status(),
+                'body' => $response->body()
+            ]);
+
+            return [
+                'success' => false,
+                'error' => 'Erreur du service Python',
+                'message' => $response->body()
+            ];
+        } catch (\Exception $e) {
+            Log::error('Erreur CR par Agence: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage()
+            ];
+        }
+    }
 }
 

@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
             TerritorySeeder::class,
             UserSeeder::class,
             AgencySeeder::class,
+            ReferenceCompteSeeder::class,
         ]);
     }
 }

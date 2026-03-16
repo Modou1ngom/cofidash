@@ -50,7 +50,7 @@
             </div>
           </div>
         </div>-->
-        <div class="nav-section-header" @click.stop="toggleCredit" :class="{ active: activeSection === 'production' || activeSection === 'renouvellement' || activeSection === 'restructuration' || activeSection === 'commission-credit' || activeSection === 'recouvrement' }">
+        <div class="nav-section-header" @click.stop="toggleCredit" :class="{ active: activeSection === 'production' || activeSection === 'renouvellement' || activeSection === 'restructuration' || activeSection === 'commission-credit' || activeSection === 'recouvrement' || activeSection === 'portefeuille-risque' || activeSection === 'performance-credit' }">
           <span class="nav-title">
             <span class="nav-icon">💳</span>
             <span class="nav-label">CREDIT</span>
@@ -61,6 +61,18 @@
           <a href="#" @click.stop.prevent="selectSection('production')" class="nav-link indent" :class="{ active: activeSection === 'production' }">
             Production
           </a>
+          <div class="nav-section-header indent" @click.stop="togglePortefeuilleRisque">
+            <span>Portefeuille à risque</span>
+            <span class="toggle-icon">{{ portefeuilleRisqueExpanded ? '▼' : '▶' }}</span>
+          </div>
+          <div v-if="portefeuilleRisqueExpanded" class="nav-section-items">
+            <a href="#" @click.stop.prevent="handlePortefeuilleRisqueSection('simple')" class="nav-link double-indent" :class="{ active: activeSection === 'portefeuille-risque' && activeSubSection === 'simple' }">
+              PAR SIMPLE
+            </a>
+            <a href="#" @click.stop.prevent="handlePortefeuilleRisqueSection('global')" class="nav-link double-indent" :class="{ active: activeSection === 'portefeuille-risque' && activeSubSection === 'global' }">
+              PAR GLOBAL
+            </a>
+          </div>
           <a href="#" @click.stop.prevent="selectSection('renouvellement')" class="nav-link indent" :class="{ active: activeSection === 'renouvellement' }">
             Renouvellement
           </a>
@@ -70,9 +82,8 @@
           <a href="#" @click.stop.prevent="selectSection('commission-credit')" class="nav-link indent" :class="{ active: activeSection === 'commission-credit' }">
             Commission de crédit
           </a>
-          <a href="#" @click.stop.prevent="selectSection('recouvrement')" class="nav-link indent" :class="{ active: activeSection === 'recouvrement' }">
-            Recouvrement
-          </a>
+         
+         
           <a href="#" @click.stop.prevent="selectSection('performance-credit')" class="nav-link indent" :class="{ active: activeSection === 'performance-credit' }">
             📊 Performance
           </a>
@@ -157,6 +168,22 @@
          
         </div>
 
+        <div class="nav-section-header" @click.stop="toggleReportingFinancier" :class="{ active: activeSection === 'reporting-financier' }">
+          <span class="nav-title">
+            <span class="nav-icon">📑</span>
+            <span class="nav-label">Reporting Financier</span>
+          </span>
+          <span class="toggle-icon">{{ reportingFinancierExpanded ? '▼' : '▶' }}</span>
+        </div>
+        <div v-if="reportingFinancierExpanded" class="nav-section-items">
+          <a href="#" @click.stop.prevent="handleReportingFinancierSection('reference-compte')" class="nav-link indent" :class="{ active: activeSection === 'reporting-financier' && activeSubSection === 'reference-compte' }">
+            Référence compte
+          </a>
+          <a href="#" @click.stop.prevent="handleReportingFinancierSection('cr-par-agence')" class="nav-link indent" :class="{ active: activeSection === 'reporting-financier' && activeSubSection === 'cr-par-agence' }">
+            CR par Agence
+          </a>
+        </div>
+
         <div class="nav-section-header" @click.stop="toggleManagement" :class="{ active: activeSection === 'management' || activeSection === 'performance-management' || activeSection === 'environments' }">
           <span class="nav-title">
             <span class="nav-icon">⚙️</span>
@@ -212,7 +239,9 @@ export default {
       managementExpanded: false,
       moneyTransfersExpanded: false,
       epsExpanded: false,
-      diversExpanded: false
+      diversExpanded: false,
+      portefeuilleRisqueExpanded: false,
+      reportingFinancierExpanded: false
     }
   },
   watch: {
@@ -226,11 +255,14 @@ export default {
         this.clientExpanded = false;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
-      } else if (newVal === 'production' || newVal === 'renouvellement' || newVal === 'restructuration' || newVal === 'commission-credit' || newVal === 'recouvrement' || newVal === 'performance-credit') {
+      } else if (newVal === 'production' || newVal === 'renouvellement' || newVal === 'restructuration' || newVal === 'commission-credit' || newVal === 'recouvrement' || newVal === 'portefeuille-risque' || newVal === 'performance-credit') {
         this.creditExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
+        if (newVal === 'portefeuille-risque') {
+          this.portefeuilleRisqueExpanded = true;
+        }
       } else if (newVal === 'objectives' || newVal === 'performance-objectives') {
         this.objectivesExpanded = true;
         this.clientExpanded = false;
@@ -270,6 +302,17 @@ export default {
         this.performanceExpanded = false;
         this.prepaidCardsExpanded = false;
         this.managementExpanded = false;
+      } else if (newVal === 'reporting-financier') {
+        this.reportingFinancierExpanded = true;
+        this.clientExpanded = false;
+        this.depotExpanded = false;
+        this.creditExpanded = false;
+        this.objectivesExpanded = false;
+        this.managementExpanded = false;
+        this.prepaidCardsExpanded = false;
+        this.moneyTransfersExpanded = false;
+        this.epsExpanded = false;
+        this.diversExpanded = false;
       } else if (newVal === 'management' || newVal === 'performance-management' || newVal === 'environments') {
         this.managementExpanded = true;
         this.clientExpanded = false;
@@ -293,11 +336,14 @@ export default {
       this.clientExpanded = false;
       this.objectivesExpanded = false;
       this.managementExpanded = false;
-    } else if (this.activeSection === 'production' || this.activeSection === 'renouvellement' || this.activeSection === 'restructuration' || this.activeSection === 'commission-credit' || this.activeSection === 'recouvrement' || this.activeSection === 'performance-credit') {
-      this.creditExpanded = true;
-      this.clientExpanded = false;
-      this.objectivesExpanded = false;
-      this.managementExpanded = false;
+      } else if (this.activeSection === 'production' || this.activeSection === 'renouvellement' || this.activeSection === 'restructuration' || this.activeSection === 'commission-credit' || this.activeSection === 'recouvrement' || this.activeSection === 'portefeuille-risque' || this.activeSection === 'performance-credit') {
+        this.creditExpanded = true;
+        this.clientExpanded = false;
+        this.objectivesExpanded = false;
+        this.managementExpanded = false;
+        if (this.activeSection === 'portefeuille-risque') {
+          this.portefeuilleRisqueExpanded = true;
+        }
     } else if (this.activeSection === 'objectives' || this.activeSection === 'performance-objectives') {
       this.clientExpanded = false;
       this.objectivesExpanded = true;
@@ -337,6 +383,17 @@ export default {
       this.performanceExpanded = false;
       this.prepaidCardsExpanded = false;
       this.managementExpanded = false;
+    } else if (this.activeSection === 'reporting-financier') {
+      this.reportingFinancierExpanded = true;
+      this.clientExpanded = false;
+      this.depotExpanded = false;
+      this.creditExpanded = false;
+      this.objectivesExpanded = false;
+      this.managementExpanded = false;
+      this.prepaidCardsExpanded = false;
+      this.moneyTransfersExpanded = false;
+      this.epsExpanded = false;
+      this.diversExpanded = false;
     } else if (this.activeSection === 'management' || this.activeSection === 'performance-management' || this.activeSection === 'environments') {
       this.clientExpanded = false;
       this.objectivesExpanded = false;
@@ -375,6 +432,15 @@ export default {
     toggleDivers() {
       this.diversExpanded = !this.diversExpanded;
     },
+    togglePortefeuilleRisque() {
+      this.portefeuilleRisqueExpanded = !this.portefeuilleRisqueExpanded;
+    },
+    handlePortefeuilleRisqueSection(subSection) {
+      this.$emit('section-selected', 'portefeuille-risque');
+      this.$nextTick(() => {
+        this.$emit('sub-section-selected', subSection);
+      });
+    },
     toggleObjectives() {
       this.objectivesExpanded = !this.objectivesExpanded;
       // Toujours sélectionner la section objectives quand on clique sur le header
@@ -387,6 +453,18 @@ export default {
       setTimeout(() => {
         this.$emit('sub-section-selected', subSection);
       }, 0);
+    },
+    toggleReportingFinancier() {
+      this.reportingFinancierExpanded = !this.reportingFinancierExpanded;
+      if (this.reportingFinancierExpanded) {
+        this.$emit('section-selected', 'reporting-financier');
+      }
+    },
+    handleReportingFinancierSection(subSection) {
+      this.$emit('section-selected', 'reporting-financier');
+      this.$nextTick(() => {
+        this.$emit('sub-section-selected', subSection);
+      });
     },
     toggleManagement() {
       this.managementExpanded = !this.managementExpanded;
@@ -408,11 +486,14 @@ export default {
         this.clientExpanded = false;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
-      } else if (section === 'production' || section === 'renouvellement' || section === 'restructuration' || section === 'commission-credit' || section === 'recouvrement' || section === 'performance-credit') {
+      } else if (section === 'production' || section === 'renouvellement' || section === 'restructuration' || section === 'commission-credit' || section === 'recouvrement' || section === 'portefeuille-risque' || section === 'performance-credit') {
         this.creditExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
+        if (section === 'portefeuille-risque') {
+          this.portefeuilleRisqueExpanded = true;
+        }
       } else if (section === 'objectives' || section === 'performance-objectives') {
         this.objectivesExpanded = true;
         this.clientExpanded = false;
@@ -452,6 +533,17 @@ export default {
         this.performanceExpanded = false;
         this.prepaidCardsExpanded = false;
         this.managementExpanded = false;
+      } else if (section === 'reporting-financier') {
+        this.reportingFinancierExpanded = true;
+        this.clientExpanded = false;
+        this.depotExpanded = false;
+        this.creditExpanded = false;
+        this.objectivesExpanded = false;
+        this.managementExpanded = false;
+        this.prepaidCardsExpanded = false;
+        this.moneyTransfersExpanded = false;
+        this.epsExpanded = false;
+        this.diversExpanded = false;
       } else if (section === 'management' || section === 'performance-management' || section === 'environments') {
         this.managementExpanded = true;
         this.clientExpanded = false;
@@ -647,6 +739,108 @@ export default {
   object-fit: cover;
   border-radius: 10px;
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.15);
+}
+
+/* Media Queries pour le responsive */
+
+/* Tablettes */
+@media (max-width: 1200px) {
+  .sidebar {
+    width: 220px;
+  }
+  
+  .nav-section-header {
+    padding: 10px 15px;
+    font-size: 0.75rem;
+  }
+  
+  .nav-link {
+    padding: 8px 18px;
+    font-size: 0.8rem;
+  }
+  
+  .nav-link.indent {
+    padding-left: 28px;
+  }
+  
+  .nav-link.double-indent {
+    padding-left: 38px;
+  }
+}
+
+/* Tablettes en mode portrait et petits écrans */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 200px;
+    min-width: 200px;
+  }
+  
+  .nav-section-header {
+    padding: 10px 15px;
+    font-size: 0.75rem;
+  }
+  
+  .nav-link {
+    padding: 8px 18px;
+    font-size: 0.8rem;
+  }
+  
+  .nav-link.indent {
+    padding-left: 25px;
+  }
+  
+  .nav-link.double-indent {
+    padding-left: 35px;
+  }
+  
+  .sidebar-footer {
+    padding: 12px 15px 15px;
+  }
+  
+  .building-image {
+    height: 120px;
+  }
+}
+
+/* Petits mobiles */
+@media (max-width: 480px) {
+  .sidebar {
+    width: 100%;
+  }
+  
+  .nav-section-header {
+    padding: 10px 15px;
+    font-size: 0.8rem;
+  }
+  
+  .nav-icon {
+    font-size: 0.9rem;
+  }
+  
+  .nav-label {
+    font-size: 0.75rem;
+  }
+  
+  .nav-link {
+    padding: 8px 18px;
+    font-size: 0.8rem;
+  }
+  
+  .nav-link.indent {
+    padding-left: 25px;
+  }
+  
+  .nav-link.double-indent {
+    padding-left: 35px;
+  }
+  
+  .sidebar-footer {
+    padding: 10px 12px 12px;
+  }
+  
+  .building-image {
+    height: 100px;
+  }
 }
 </style>
 

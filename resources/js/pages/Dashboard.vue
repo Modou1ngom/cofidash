@@ -68,6 +68,8 @@
           <h2>Recouvrement</h2>
           <p>Section Recouvrement en cours de développement</p>
         </div>
+        <PortefeuilleRisqueSection v-if="activeSection === 'portefeuille-risque' && activeSubSection === 'simple'" />
+        <PortefeuilleRisqueGlobalSection v-if="activeSection === 'portefeuille-risque' && activeSubSection === 'global'" />
         
         <!-- Sections DEPOT -->
         <div v-if="activeSection === 'domiciliation-flux'" class="section-placeholder">
@@ -96,6 +98,12 @@
         <TerritoryAgencyManagement v-if="activeSection === 'management'" />
         <MoneyTransferSection v-if="activeSection === 'money-transfers'" />
         <EnvironmentsSection v-if="activeSection === 'environments'" />
+        <ReferenceCompteSection v-if="activeSection === 'reporting-financier' && activeSubSection === 'reference-compte'" />
+        <CRParAgenceSection v-if="activeSection === 'reporting-financier' && activeSubSection === 'cr-par-agence'" />
+        <div v-if="activeSection === 'reporting-financier' && !activeSubSection" class="section-placeholder">
+          <h2>Reporting Financier</h2>
+          <p>Sélectionnez un sous-menu dans la barre latérale.</p>
+        </div>
       </div>
     </div>
   </div>
@@ -120,6 +128,10 @@ import EnvironmentsSection from '../components/EnvironmentsSection.vue';
 import DepotGarantieSection from '../components/DepotGarantieSection.vue';
 import VolumeDatSection from '../components/VolumeDatSection.vue';
 import EncoursSection from '../components/EncoursSection.vue';
+import PortefeuilleRisqueSection from '../components/PortefeuilleRisqueSection.vue';
+import PortefeuilleRisqueGlobalSection from '../components/PortefeuilleRisqueGlobalSection.vue';
+import CRParAgenceSection from '../components/CRParAgenceSection.vue';
+import ReferenceCompteSection from '../components/ReferenceCompteSection.vue';
 import { ProfileManager } from '../utils/profiles.js';
 
 export default {
@@ -142,7 +154,11 @@ export default {
     EnvironmentsSection,
     DepotGarantieSection,
     VolumeDatSection,
-    EncoursSection
+    EncoursSection,
+    PortefeuilleRisqueSection,
+    PortefeuilleRisqueGlobalSection,
+    CRParAgenceSection,
+    ReferenceCompteSection
   },
   data() {
     return {
@@ -162,6 +178,11 @@ export default {
         this.activeSubSection = 'production';
       } else if (section === 'renouvellement' || section === 'restructuration' || section === 'commission-credit' || section === 'recouvrement') {
         this.activeSubSection = null;
+      } else if (section === 'portefeuille-risque') {
+        // Si aucune sous-section n'est définie, utiliser 'simple' par défaut
+        if (!this.activeSubSection || (this.activeSubSection !== 'simple' && this.activeSubSection !== 'global')) {
+          this.activeSubSection = 'simple';
+        }
       } else if (section === 'objectives') {
         // Ne pas forcer la sous-section si elle est déjà 'add' ou 'validation'
         // Sinon, pour le MD, rediriger vers 'validation' au lieu de 'add'
@@ -299,6 +320,90 @@ export default {
 .section-placeholder p {
   color: #6b7280;
   font-size: 16px;
+}
+
+/* Media Queries pour le responsive */
+
+/* Tablettes */
+@media (max-width: 1200px) {
+  .main-content {
+    padding: 15px;
+  }
+  
+  .production-tabs {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  
+  .production-tab {
+    padding: 10px 18px;
+    font-size: 13px;
+  }
+}
+
+/* Tablettes en mode portrait et petits écrans */
+@media (max-width: 768px) {
+  .dashboard-body {
+    flex-direction: column;
+  }
+  
+  .main-content {
+    padding: 15px;
+    width: 100%;
+  }
+  
+  .production-tabs {
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .production-tab {
+    width: 100%;
+    padding: 10px 16px;
+    font-size: 13px;
+    border-radius: 6px;
+    bottom: 0;
+  }
+  
+  .section-placeholder {
+    padding: 30px 20px;
+  }
+  
+  .section-placeholder h2 {
+    font-size: 20px;
+  }
+  
+  .section-placeholder p {
+    font-size: 14px;
+  }
+}
+
+/* Petits mobiles */
+@media (max-width: 480px) {
+  .main-content {
+    padding: 10px;
+  }
+  
+  .production-tabs {
+    padding: 6px;
+  }
+  
+  .production-tab {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  
+  .section-placeholder {
+    padding: 20px 15px;
+  }
+  
+  .section-placeholder h2 {
+    font-size: 18px;
+  }
+  
+  .section-placeholder p {
+    font-size: 13px;
+  }
 }
 </style>
 
