@@ -106,10 +106,13 @@ def get_production_nombre_data(
         SELECT 
             w.ACCOUNT_NUMBER AS NO_PRET,
             w.BRANCH_CODE,
-            br.BRANCH_NAME
+            br.BRANCH_NAME,
+            U1.LOV_DESC as CHARGE_AFFAIRE,
+            w.FIELD_CHAR_2 AS CODE_GESTION_PRET
         FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER w
         LEFT JOIN DEBLOCAGE d ON d.ACCOUNT_NUMBER = w.ACCOUNT_NUMBER
         LEFT JOIN BRANCH br ON br.BRANCH_CODE = w.BRANCH_CODE
+        LEFT JOIN CFSFCUBS145.UDTM_LOV U1 ON U1.FIELD_NAME='GESTION_PRET' and U1.LOV=w.FIELD_CHAR_2
         WHERE w.ACCOUNT_STATUS NOT IN ('L','V')
           AND d.SCHEDULE_LINKAGE BETWEEN TO_DATE(:1, 'DD/MM/YYYY')
                                      AND TO_DATE(:2, 'DD/MM/YYYY')
@@ -118,10 +121,13 @@ def get_production_nombre_data(
         SELECT 
             w.ACCOUNT_NUMBER AS NO_PRET,
             w.BRANCH_CODE,
-            br.BRANCH_NAME
+            br.BRANCH_NAME,
+            U1.LOV_DESC as CHARGE_AFFAIRE,
+            w.FIELD_CHAR_2 AS CODE_GESTION_PRET
         FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER w
         LEFT JOIN DEBLOCAGE d ON d.ACCOUNT_NUMBER = w.ACCOUNT_NUMBER
         LEFT JOIN BRANCH br ON br.BRANCH_CODE = w.BRANCH_CODE
+        LEFT JOIN CFSFCUBS145.UDTM_LOV U1 ON U1.FIELD_NAME='GESTION_PRET' and U1.LOV=w.FIELD_CHAR_2
         WHERE w.ACCOUNT_STATUS NOT IN ('L','V')
           AND d.SCHEDULE_LINKAGE BETWEEN TO_DATE(:3, 'DD/MM/YYYY')
                                      AND TO_DATE(:4, 'DD/MM/YYYY')
@@ -217,6 +223,157 @@ def get_production_nombre_data(
                 except (ValueError, TypeError):
                     row_dict[key] = 0
         results.append(row_dict)
+    
+    # Requête pour récupérer les détails par CAF (déclinaison par charge d'affaire)
+    sql_query_caf = """
+    WITH BRANCH AS (
+        SELECT BRANCH_CODE, BRANCH_NAME
+        FROM CFSFCUBS145.STTM_BRANCH
+    ),
+    DEBLOCAGE AS (
+        SELECT
+            y.ACCOUNT_NUMBER,
+            COALESCE(y.DTYPE, 'VIDE') AS DTYPE,
+            MAX(y.SCHEDULE_LINKAGE) AS SCHEDULE_LINKAGE
+        FROM CFSFCUBS145.CLTB_DISBR_SCHEDULES y
+        WHERE (y.DTYPE <> 'X' OR y.DTYPE IS NULL)
+        GROUP BY y.ACCOUNT_NUMBER, COALESCE(y.DTYPE, 'VIDE')
+    ),
+    PRODUCTION_M AS (
+        SELECT 
+            w.ACCOUNT_NUMBER AS NO_PRET,
+            w.BRANCH_CODE,
+            br.BRANCH_NAME,
+            U1.LOV_DESC as CHARGE_AFFAIRE,
+            w.FIELD_CHAR_2 AS CODE_GESTION_PRET
+        FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER w
+        LEFT JOIN DEBLOCAGE d ON d.ACCOUNT_NUMBER = w.ACCOUNT_NUMBER
+        LEFT JOIN BRANCH br ON br.BRANCH_CODE = w.BRANCH_CODE
+        LEFT JOIN CFSFCUBS145.UDTM_LOV U1 ON U1.FIELD_NAME='GESTION_PRET' and U1.LOV=w.FIELD_CHAR_2
+        WHERE w.ACCOUNT_STATUS NOT IN ('L','V')
+          AND d.SCHEDULE_LINKAGE BETWEEN TO_DATE(:1, 'DD/MM/YYYY')
+                                     AND TO_DATE(:2, 'DD/MM/YYYY')
+    ),
+    PRODUCTION_M_1 AS (
+        SELECT 
+            w.ACCOUNT_NUMBER AS NO_PRET,
+            w.BRANCH_CODE,
+            br.BRANCH_NAME,
+            U1.LOV_DESC as CHARGE_AFFAIRE,
+            w.FIELD_CHAR_2 AS CODE_GESTION_PRET
+        FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER w
+        LEFT JOIN DEBLOCAGE d ON d.ACCOUNT_NUMBER = w.ACCOUNT_NUMBER
+        LEFT JOIN BRANCH br ON br.BRANCH_CODE = w.BRANCH_CODE
+        LEFT JOIN CFSFCUBS145.UDTM_LOV U1 ON U1.FIELD_NAME='GESTION_PRET' and U1.LOV=w.FIELD_CHAR_2
+        WHERE w.ACCOUNT_STATUS NOT IN ('L','V')
+          AND d.SCHEDULE_LINKAGE BETWEEN TO_DATE(:3, 'DD/MM/YYYY')
+                                     AND TO_DATE(:4, 'DD/MM/YYYY')
+    ),
+    NBRE_DOSSIER_M AS (
+        SELECT 
+            p.BRANCH_CODE AS Code_Agence,
+            p.BRANCH_NAME AS Agence,
+            COALESCE(p.CHARGE_AFFAIRE, 'NON ASSIGNE') AS CHARGE_AFFAIRE,
+            MAX(p.CODE_GESTION_PRET) AS CODE_GESTION_PRET,
+            COUNT(p.NO_PRET) AS Nombre_Dossiers_M
+        FROM PRODUCTION_M p
+        GROUP BY p.BRANCH_CODE, p.BRANCH_NAME, COALESCE(p.CHARGE_AFFAIRE, 'NON ASSIGNE')
+    ),
+    NBRE_DOSSIER_M_1 AS (
+        SELECT 
+            p1.BRANCH_CODE AS Code_Agence,
+            p1.BRANCH_NAME AS Agence,
+            COALESCE(p1.CHARGE_AFFAIRE, 'NON ASSIGNE') AS CHARGE_AFFAIRE,
+            MAX(p1.CODE_GESTION_PRET) AS CODE_GESTION_PRET,
+            COUNT(p1.NO_PRET) AS Nombre_Dossiers_M_1
+        FROM PRODUCTION_M_1 p1
+        GROUP BY p1.BRANCH_CODE, p1.BRANCH_NAME, COALESCE(p1.CHARGE_AFFAIRE, 'NON ASSIGNE')
+    )
+    SELECT 
+        COALESCE(m.Code_Agence, m1.Code_Agence) AS Code_Agence,
+        COALESCE(m.Agence, m1.Agence) AS Agence,
+        COALESCE(m.CHARGE_AFFAIRE, m1.CHARGE_AFFAIRE) AS CHARGE_AFFAIRE,
+        COALESCE(m.CODE_GESTION_PRET, m1.CODE_GESTION_PRET) AS CODE_GESTION_PRET,
+        COALESCE(m.Nombre_Dossiers_M, 0) AS Nombre_Dossiers_M,
+        COALESCE(m1.Nombre_Dossiers_M_1, 0) AS Nombre_Dossiers_M_1,
+        (COALESCE(m.Nombre_Dossiers_M, 0) - COALESCE(m1.Nombre_Dossiers_M_1, 0)) as Variation_nombre,
+        ROUND(
+            (((COALESCE(m.Nombre_Dossiers_M, 0) - COALESCE(m1.Nombre_Dossiers_M_1, 0)) / NULLIF(COALESCE(m1.Nombre_Dossiers_M_1, 0), 0)) * 100), 
+            2
+        ) AS VARIATION_PCT
+    FROM NBRE_DOSSIER_M m
+    FULL OUTER JOIN NBRE_DOSSIER_M_1 m1
+        ON m.Code_Agence = m1.Code_Agence
+       AND m.CHARGE_AFFAIRE = m1.CHARGE_AFFAIRE
+    ORDER BY COALESCE(m.Code_Agence, m1.Code_Agence), COALESCE(m.CHARGE_AFFAIRE, m1.CHARGE_AFFAIRE)
+    """
+    
+    # Exécuter la requête pour les détails par CAF
+    cursor.execute(sql_query_caf, [
+        date_m_debut_str,
+        date_m_fin_str,
+        date_m1_debut_str,
+        date_m1_fin_str
+    ])
+    
+    # Récupérer les colonnes et les données pour les CAF
+    columns_caf = [desc[0] for desc in cursor.description]
+    rows_caf = cursor.fetchall()
+    
+    # Traiter les données par CAF pour créer le dictionnaire chargeAffaireDetails
+    charge_affaire_data = {}
+    for row in rows_caf:
+        row_dict = dict(zip(columns_caf, row))
+        # Convertir les Decimal en float pour JSON (Oracle retourne les noms de colonnes en majuscules)
+        for key, value in row_dict.items():
+            if value is None:
+                if key and key.upper() in ['NOMBRE_DOSSIERS_M', 'NOMBRE_DOSSIERS_M_1', 'VARIATION_NOMBRE', 'VARIATION_PCT']:
+                    row_dict[key] = 0
+                else:
+                    row_dict[key] = None
+            elif hasattr(value, '__float__') and not isinstance(value, (int, float, bool, str, type(None))):
+                try:
+                    row_dict[key] = float(value)
+                except (ValueError, TypeError):
+                    row_dict[key] = 0
+        
+        # Utiliser le CODE_AGENCE comme clé (comme dans collection_service)
+        branch_code = str(row_dict.get('CODE_AGENCE', '') or '')
+        if branch_code:
+            if branch_code not in charge_affaire_data:
+                charge_affaire_data[branch_code] = {}
+            
+            # Utiliser CHARGE_AFFAIRE comme clé secondaire
+            # Gérer les cas où CHARGE_AFFAIRE est NULL ou vide
+            charge_affaire = row_dict.get('CHARGE_AFFAIRE')
+            if not charge_affaire or (isinstance(charge_affaire, str) and charge_affaire.strip() == ''):
+                charge_affaire = 'NON ASSIGNE'
+            
+            # Oracle retourne les noms de colonnes en majuscules (ex: NOMBRE_DOSSIERS_M)
+            nbre_m = float(row_dict.get('NOMBRE_DOSSIERS_M') or row_dict.get('Nombre_Dossiers_M', 0) or 0)
+            nbre_m1 = float(row_dict.get('NOMBRE_DOSSIERS_M_1') or row_dict.get('Nombre_Dossiers_M_1', 0) or 0)
+            var_nb = float(row_dict.get('VARIATION_NOMBRE') or row_dict.get('Variation_nombre', 0) or 0)
+            var_pct = float(row_dict.get('VARIATION_PCT', 0) or 0)
+            if charge_affaire not in charge_affaire_data[branch_code]:
+                charge_affaire_data[branch_code][charge_affaire] = {
+                    'chargeAffaire': charge_affaire,
+                    'CHARGE_AFFAIRE': charge_affaire,
+                    'codeGestion': row_dict.get('CODE_GESTION_PRET', '-') or '-',
+                    'CODE_GESTION': row_dict.get('CODE_GESTION_PRET', '-') or '-',
+                    'nombreDossiersM': nbre_m,
+                    'NOMBRE_DOSSIERS_M': nbre_m,
+                    'nombreDossiersM1': nbre_m1,
+                    'NOMBRE_DOSSIERS_M_1': nbre_m1,
+                    'variationNombre': var_nb,
+                    'VARIATION_NOMBRE': var_nb,
+                    'variationPct': var_pct,
+                    'VARIATION_PCT': var_pct
+                }
+    
+    # Convertir le dictionnaire en format liste pour chaque agence (comme dans collection_service)
+    charge_affaire_by_agency = {}
+    for agency_key, charges in charge_affaire_data.items():
+        charge_affaire_by_agency[agency_key] = list(charges.values())
     
     cursor.close()
     conn.close()
@@ -474,7 +631,8 @@ def get_production_nombre_data(
             }
         },
         "data": results,  # Garder les données brutes pour compatibilité
-        "count": len(results)
+        "count": len(results),
+        "chargeAffaireDetails": charge_affaire_by_agency  # Détails par charge d'affaire (CAF)
     }
 
 
@@ -637,6 +795,7 @@ def get_production_volume_data(
             w.BRANCH_CODE,
             br.BRANCH_NAME,
             w.FIELD_CHAR_2 AS CODE_GESTION_PRET,
+            U1.LOV_DESC as CHARGE_AFFAIRE,
             w.AMOUNT_FINANCED,
             SUM(NVL(z.AMOUNT_DUE, 0)) AS MT_CAPITAL_TA,
             SUM(NVL(z.AMOUNT_DUE, 0) - NVL(z.AMOUNT_SETTLED, 0)) AS ENCOURS_TOTAL_M,
@@ -657,12 +816,13 @@ def get_production_volume_data(
                ON d.ACCOUNT_NUMBER = w.ACCOUNT_NUMBER
         LEFT JOIN BRANCH br 
                ON br.BRANCH_CODE = w.BRANCH_CODE
+        LEFT JOIN CFSFCUBS145.UDTM_LOV U1 ON U1.FIELD_NAME='GESTION_PRET' and U1.LOV=w.FIELD_CHAR_2
         WHERE 
             w.ACCOUNT_STATUS NOT IN ('L', 'V')
             AND z.COMPONENT_NAME = 'PRINCIPAL'
             AND d.SCHEDULE_LINKAGE BETWEEN TO_DATE(:3, 'DD/MM/YYYY') 
                                        AND TO_DATE(:4, 'DD/MM/YYYY')
-        GROUP BY w.ACCOUNT_NUMBER, w.BRANCH_CODE, br.BRANCH_NAME, w.FIELD_CHAR_2, w.AMOUNT_FINANCED
+        GROUP BY w.ACCOUNT_NUMBER, w.BRANCH_CODE, br.BRANCH_NAME, w.FIELD_CHAR_2, w.AMOUNT_FINANCED, U1.LOV_DESC
     ),
     PRODUCTION_M_1 AS (
         SELECT 
@@ -670,6 +830,7 @@ def get_production_volume_data(
             w.BRANCH_CODE,
             br.BRANCH_NAME,
             w.FIELD_CHAR_2 AS CODE_GESTION_PRET,
+            U1.LOV_DESC as CHARGE_AFFAIRE,
             w.AMOUNT_FINANCED,
             SUM(NVL(z.AMOUNT_DUE, 0)) AS MT_CAPITAL_TA,
             SUM(NVL(z.AMOUNT_DUE, 0) - NVL(z.AMOUNT_SETTLED, 0)) AS ENCOURS_TOTAL_M,
@@ -690,12 +851,13 @@ def get_production_volume_data(
                ON d.ACCOUNT_NUMBER = w.ACCOUNT_NUMBER
         LEFT JOIN BRANCH br 
                ON br.BRANCH_CODE = w.BRANCH_CODE
+        LEFT JOIN CFSFCUBS145.UDTM_LOV U1 ON U1.FIELD_NAME='GESTION_PRET' and U1.LOV=w.FIELD_CHAR_2
         WHERE 
             w.ACCOUNT_STATUS NOT IN ('L', 'V')
             AND z.COMPONENT_NAME = 'PRINCIPAL'
             AND d.SCHEDULE_LINKAGE BETWEEN TO_DATE(:5, 'DD/MM/YYYY') 
                                        AND TO_DATE(:6, 'DD/MM/YYYY')
-        GROUP BY w.ACCOUNT_NUMBER, w.BRANCH_CODE, br.BRANCH_NAME, w.FIELD_CHAR_2, w.AMOUNT_FINANCED
+        GROUP BY w.ACCOUNT_NUMBER, w.BRANCH_CODE, br.BRANCH_NAME, w.FIELD_CHAR_2, w.AMOUNT_FINANCED, U1.LOV_DESC
     ),
     OBJECTIF_PRODUCTION AS (
         SELECT  
@@ -811,6 +973,174 @@ def get_production_volume_data(
                 except (ValueError, TypeError):
                     row_dict[key] = 0
         results.append(row_dict)
+    
+    # Requête pour récupérer les détails par CAF (déclinaison par charge d'affaire) - VOLUME
+    sql_query_caf = """
+    WITH BRANCH AS (
+        SELECT BRANCH_CODE, BRANCH_NAME
+        FROM cfsfcubs145.STTM_BRANCH
+    ),
+    DEBLOCAGE AS (
+        SELECT
+            y.ACCOUNT_NUMBER,
+            COALESCE(y.DTYPE, 'VIDE') AS DTYPE,
+            MAX(y.SCHEDULE_LINKAGE) AS SCHEDULE_LINKAGE
+        FROM CFSFCUBS145.CLTB_DISBR_SCHEDULES y
+        WHERE (y.DTYPE <> 'X' OR y.DTYPE IS NULL)
+        GROUP BY y.ACCOUNT_NUMBER, COALESCE(y.DTYPE, 'VIDE')
+    ),
+    PRODUCTION_M AS (
+        SELECT 
+            w.ACCOUNT_NUMBER AS NO_PRET,
+            w.BRANCH_CODE,
+            br.BRANCH_NAME,
+            w.FIELD_CHAR_2 AS CODE_GESTION_PRET,
+            U1.LOV_DESC as CHARGE_AFFAIRE,
+            w.AMOUNT_FINANCED
+        FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER w
+        LEFT JOIN DEBLOCAGE d ON d.ACCOUNT_NUMBER = w.ACCOUNT_NUMBER
+        LEFT JOIN BRANCH br ON br.BRANCH_CODE = w.BRANCH_CODE
+        LEFT JOIN CFSFCUBS145.UDTM_LOV U1 ON U1.FIELD_NAME='GESTION_PRET' and U1.LOV=w.FIELD_CHAR_2
+        WHERE w.ACCOUNT_STATUS NOT IN ('L','V')
+          AND d.SCHEDULE_LINKAGE BETWEEN TO_DATE(:1, 'DD/MM/YYYY')
+                                     AND TO_DATE(:2, 'DD/MM/YYYY')
+    ),
+    PRODUCTION_M_1 AS (
+        SELECT 
+            w.ACCOUNT_NUMBER AS NO_PRET,
+            w.BRANCH_CODE,
+            br.BRANCH_NAME,
+            w.FIELD_CHAR_2 AS CODE_GESTION_PRET,
+            U1.LOV_DESC as CHARGE_AFFAIRE,
+            w.AMOUNT_FINANCED
+        FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER w
+        LEFT JOIN DEBLOCAGE d ON d.ACCOUNT_NUMBER = w.ACCOUNT_NUMBER
+        LEFT JOIN BRANCH br ON br.BRANCH_CODE = w.BRANCH_CODE
+        LEFT JOIN CFSFCUBS145.UDTM_LOV U1 ON U1.FIELD_NAME='GESTION_PRET' and U1.LOV=w.FIELD_CHAR_2
+        WHERE w.ACCOUNT_STATUS NOT IN ('L','V')
+          AND d.SCHEDULE_LINKAGE BETWEEN TO_DATE(:3, 'DD/MM/YYYY')
+                                     AND TO_DATE(:4, 'DD/MM/YYYY')
+    ),
+    VOLUME_DEBLOQUE_M AS (
+        SELECT 
+            p.BRANCH_CODE AS Code_Agence,
+            p.BRANCH_NAME AS Agence,
+            COALESCE(p.CHARGE_AFFAIRE, 'NON ASSIGNE') AS CHARGE_AFFAIRE,
+            MAX(p.CODE_GESTION_PRET) AS CODE_GESTION_PRET,
+            SUM(p.AMOUNT_FINANCED) AS Volume_Debloque_M
+        FROM PRODUCTION_M p
+        GROUP BY p.BRANCH_CODE, p.BRANCH_NAME, COALESCE(p.CHARGE_AFFAIRE, 'NON ASSIGNE')
+    ),
+    VOLUME_DEBLOQUE_M_1 AS (
+        SELECT 
+            p1.BRANCH_CODE AS Code_Agence,
+            p1.BRANCH_NAME AS Agence,
+            COALESCE(p1.CHARGE_AFFAIRE, 'NON ASSIGNE') AS CHARGE_AFFAIRE,
+            MAX(p1.CODE_GESTION_PRET) AS CODE_GESTION_PRET,
+            SUM(p1.AMOUNT_FINANCED) AS Volume_Debloque_M_1
+        FROM PRODUCTION_M_1 p1
+        GROUP BY p1.BRANCH_CODE, p1.BRANCH_NAME, COALESCE(p1.CHARGE_AFFAIRE, 'NON ASSIGNE')
+    )
+    SELECT 
+        COALESCE(m.Code_Agence, m1.Code_Agence) AS Code_Agence,
+        COALESCE(m.Agence, m1.Agence) AS Agence,
+        COALESCE(m.CHARGE_AFFAIRE, m1.CHARGE_AFFAIRE) AS CHARGE_AFFAIRE,
+        COALESCE(m.CODE_GESTION_PRET, m1.CODE_GESTION_PRET) AS CODE_GESTION_PRET,
+        COALESCE(m.Volume_Debloque_M, 0) AS Volume_Debloque_M,
+        COALESCE(m1.Volume_Debloque_M_1, 0) AS Volume_Debloque_M_1,
+        (COALESCE(m.Volume_Debloque_M, 0) - COALESCE(m1.Volume_Debloque_M_1, 0)) as Variation_volume,
+        ROUND(
+            (((COALESCE(m.Volume_Debloque_M, 0) - COALESCE(m1.Volume_Debloque_M_1, 0)) / NULLIF(COALESCE(m1.Volume_Debloque_M_1, 0), 0)) * 100), 
+            2
+        ) AS VARIATION_PCT
+    FROM VOLUME_DEBLOQUE_M m
+    FULL OUTER JOIN VOLUME_DEBLOQUE_M_1 m1
+        ON m.Code_Agence = m1.Code_Agence
+       AND m.CHARGE_AFFAIRE = m1.CHARGE_AFFAIRE
+    ORDER BY COALESCE(m.Code_Agence, m1.Code_Agence), COALESCE(m.CHARGE_AFFAIRE, m1.CHARGE_AFFAIRE)
+    """
+    
+    # Exécuter la requête pour les détails par CAF
+    cursor.execute(sql_query_caf, [
+        date_m_debut_str,      # :1 - début M pour production
+        date_m_fin_str,        # :2 - fin M pour production
+        date_m1_debut_str,     # :3 - début M-1 pour production
+        date_m1_fin_str        # :4 - fin M-1 pour production
+    ])
+    
+    # Récupérer les colonnes et les données pour les CAF
+    columns_caf = [desc[0] for desc in cursor.description]
+    rows_caf = cursor.fetchall()
+    
+    logger.info(f"📊 Colonnes CAF (volume) retournées: {columns_caf}")
+    logger.info(f"📊 Nombre de lignes CAF (volume): {len(rows_caf)}")
+    if len(rows_caf) > 0:
+        sample_row = dict(zip(columns_caf, rows_caf[0]))
+        logger.info(f"📊 Exemple de ligne CAF (volume): Code_Agence={sample_row.get('CODE_AGENCE')}, Volume_M={sample_row.get('VOLUME_DEBLOQUE_M') or sample_row.get('Volume_Debloque_M')}, Volume_M1={sample_row.get('VOLUME_DEBLOQUE_M_1') or sample_row.get('Volume_Debloque_M_1')}")
+    
+    # Traiter les données par CAF pour créer le dictionnaire chargeAffaireDetails
+    charge_affaire_data = {}
+    for row in rows_caf:
+        row_dict = dict(zip(columns_caf, row))
+        # Convertir les Decimal en float pour JSON
+        for key, value in row_dict.items():
+            if value is None:
+                # Gérer les noms de colonnes en majuscules et minuscules
+                if key.upper() in ['VOLUME_DEBLOQUE_M', 'VOLUME_DEBLOQUE_M_1', 'VARIATION_VOLUME', 'VARIATION_PCT']:
+                    row_dict[key] = 0
+                else:
+                    row_dict[key] = None
+            elif hasattr(value, '__float__') and not isinstance(value, (int, float, bool, str, type(None))):
+                try:
+                    row_dict[key] = float(value)
+                except (ValueError, TypeError):
+                    row_dict[key] = 0
+        
+        # Utiliser le CODE_AGENCE comme clé (comme dans collection_service)
+        branch_code = str(row_dict.get('CODE_AGENCE', ''))
+        if branch_code:
+            if branch_code not in charge_affaire_data:
+                charge_affaire_data[branch_code] = {}
+            
+            # Utiliser CHARGE_AFFAIRE comme clé secondaire
+            # Gérer les cas où CHARGE_AFFAIRE est NULL ou vide
+            charge_affaire = row_dict.get('CHARGE_AFFAIRE')
+            if not charge_affaire or charge_affaire.strip() == '':
+                charge_affaire = 'NON ASSIGNE'
+            
+            if charge_affaire not in charge_affaire_data[branch_code]:
+                # Oracle retourne les noms de colonnes en majuscules, donc utiliser les deux formats
+                volume_m = row_dict.get('VOLUME_DEBLOQUE_M') or row_dict.get('Volume_Debloque_M') or 0
+                volume_m1 = row_dict.get('VOLUME_DEBLOQUE_M_1') or row_dict.get('Volume_Debloque_M_1') or 0
+                variation_vol = row_dict.get('VARIATION_VOLUME') or row_dict.get('Variation_volume') or 0
+                variation_pct = row_dict.get('VARIATION_PCT') or row_dict.get('Variation_PCT') or 0
+                
+                charge_affaire_data[branch_code][charge_affaire] = {
+                    'chargeAffaire': charge_affaire,
+                    'CHARGE_AFFAIRE': charge_affaire,
+                    'codeGestion': row_dict.get('CODE_GESTION_PRET', '-'),
+                    'CODE_GESTION': row_dict.get('CODE_GESTION_PRET', '-'),
+                    'volumeDebloqueM': float(volume_m or 0),
+                    'VOLUME_DEBLOQUE_M': float(volume_m or 0),
+                    'volumeDebloqueM1': float(volume_m1 or 0),
+                    'VOLUME_DEBLOQUE_M_1': float(volume_m1 or 0),
+                    'variationVolume': float(variation_vol or 0),
+                    'VARIATION_VOLUME': float(variation_vol or 0),
+                    'variationPct': float(variation_pct or 0),
+                    'VARIATION_PCT': float(variation_pct or 0)
+                }
+    
+    # Convertir le dictionnaire en format liste pour chaque agence (comme dans collection_service)
+    charge_affaire_by_agency = {}
+    for agency_key, charges in charge_affaire_data.items():
+        charge_affaire_by_agency[agency_key] = list(charges.values())
+    
+    # Logger pour déboguer
+    if charge_affaire_by_agency:
+        sample_key = list(charge_affaire_by_agency.keys())[0]
+        if charge_affaire_by_agency[sample_key]:
+            sample_caf = charge_affaire_by_agency[sample_key][0]
+            logger.info(f"📊 Exemple CAF (volume) pour agence {sample_key}: volumeM={sample_caf.get('volumeDebloqueM')}, volumeM1={sample_caf.get('volumeDebloqueM1')}, variationPct={sample_caf.get('variationPct')}")
     
     cursor.close()
     conn.close()
@@ -1051,7 +1381,8 @@ def get_production_volume_data(
             }
         },
         "data": results,
-        "count": len(results)
+        "count": len(results),
+        "chargeAffaireDetails": charge_affaire_by_agency  # Détails par charge d'affaire (CAF)
     }
 
 

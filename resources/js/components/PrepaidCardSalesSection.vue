@@ -5,6 +5,51 @@
         <span class="title-text">Vente Cartes <span class="title-highlight">prépayées</span></span>
         <span class="card-icon">💳</span>
       </h2>
+      <!-- Section de sélection de période -->
+      <div class="period-selector-section">
+        <div class="period-selector">
+          <label class="period-label">Période :</label>
+          <select v-model="selectedPeriod" class="period-select" @change="handlePeriodChange">
+            <option value="week">Semaine</option>
+            <option value="month">Mois</option>
+            <option value="year">Année</option>
+          </select>
+          
+          <!-- Sélecteur de date pour Semaine -->
+          <template v-if="selectedPeriod === 'week'">
+            <input 
+              type="date" 
+              v-model="selectedDate" 
+              class="date-select"
+              @change="handleDateChange"
+              @input="handleDateChange"
+            />
+          </template>
+          
+          <!-- Sélecteurs pour Mois -->
+          <template v-if="selectedPeriod === 'month'">
+            <select v-model="selectedMonth" class="month-select" @change="handleMonthChange">
+              <option v-for="(month, index) in months" :key="index" :value="index + 1">
+                {{ month }}
+              </option>
+            </select>
+            <select v-model="selectedYear" class="year-select" @change="handleYearChange">
+              <option v-for="year in years" :key="year" :value="year">
+                {{ year }}
+              </option>
+            </select>
+          </template>
+          
+          <!-- Sélecteur pour Année -->
+          <template v-if="selectedPeriod === 'year'">
+            <select v-model="selectedYear" class="year-select" @change="handleYearChange">
+              <option v-for="year in years" :key="year" :value="year">
+                {{ year }}
+              </option>
+            </select>
+          </template>
+        </div>
+      </div>
     </div>
 
     <div class="content-container">
@@ -301,13 +346,31 @@ export default {
         'POINT SERVICES_service_points': false
       },
       selectedPeriod: 'month',
+      selectedDate: (() => {
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      })(),
       selectedMonth: now.getMonth() + 1,
       selectedYear: now.getFullYear(),
+      months: [
+        'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+        'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+      ],
       top5ChartInstance: null,
       flop5ChartInstance: null
     };
   },
   computed: {
+    years() {
+      const currentYear = new Date().getFullYear();
+      const years = [];
+      for (let i = currentYear - 5; i <= currentYear + 2; i++) {
+        years.push(i);
+      }
+      return years;
+    },
     territoireTotal() {
       if (!this.hierarchicalData || !this.hierarchicalData.TERRITOIRE) return null;
       const territories = this.hierarchicalData.TERRITOIRE;
@@ -421,6 +484,22 @@ export default {
     }
   },
   methods: {
+    handlePeriodChange() {
+      this.fetchPrepaidCardSalesData();
+    },
+    handleDateChange() {
+      if (this.selectedPeriod === 'week') {
+        this.fetchPrepaidCardSalesData();
+      }
+    },
+    handleMonthChange() {
+      if (this.selectedPeriod === 'month') {
+        this.fetchPrepaidCardSalesData();
+      }
+    },
+    handleYearChange() {
+      this.fetchPrepaidCardSalesData();
+    },
     async fetchPrepaidCardSalesData() {
       this.loading = true;
       this.error = null;
@@ -435,6 +514,8 @@ export default {
           params.year = this.selectedYear;
         } else if (this.selectedPeriod === 'year') {
           params.year = this.selectedYear;
+        } else if (this.selectedPeriod === 'week') {
+          params.date = this.selectedDate;
         }
         
         params._t = Date.now();
@@ -762,6 +843,11 @@ export default {
   margin-bottom: 30px;
   position: relative;
   z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
 }
 
 .section-title {
@@ -790,6 +876,59 @@ export default {
   filter: 
     drop-shadow(0 0 10px rgba(220, 38, 38, 0.8))
     drop-shadow(0 0 20px rgba(220, 38, 38, 0.4));
+}
+
+.period-selector-section {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.period-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.period-label {
+  font-weight: 600;
+  color: #1f2937;
+  font-size: 14px;
+}
+
+.period-select,
+.month-select,
+.year-select,
+.date-select {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+  color: #1f2937;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.period-select:hover,
+.month-select:hover,
+.year-select:hover,
+.date-select:hover {
+  border-color: #DC2626;
+}
+
+.period-select:focus,
+.month-select:focus,
+.year-select:focus,
+.date-select:focus {
+  outline: none;
+  border-color: #DC2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+.date-select {
+  cursor: text;
 }
 
 .content-container {
@@ -1047,6 +1186,11 @@ export default {
   .chart-wrapper {
     flex: 1;
   }
+  
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 @media (max-width: 768px) {
@@ -1073,6 +1217,14 @@ export default {
   .sales-table th,
   .sales-table td {
     padding: 8px 4px;
+  }
+  
+  .period-selector {
+    width: 100%;
+  }
+  
+  .period-selector-section {
+    width: 100%;
   }
 }
 

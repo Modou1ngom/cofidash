@@ -1557,16 +1557,14 @@ class DataController extends Controller
                 return response()->json($result['data']);
             }
 
-            return response()->json([
-                'error' => $result['error'] ?? 'Erreur',
-                'message' => $result['message'] ?? ''
-            ], 500);
+            Log::warning('CR par Agence: service indisponible, retour données vides', [
+                'error' => $result['error'] ?? null,
+                'message' => $result['message'] ?? null
+            ]);
+            return response()->json(['data' => []]);
         } catch (\Exception $e) {
             Log::error('Erreur CR par Agence: ' . $e->getMessage());
-            return response()->json([
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ], 500);
+            return response()->json(['data' => []]);
         }
     }
 }

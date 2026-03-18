@@ -256,4 +256,103 @@ export default {
   color: #6b7280;
   font-size: 16px;
 }
+
+/* Media Queries pour le responsive */
+
+/* Tablettes */
+@media (max-width: 1200px) {
+  .encours-tabs {
+    gap: 6px;
+    padding: 6px;
+  }
+  
+  .encours-tab {
+    padding: 10px 16px;
+    font-size: 12px;
+  }
+  
+  .sub-tab {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+}
+
+/* Tablettes en mode portrait et petits écrans */
+@media (max-width: 768px) {
+  .encours-section {
+    margin-bottom: 20px;
+  }
+  
+  .encours-tabs {
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+  }
+  
+  .encours-tab {
+    width: 100%;
+    padding: 10px 16px;
+    font-size: 12px;
+    border-radius: 6px;
+    bottom: 0;
+  }
+  
+  .encours-tab-group {
+    width: 100%;
+  }
+  
+  .sub-tabs {
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
+    padding-left: 0;
+  }
+  
+  .sub-tab {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+  
+  .section-placeholder {
+    padding: 30px 20px;
+  }
+  
+  .section-placeholder h3 {
+    font-size: 18px;
+  }
+  
+  .section-placeholder p {
+    font-size: 14px;
+  }
+}
+
+/* Petits mobiles */
+@media (max-width: 480px) {
+  .encours-tabs {
+    padding: 4px;
+  }
+  
+  .encours-tab {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+  
+  .sub-tab {
+    padding: 6px 10px;
+    font-size: 10px;
+  }
+  
+  .section-placeholder {
+    padding: 20px 15px;
+  }
+  
+  .section-placeholder h3 {
+    font-size: 16px;
+  }
+  
+  .section-placeholder p {
+    font-size: 13px;
+  }
+}
 </style>

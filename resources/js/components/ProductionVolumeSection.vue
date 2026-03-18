@@ -65,6 +65,8 @@
           <thead>
             <tr>
               <th>AGENCE</th>
+              <th>Code Gestion</th>
+              <th>Chargé d'affaire</th>
               <th>Objectif</th>
               <th>Volume de crédit décaissé <br>{{ tablePeriodLabels.previous }}</th>
               <th>Volume de crédit décaissé <br>{{ tablePeriodLabels.current }}</th>
@@ -87,6 +89,8 @@
                 </button>
                 <strong>TERRITOIRE</strong>
               </td>
+              <td><strong>-</strong></td>
+              <td><strong>-</strong></td>
               <td><strong>{{ formatNumber(territoireTotal.objectif) }}</strong></td>
               <td><strong>{{ formatCurrency(territoireTotal.volumeM1) }}</strong></td>
               <td><strong>{{ formatCurrency(territoireTotal.volumeM) }}</strong></td>
@@ -120,6 +124,8 @@
                     </button>
                     {{ territory.name }}
                   </td>
+                  <td><strong>-</strong></td>
+                  <td><strong>-</strong></td>
                   <td><strong>{{ formatNumber(territory.total.objectif) }}</strong></td>
                   <td><strong>{{ formatCurrency(territory.total.volumeM1) }}</strong></td>
                   <td><strong>{{ formatCurrency(territory.total.volumeM) }}</strong></td>
@@ -144,13 +150,24 @@
                 </tr>
                 <!-- Agences dans chaque territoire -->
                 <template v-if="expandedSections[`TERRITOIRE_${territoryKey}`]">
-                  <tr 
-                    v-for="agency in territory.data" 
-                    :key="agency.CODE_AGENCE || agency.AGENCE" 
-                    class="level-3-row"
-                  >
-                    <td class="level-3">{{ agency.AGENCE || agency.name }}</td>
-                    <td>{{ formatNumber(agency.OBJECTIF_PRODUCTION || agency.objectif || 0) }}</td>
+                  <template v-for="(agency, agencyIndex) in territory.data" :key="agency.CODE_AGENCE || agency.AGENCE || agencyIndex">
+                    <tr 
+                      class="level-3-row"
+                      @click="toggleAgencyExpand(agency, `TERRITOIRE_${territoryKey}_${getAgencyKey(agency, agencyIndex)}`)"
+                    >
+                      <td class="level-3">
+                        <button 
+                          class="expand-btn" 
+                          @click.stop="toggleAgencyExpand(agency, `TERRITOIRE_${territoryKey}_${getAgencyKey(agency, agencyIndex)}`)"
+                          v-if="hasChargeAffaireDetails(agency)"
+                        >
+                          {{ expandedSections[`TERRITOIRE_${territoryKey}_${getAgencyKey(agency, agencyIndex)}`] ? '−' : '+' }}
+                        </button>
+                        {{ agency.AGENCE || agency.name }}
+                      </td>
+                      <td>{{ getCodeGestionDisplay(agency) }}</td>
+                      <td>{{ getChargeAffaireDisplay(agency) }}</td>
+                      <td>{{ formatNumber(agency.OBJECTIF_PRODUCTION || agency.objectif || 0) }}</td>
                     <td>{{ formatCurrency(agency.VOLUME_CREDIT_DECAISSE_M_1 || agency.volumeM1 || 0) }}</td>
                     <td>{{ formatCurrency(agency.VOLUME_CREDIT_DECAISSE_M || agency.volumeM || 0) }}</td>
                     <td :class="getVariationClass(agency.VARIATION_VOLUME || agency.variationVolume || 0)">
@@ -171,7 +188,42 @@
                       {{ formatVariationCurrency(agency.ECART_FRAIS || agency.ecartFrais || 0) }}
                     </td>
                     <td>{{ formatCurrency(agency.VARIATION_FRAIS || agency.variationFrais || 0) }}</td>
-                  </tr>
+                    </tr>
+                    <!-- Afficher tous les chargés d'affaire pour cette agence quand elle est expandée -->
+                    <template v-if="expandedSections[`TERRITOIRE_${territoryKey}_${getAgencyKey(agency, agencyIndex)}`]">
+                      <tr 
+                        v-for="(chargeDetail, chargeIndex) in getChargeAffaireDetailsByBranchCode(agency.CODE_AGENCE || agency.BRANCH_CODE)" 
+                        :key="`charge-${chargeIndex}`"
+                        class="level-4-row charge-detail-row"
+                      >
+                        <td class="level-4">
+                          {{ agency.CODE_AGENCE || agency.BRANCH_CODE || '-' }}
+                        </td>
+                        <td>{{ chargeDetail.codeGestion || chargeDetail.CODE_GESTION || '-' }}</td>
+                        <td>{{ chargeDetail.chargeAffaire || chargeDetail.CHARGE_AFFAIRE || '-' }}</td>
+                        <td>-</td>
+                        <td>{{ formatCurrency(chargeDetail.volumeDebloqueM1 || chargeDetail.VOLUME_DEBLOQUE_M_1 || 0) }}</td>
+                        <td>{{ formatCurrency(chargeDetail.volumeDebloqueM || chargeDetail.VOLUME_DEBLOQUE_M || 0) }}</td>
+                        <td :class="getVariationClass(chargeDetail.variationVolume || chargeDetail.VARIATION_VOLUME || 0)">
+                          {{ formatVariationCurrency(chargeDetail.variationVolume || chargeDetail.VARIATION_VOLUME || 0) }}
+                        </td>
+                        <td :class="getVariationClass(chargeDetail.variationPct || chargeDetail.VARIATION_PCT || 0)">
+                          {{ formatVariationPercent(chargeDetail.variationPct || chargeDetail.VARIATION_PCT || 0) }}
+                        </td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                      </tr>
+                      <tr v-if="getChargeAffaireDetailsByBranchCode(agency.CODE_AGENCE || agency.BRANCH_CODE).length === 0" class="level-4-row">
+                        <td colspan="14" style="text-align: center; padding: 10px; color: #666;">
+                          Aucun chargé d'affaire trouvé pour cette agence
+                        </td>
+                      </tr>
+                    </template>
+                  </template>
                 </template>
               </template>
             </template>
@@ -184,6 +236,8 @@
                 </button>
                 <strong>POINT SERVICES</strong>
               </td>
+              <td><strong>-</strong></td>
+              <td><strong>-</strong></td>
               <td><strong>{{ formatNumber(pointServicesTotal.objectif) }}</strong></td>
               <td><strong>{{ formatCurrency(pointServicesTotal.volumeM1) }}</strong></td>
               <td><strong>{{ formatCurrency(pointServicesTotal.volumeM) }}</strong></td>
@@ -212,13 +266,24 @@
               <template v-for="(servicePoint, servicePointKey) in filteredHierarchicalData['POINT SERVICES']" :key="servicePointKey">
                 <!-- Afficher directement les points de service individuels (SCAT URBAM, NIARRY TALLY) -->
                 <template v-if="servicePoint.data && servicePoint.data.length > 0">
-                  <tr 
-                    v-for="agency in servicePoint.data" 
-                    :key="agency.CODE_AGENCE || agency.AGENCE || agency.name" 
-                    class="level-2-row service-point-row"
-                  >
-                    <td class="level-2 service-point-cell">{{ agency.AGENCE || agency.name }}</td>
-                    <td>{{ formatNumber(agency.OBJECTIF_PRODUCTION || agency.objectif || 0) }}</td>
+                  <template v-for="(agency, agencyIndex) in servicePoint.data" :key="agency.CODE_AGENCE || agency.AGENCE || agency.name || agencyIndex">
+                    <tr 
+                      class="level-2-row service-point-row"
+                      @click="toggleAgencyExpand(agency, `POINT_SERVICES_${getAgencyKey(agency, agencyIndex)}`)"
+                    >
+                      <td class="level-2 service-point-cell">
+                        <button 
+                          class="expand-btn" 
+                          @click.stop="toggleAgencyExpand(agency, `POINT_SERVICES_${getAgencyKey(agency, agencyIndex)}`)"
+                          v-if="hasChargeAffaireDetails(agency)"
+                        >
+                          {{ expandedSections[`POINT_SERVICES_${getAgencyKey(agency, agencyIndex)}`] ? '−' : '+' }}
+                        </button>
+                        {{ agency.AGENCE || agency.name }}
+                      </td>
+                      <td>{{ getCodeGestionDisplay(agency) }}</td>
+                      <td>{{ getChargeAffaireDisplay(agency) }}</td>
+                      <td>{{ formatNumber(agency.OBJECTIF_PRODUCTION || agency.objectif || 0) }}</td>
                     <td>{{ formatCurrency(agency.VOLUME_CREDIT_DECAISSE_M_1 || agency.volumeM1 || 0) }}</td>
                     <td>{{ formatCurrency(agency.VOLUME_CREDIT_DECAISSE_M || agency.volumeM || 0) }}</td>
                     <td :class="getVariationClass(agency.VARIATION_VOLUME || agency.variationVolume || 0)">
@@ -239,7 +304,42 @@
                       {{ formatVariationCurrency(agency.ECART_FRAIS || agency.ecartFrais || 0) }}
                     </td>
                     <td>{{ formatCurrency(agency.VARIATION_FRAIS || agency.variationFrais || 0) }}</td>
-                  </tr>
+                    </tr>
+                    <!-- Afficher tous les chargés d'affaire pour cette agence quand elle est expandée -->
+                    <template v-if="expandedSections[`POINT_SERVICES_${getAgencyKey(agency, agencyIndex)}`]">
+                      <tr 
+                        v-for="(chargeDetail, chargeIndex) in getChargeAffaireDetailsByBranchCode(agency.CODE_AGENCE || agency.BRANCH_CODE)" 
+                        :key="`charge-${chargeIndex}`"
+                        class="level-4-row charge-detail-row"
+                      >
+                        <td class="level-4">
+                          {{ agency.CODE_AGENCE || agency.BRANCH_CODE || '-' }}
+                        </td>
+                        <td>{{ chargeDetail.codeGestion || chargeDetail.CODE_GESTION || '-' }}</td>
+                        <td>{{ chargeDetail.chargeAffaire || chargeDetail.CHARGE_AFFAIRE || '-' }}</td>
+                        <td>-</td>
+                        <td>{{ formatCurrency(chargeDetail.volumeDebloqueM1 || chargeDetail.VOLUME_DEBLOQUE_M_1 || 0) }}</td>
+                        <td>{{ formatCurrency(chargeDetail.volumeDebloqueM || chargeDetail.VOLUME_DEBLOQUE_M || 0) }}</td>
+                        <td :class="getVariationClass(chargeDetail.variationVolume || chargeDetail.VARIATION_VOLUME || 0)">
+                          {{ formatVariationCurrency(chargeDetail.variationVolume || chargeDetail.VARIATION_VOLUME || 0) }}
+                        </td>
+                        <td :class="getVariationClass(chargeDetail.variationPct || chargeDetail.VARIATION_PCT || 0)">
+                          {{ formatVariationPercent(chargeDetail.variationPct || chargeDetail.VARIATION_PCT || 0) }}
+                        </td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                      </tr>
+                      <tr v-if="getChargeAffaireDetailsByBranchCode(agency.CODE_AGENCE || agency.BRANCH_CODE).length === 0" class="level-4-row">
+                        <td colspan="14" style="text-align: center; padding: 10px; color: #666;">
+                          Aucun chargé d'affaire trouvé pour cette agence
+                        </td>
+                      </tr>
+                    </template>
+                  </template>
                 </template>
               </template>
             </template>
@@ -247,6 +347,8 @@
             <!-- GRAND COMPTE -->
             <tr v-if="grandCompte && grandCompte.volumeM > 0" class="level-3-row">
               <td class="level-3">GRAND COMPTE</td>
+              <td>-</td>
+              <td>-</td>
               <td>{{ formatNumber(grandCompte.objectif) }}</td>
               <td>{{ formatCurrency(grandCompte.volumeM1) }}</td>
               <td>{{ formatCurrency(grandCompte.volumeM) }}</td>
@@ -273,6 +375,8 @@
             <!-- TOTAL -->
             <tr class="total-row">
               <td><strong>TOTAL</strong></td>
+              <td><strong>-</strong></td>
+              <td><strong>-</strong></td>
               <td><strong>{{ formatNumber(total.objectif) }}</strong></td>
               <td><strong>{{ formatCurrency(total.volumeM1) }}</strong></td>
               <td><strong>{{ formatCurrency(total.volumeM) }}</strong></td>
@@ -342,6 +446,8 @@ export default {
       },
       hierarchicalDataFromBackend: null,
       servicePoints: [],
+      chargeAffaireDetails: {}, // Détails par charge d'affaire
+      chargeAffaireDetailsCache: new Map(), // Cache pour les détails par CAF
       months: [
         'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
         'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
@@ -870,6 +976,14 @@ export default {
           console.log('📊 Données hiérarchiques reçues (production volume):', dataToUse.hierarchicalData);
           this.hierarchicalDataFromBackend = dataToUse.hierarchicalData;
           
+          // Récupérer les détails par charge d'affaire
+          if (dataToUse.chargeAffaireDetails) {
+            this.chargeAffaireDetails = dataToUse.chargeAffaireDetails;
+            console.log('📊 Détails par CAF reçus (production volume):', Object.keys(this.chargeAffaireDetails).length, 'agences');
+            // Réinitialiser le cache
+            this.chargeAffaireDetailsCache.clear();
+          }
+          
           if (dataToUse.hierarchicalData.TERRITOIRE) {
             this.territories = {
               territoire_dakar_ville: {
@@ -962,6 +1076,76 @@ export default {
     },
     updateWeekFromDate() {
       this.fetchProductionData();
+    },
+    getAgencyKey(agency, index) {
+      // Générer une clé unique pour chaque agence
+      if (!agency) return `agency-${index}`;
+      
+      const name = agency.name || agency.AGENCE || agency.NOM_AGENCE || '';
+      const code = agency.CODE_AGENCE || agency.code_agence || agency.BRANCH_CODE || agency.BRANCH_CODE_AC_NO || '';
+      
+      // Utiliser le premier identifiant disponible
+      const identifier = name || code || `agency-${index}`;
+      return `agency-${identifier}-${index}`;
+    },
+    getChargeAffaireDetailsByBranchCode(branchCode) {
+      if (!branchCode) {
+        return [];
+      }
+      
+      if (!this.chargeAffaireDetails || Object.keys(this.chargeAffaireDetails).length === 0) {
+        return [];
+      }
+      
+      // Convertir branchCode en string pour la comparaison
+      const branchCodeStr = String(branchCode).trim();
+      
+      // Vérifier le cache d'abord
+      if (this.chargeAffaireDetailsCache.has(branchCodeStr)) {
+        return this.chargeAffaireDetailsCache.get(branchCodeStr);
+      }
+      
+      // Chercher directement par la clé (la clé est le branch_code dans le backend)
+      if (this.chargeAffaireDetails[branchCodeStr]) {
+        const directMatch = this.chargeAffaireDetails[branchCodeStr];
+        if (Array.isArray(directMatch) && directMatch.length > 0) {
+          // Mettre en cache le résultat
+          this.chargeAffaireDetailsCache.set(branchCodeStr, directMatch);
+          return directMatch;
+        }
+      }
+      
+      // Mettre en cache le résultat vide
+      this.chargeAffaireDetailsCache.set(branchCodeStr, []);
+      return [];
+    },
+    hasChargeAffaireDetails(agency) {
+      if (!agency) return false;
+      
+      const branchCode = agency.CODE_AGENCE || agency.BRANCH_CODE || agency.branch_code;
+      if (branchCode && this.getChargeAffaireDetailsByBranchCode(branchCode).length > 0) {
+        return true;
+      }
+      
+      return false;
+    },
+    getCodeGestionDisplay(agency) {
+      if (!agency) return '-';
+      // Si l'agence a plusieurs codes gestion, afficher le premier ou un indicateur
+      const codeGestion = agency.CODE_GESTION || agency.codeGestion || agency.CODE_GESTION_PRET || agency.codeGestionPret;
+      return codeGestion || '-';
+    },
+    getChargeAffaireDisplay(agency) {
+      if (!agency) return '-';
+      // Si l'agence a plusieurs chargés d'affaire, afficher le premier ou un indicateur
+      const chargeAffaire = agency.CHARGE_AFFAIRE || agency.chargeAffaire;
+      return chargeAffaire || '-';
+    },
+    toggleAgencyExpand(agency, sectionKey) {
+      if (!this.hasChargeAffaireDetails(agency)) {
+        return; // Ne rien faire si l'agence n'a pas de détails CAF
+      }
+      this.expandedSections[sectionKey] = !this.expandedSections[sectionKey];
     }
   }
 }
@@ -1127,6 +1311,24 @@ export default {
 
 .level-3-row:hover {
   background: #f5f5f5;
+}
+
+.level-4-row {
+  background: #FAFAFA;
+}
+
+.level-4 {
+  padding-left: 64px !important;
+  color: #666;
+  font-size: 12px;
+}
+
+.charge-detail-row {
+  background: #FAFAFA !important;
+}
+
+.charge-detail-row:hover {
+  background: #F0F0F0 !important;
 }
 
 .total-row {

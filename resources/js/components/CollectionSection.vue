@@ -3169,9 +3169,59 @@ export default {
   overflow: hidden;
 }
 
+/* Media Queries pour le responsive */
+
+/* Tablettes */
+@media (max-width: 1200px) {
+  .kpi-row {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+  }
+  
+  .section-header {
+    flex-wrap: wrap;
+    gap: 15px;
+  }
+  
+  .chart-wrapper-container {
+    min-height: 450px;
+    height: 550px;
+    max-height: 700px;
+  }
+}
+
+/* Tablettes en mode portrait et petits écrans */
 @media (max-width: 768px) {
   .kpi-row {
     grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 15px;
+  }
+  
+  .section-title {
+    font-size: 20px;
+    width: 100%;
+  }
+  
+  .period-selector {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .month-select,
+  .year-select,
+  .period-select,
+  .date-select {
+    flex: 1;
+    min-width: 120px;
+    padding: 8px 10px;
+    font-size: 13px;
   }
   
   .table-container {
@@ -3181,6 +3231,68 @@ export default {
   .chart-wrapper-container {
     min-height: 400px;
     max-height: 500px;
+  }
+  
+  .chart-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .chart-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  
+  .chart-tabs {
+    flex-wrap: wrap;
+  }
+  
+  .chart-tab {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+}
+
+/* Petits mobiles */
+@media (max-width: 480px) {
+  .kpi-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  
+  .section-header {
+    padding: 12px;
+  }
+  
+  .section-title {
+    font-size: 18px;
+  }
+  
+  .period-selector {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .month-select,
+  .year-select,
+  .period-select,
+  .date-select {
+    width: 100%;
+    min-width: 100%;
+  }
+  
+  .chart-tabs {
+    flex-direction: column;
+  }
+  
+  .chart-tab {
+    width: 100%;
+    text-align: left;
+  }
+  
+  .chart-wrapper-container {
+    min-height: 350px;
+    max-height: 450px;
   }
 }
 </style>

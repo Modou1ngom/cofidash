@@ -403,5 +403,199 @@ export default {
   font-size: 20px;
   color: white;
 }
+
+/* Media Queries pour le responsive */
+
+/* Tablettes */
+@media (max-width: 1200px) {
+  .header-left-section {
+    width: 220px;
+    min-width: 220px;
+  }
+  
+  .logo-icon {
+    height: 90px;
+    max-width: 150px;
+  }
+  
+  .horizontal-nav {
+    gap: 15px;
+  }
+  
+  .nav-item {
+    min-width: 60px;
+    padding: 6px 10px;
+  }
+  
+  .nav-icon {
+    font-size: 20px;
+  }
+  
+  .nav-text {
+    font-size: 10px;
+  }
+  
+  .search-container {
+    min-width: 100px;
+  }
+  
+  .client-input {
+    min-width: 100px;
+    padding: 6px 10px;
+  }
+}
+
+/* Tablettes en mode portrait et petits écrans */
+@media (max-width: 768px) {
+  .dashboard-header {
+    flex-direction: column;
+    min-height: auto;
+  }
+  
+  .header-left-section {
+    width: 100%;
+    min-width: 100%;
+  }
+  
+  .logo-area {
+    padding: 10px 15px;
+  }
+  
+  .logo-icon {
+    height: 70px;
+    max-width: 120px;
+  }
+  
+  .user-bar {
+    padding: 10px 15px;
+    font-size: 12px;
+  }
+  
+  .header-center-section {
+    padding: 10px 15px;
+  }
+  
+  .accounting-date {
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+  
+  .horizontal-nav {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  
+  .nav-item {
+    min-width: 50px;
+    padding: 6px 8px;
+  }
+  
+  .nav-icon {
+    font-size: 18px;
+  }
+  
+  .nav-text {
+    font-size: 9px;
+  }
+  
+  .header-right-section {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 15px;
+  }
+  
+  .search-container {
+    width: 100%;
+    min-width: 100%;
+  }
+  
+  .search-label {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  
+  .client-input {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  
+  .search-button {
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+  
+  .logout-button {
+    align-self: flex-end;
+  }
+}
+
+/* Petits mobiles */
+@media (max-width: 480px) {
+  .logo-area {
+    padding: 8px 12px;
+  }
+  
+  .logo-icon {
+    height: 60px;
+    max-width: 100px;
+  }
+  
+  .user-bar {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+  
+  .calendar-icon {
+    font-size: 16px;
+  }
+  
+  .header-center-section {
+    padding: 8px 12px;
+  }
+  
+  .accounting-date {
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+  
+  .horizontal-nav {
+    gap: 8px;
+  }
+  
+  .nav-item {
+    min-width: 45px;
+    padding: 5px 6px;
+  }
+  
+  .nav-icon {
+    font-size: 16px;
+  }
+  
+  .nav-text {
+    font-size: 8px;
+  }
+  
+  .header-right-section {
+    padding: 8px 12px;
+  }
+  
+  .search-label {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+  
+  .client-input {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+  
+  .search-button {
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+}
 </style>
 

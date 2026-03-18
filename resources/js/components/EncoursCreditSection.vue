@@ -713,4 +713,170 @@ export default {
   max-height: 400px;
   overflow-y: auto;
 }
+
+/* Media Queries pour le responsive */
+
+/* Tablettes */
+@media (max-width: 1200px) {
+  .section-header {
+    flex-wrap: wrap;
+    gap: 15px;
+  }
+  
+  .agencies-table {
+    min-width: 1000px;
+    font-size: 12px;
+  }
+  
+  .agencies-table th {
+    padding: 10px 6px;
+    font-size: 11px;
+  }
+  
+  .agencies-table td {
+    padding: 8px 6px;
+    font-size: 12px;
+  }
+}
+
+/* Tablettes en mode portrait et petits écrans */
+@media (max-width: 768px) {
+  .client-section {
+    padding: 15px;
+  }
+  
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 15px;
+  }
+  
+  .section-title {
+    font-size: 20px;
+    width: 100%;
+  }
+  
+  .period-selector {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .month-select,
+  .year-select {
+    flex: 1;
+    min-width: 120px;
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+  
+  .agencies-table {
+    min-width: 900px;
+    font-size: 11px;
+  }
+  
+  .agencies-table th {
+    padding: 8px 4px;
+    font-size: 10px;
+  }
+  
+  .agencies-table td {
+    padding: 6px 4px;
+    font-size: 11px;
+  }
+  
+  .agencies-table th:first-child,
+  .agencies-table td:first-child {
+    padding-left: 10px;
+  }
+  
+  .level-1 {
+    font-size: 14px;
+    padding-left: 10px !important;
+  }
+  
+  .level-2 {
+    font-size: 13px;
+    padding-left: 25px !important;
+  }
+  
+  .loading-banner {
+    padding: 10px 15px;
+    font-size: 13px;
+  }
+  
+  .error-message {
+    padding: 12px 15px;
+    font-size: 13px;
+  }
+}
+
+/* Petits mobiles */
+@media (max-width: 480px) {
+  .client-section {
+    padding: 10px;
+  }
+  
+  .section-header {
+    padding: 12px;
+  }
+  
+  .section-title {
+    font-size: 18px;
+  }
+  
+  .period-selector {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .month-select,
+  .year-select {
+    width: 100%;
+    min-width: 100%;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  
+  .agencies-table {
+    min-width: 800px;
+    font-size: 10px;
+  }
+  
+  .agencies-table th {
+    padding: 6px 3px;
+    font-size: 9px;
+  }
+  
+  .agencies-table td {
+    padding: 5px 3px;
+    font-size: 10px;
+  }
+  
+  .agencies-table th:first-child,
+  .agencies-table td:first-child {
+    padding-left: 8px;
+    min-width: 100px;
+  }
+  
+  .level-1 {
+    font-size: 12px;
+    padding-left: 8px !important;
+  }
+  
+  .level-2 {
+    font-size: 11px;
+    padding-left: 20px !important;
+  }
+  
+  .loading-banner {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  
+  .error-message {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+}
 </style>

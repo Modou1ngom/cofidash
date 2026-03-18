@@ -5,13 +5,32 @@
     </div>
 
     <div class="form-container">
-      <div v-for="(bloc, blocIndex) in blocs" :key="blocIndex" class="form-card bloc-card">
+      <div class="ref-form-layout">
+        <nav class="rubrique-nav-form" aria-label="Rubriques à ajouter">
+          <p class="rubrique-nav-title">Rubriques</p>
+          <ul class="rubrique-nav-list">
+            <li v-for="(bloc, blocIndex) in blocs" :key="'navf-' + blocIndex">
+              <button
+                type="button"
+                class="rubrique-nav-item"
+                :class="{ active: selectedBlocIndex === blocIndex }"
+                @click="selectedBlocIndex = blocIndex"
+              >
+                <span class="nav-num">Rubrique {{ blocIndex + 1 }}</span>
+                <span class="nav-libelle">{{ bloc.libelle || 'Sans libellé' }}</span>
+              </button>
+            </li>
+          </ul>
+          <button type="button" class="btn-add-bloc-nav" @click="addBlocFromNav">+ Ajouter une rubrique</button>
+        </nav>
+        <div v-if="blocs[selectedBlocIndex]" class="rubrique-detail-form">
+      <div class="form-card bloc-card">
         <div class="bloc-header">
-          <span class="bloc-label">Rubrique {{ blocIndex + 1 }}</span>
+          <span class="bloc-label">Rubrique {{ selectedBlocIndex + 1 }}</span>
           <div class="form-group bloc-libelle-inline">
             <label>Libellé de la rubrique</label>
             <input
-              v-model="bloc.libelle"
+              v-model="blocs[selectedBlocIndex].libelle"
               type="text"
               class="form-input"
               placeholder="Ex: Actif, Passif, Produits..."
@@ -20,7 +39,7 @@
           <button
             type="button"
             class="btn-remove"
-            @click="removeBloc(blocIndex)"
+            @click="removeBloc(selectedBlocIndex)"
             title="Supprimer la rubrique"
           >
             ✕
@@ -28,13 +47,13 @@
         </div>
 
         <div class="rubriques-in-bloc">
-          <div v-for="(rubrique, rubriqueIndex) in bloc.rubriques" :key="rubriqueIndex" class="form-card rubrique-card">
+          <div v-for="(rubrique, rubriqueIndex) in blocs[selectedBlocIndex].rubriques" :key="rubriqueIndex" class="form-card rubrique-card">
             <div class="rubrique-header">
               <span class="rubrique-label">Sous-rubrique {{ rubriqueIndex + 1 }}</span>
               <button
                 type="button"
                 class="btn-remove"
-                @click="removeRubrique(blocIndex, rubriqueIndex)"
+                @click="removeRubrique(selectedBlocIndex, rubriqueIndex)"
                 title="Supprimer la sous-rubrique"
               >
                 ✕
@@ -54,7 +73,7 @@
             <div class="gl-section">
               <div class="gl-header">
                 <label>Parent GL (un ou plusieurs)</label>
-                <button type="button" class="btn-add-small" @click="addGl(blocIndex, rubriqueIndex)">+ Ajouter un parent GL</button>
+                <button type="button" class="btn-add-small" @click="addGl(selectedBlocIndex, rubriqueIndex)">+ Ajouter un parent GL</button>
               </div>
 
               <div v-for="(gl, glIndex) in rubrique.gls" :key="glIndex" class="gl-row">
@@ -66,7 +85,7 @@
                       type="text"
                       class="form-input"
                       placeholder="Ex: 702930000000"
-                      @blur="fetchGlNom(blocIndex, rubriqueIndex, glIndex)"
+                      @blur="fetchGlNom(selectedBlocIndex, rubriqueIndex, glIndex)"
                     />
                   </div>
                   <div class="form-group gl-nom">
@@ -78,16 +97,50 @@
                       placeholder="Récupéré depuis le SI"
                       readonly
                     />
-                    <span v-if="glLoading[glKey(blocIndex, rubriqueIndex, glIndex)]" class="loading-text">Chargement...</span>
+                    <span v-if="glLoading[glKey(selectedBlocIndex, rubriqueIndex, glIndex)]" class="loading-text">Chargement...</span>
                     <span v-else-if="gl.error" class="error-text">{{ gl.error }}</span>
                   </div>
                 </div>
-                <button type="button" class="btn-remove-small" @click="removeGl(blocIndex, rubriqueIndex, glIndex)" title="Supprimer ce parent GL">✕</button>
+                <button type="button" class="btn-remove-small" @click="removeGl(selectedBlocIndex, rubriqueIndex, glIndex)" title="Supprimer ce parent GL">✕</button>
               </div>
             </div>
           </div>
 
-          <button type="button" class="btn-add-rubrique" @click="addRubrique(blocIndex)">+ Ajouter une sous-rubrique</button>
+          <button type="button" class="btn-add-rubrique" @click="addRubrique(selectedBlocIndex)">+ Ajouter une sous-rubrique</button>
+
+        <div v-if="!isCleRepartitionVisible(selectedBlocIndex)" class="cle-repartition-add-row">
+          <button type="button" class="btn-add-cle-repartition" @click="showCleRepartition(selectedBlocIndex)">
+            + Ajouter une clé de répartition
+          </button>
+        </div>
+        <div v-else class="cle-repartition-in-bloc form-card rubrique-card">
+          <h4 class="cle-repartition-title">Clé répartition (cette rubrique)</h4>
+          <div class="form-group">
+            <label>Nom de la clé</label>
+            <input
+              v-model="blocs[selectedBlocIndex].cle_repartition_nom"
+              type="text"
+              class="form-input"
+              placeholder="Ex: Répartition commissions, Répartition PNB..."
+            />
+          </div>
+          <p class="cle-repartition-desc">Valeurs par agence (affichées dans le tableau CR par Agence).</p>
+          <div class="cle-repartition-grid">
+            <div v-for="item in cleRepartitionItems" :key="item.key" class="cle-repartition-field">
+              <label :for="'cle-' + selectedBlocIndex + '-' + item.key">{{ item.label }}</label>
+              <input
+                :id="'cle-' + selectedBlocIndex + '-' + item.key"
+                v-model.number="blocs[selectedBlocIndex].cle_repartition[item.key]"
+                type="number"
+                step="any"
+                class="form-input cle-repartition-input"
+                placeholder="0"
+              />
+            </div>
+          </div>
+        </div>
+        </div>
+      </div>
         </div>
       </div>
 
@@ -104,6 +157,37 @@
 </template>
 
 <script>
+const CLE_REPARTITION_ENTITIES = [
+  { key: 'siege', label: 'SIEGE' },
+  { key: 'grand_compte', label: 'GRAND COMPTE' },
+  { key: 'point_e', label: 'POINT E' },
+  { key: 'castors', label: 'CASTORS' },
+  { key: 'lamine_gueye', label: 'LAMINE GUEYE' },
+  { key: 'maristes', label: 'MARISTES' },
+  { key: 'scat_urbam', label: 'SCAT URBAM' },
+  { key: 'niarry_talli', label: 'NIARRY TALLI' },
+  { key: 'linguerla', label: 'LINGUERLA' },
+  { key: 'parcelles', label: 'PARCELLES' },
+  { key: 'pikine', label: 'PIKINE' },
+  { key: 'rufisque', label: 'RUFISQUE' },
+  { key: 'thies', label: 'THIES' },
+  { key: 'kaolack', label: 'KAOLACK' },
+  { key: 'mbour', label: 'MBOUR' },
+  { key: 'tambacounda', label: 'TAMBACOUNDA' },
+  { key: 'ziguinchor', label: 'ZIGUINCHOR' },
+  { key: 'touba', label: 'TOUBA' },
+  { key: 'saint_louis', label: 'SAINT LOUIS' },
+  { key: 'diourbel', label: 'DIOURBEL' },
+  { key: 'louga', label: 'LOUGA' },
+  { key: 'ourossogui', label: 'OUROSSOGUI' }
+];
+
+function defaultCleRepartition() {
+  const o = {};
+  CLE_REPARTITION_ENTITIES.forEach(({ key }) => { o[key] = 0; });
+  return o;
+}
+
 export default {
   name: 'ReferenceCompteForm',
   data() {
@@ -111,6 +195,8 @@ export default {
       blocs: [
         {
           libelle: '',
+          cle_repartition_nom: '',
+          cle_repartition: defaultCleRepartition(),
           rubriques: [
             { libelle: '', gls: [{ numero_gl: '', nom_gl: '', error: null }] }
           ]
@@ -119,21 +205,65 @@ export default {
       glLoading: {},
       saving: false,
       saveMessage: '',
-      saveError: false
+      saveError: false,
+      showCleRepartitionByIndex: [false],
+      selectedBlocIndex: 0
     };
   },
+  computed: {
+    cleRepartitionItems() {
+      return CLE_REPARTITION_ENTITIES;
+    },
+    /** Map blocIndex -> true si la section clé répartition est visible (pour réactivité fiable). */
+    cleRepartitionVisibleMap() {
+      const map = {};
+      this.showCleRepartitionByIndex.forEach((val, i) => {
+        map[i] = !!val;
+      });
+      return map;
+    }
+  },
   methods: {
+    defaultCleRepartition,
+    isCleRepartitionVisible(blocIndex) {
+      return !!this.cleRepartitionVisibleMap[blocIndex];
+    },
     glKey(blocIndex, rubriqueIndex, glIndex) {
       return `${blocIndex}-${rubriqueIndex}-${glIndex}`;
     },
     addBloc() {
       this.blocs.push({
         libelle: '',
+        cle_repartition_nom: '',
+        cle_repartition: defaultCleRepartition(),
         rubriques: [{ libelle: '', gls: [{ numero_gl: '', nom_gl: '', error: null }] }]
       });
+      this.showCleRepartitionByIndex.push(false);
+      this.selectedBlocIndex = this.blocs.length - 1;
+    },
+    addBlocFromNav() {
+      this.addBloc();
+    },
+    showCleRepartition(blocIndex) {
+      const next = [...this.showCleRepartitionByIndex];
+      next[blocIndex] = true;
+      this.showCleRepartitionByIndex = next;
     },
     removeBloc(index) {
       this.blocs.splice(index, 1);
+      this.showCleRepartitionByIndex.splice(index, 1);
+      if (this.blocs.length === 0) {
+        this.blocs.push({
+          libelle: '',
+          cle_repartition_nom: '',
+          cle_repartition: defaultCleRepartition(),
+          rubriques: [{ libelle: '', gls: [{ numero_gl: '', nom_gl: '', error: null }] }]
+        });
+        this.showCleRepartitionByIndex = [false];
+        this.selectedBlocIndex = 0;
+      } else {
+        this.selectedBlocIndex = Math.min(index, this.blocs.length - 1);
+      }
     },
     addRubrique(blocIndex) {
       this.blocs[blocIndex].rubriques.push({
@@ -170,7 +300,16 @@ export default {
                 }))
             }))
             .filter((r) => r.gls.length > 0);
-          return { libelle: b.libelle.trim(), rubriques };
+          const cr = {};
+          CLE_REPARTITION_ENTITIES.forEach(({ key }) => {
+            cr[key] = (b.cle_repartition && b.cle_repartition[key] != null) ? Number(b.cle_repartition[key]) : 0;
+          });
+          return {
+            libelle: b.libelle.trim(),
+            cle_repartition_nom: (b.cle_repartition_nom || '').trim() || null,
+            cle_repartition: cr,
+            rubriques
+          };
         })
         .filter((b) => b.rubriques.length > 0);
 
@@ -187,22 +326,39 @@ export default {
 
       try {
         let existing = [];
+        let getExistingFailed = false;
         try {
-          const res = await window.axios.get('/api/reference-compte');
+          const res = await window.axios.get('/api/reference-compte', { timeout: 10000 });
           const data = res.data && res.data.data;
           if (data && Array.isArray(data)) {
-            existing = data.map((b) => ({
-              libelle: b.libelle,
-              rubriques: (b.rubriques || []).map((r) => ({
-                libelle: r.libelle,
-                gls: (r.gls || []).map((g) => ({
-                  numero_gl: g.numero_gl,
-                  nom_gl: g.nom_gl || null
+            existing = data.map((b) => {
+              const cr = {};
+              CLE_REPARTITION_ENTITIES.forEach(({ key }) => {
+                cr[key] = (b.cle_repartition && b.cle_repartition[key] != null) ? Number(b.cle_repartition[key]) : 0;
+              });
+              return {
+                libelle: b.libelle,
+                cle_repartition_nom: b.cle_repartition_nom || null,
+                cle_repartition: cr,
+                rubriques: (b.rubriques || []).map((r) => ({
+                  libelle: r.libelle,
+                  gls: (r.gls || []).map((g) => ({
+                    numero_gl: g.numero_gl,
+                    nom_gl: g.nom_gl || null
+                  }))
                 }))
-              }))
-            }));
+              };
+            });
           }
-        } catch (_) {}
+        } catch (e) {
+          getExistingFailed = true;
+        }
+        if (getExistingFailed && existing.length === 0 && nouvelles.length > 0) {
+          this.saveMessage = 'Impossible de récupérer les références existantes. Enregistrement annulé — réessayez ou rafraîchissez la page.';
+          this.saveError = true;
+          this.saving = false;
+          return;
+        }
         const payload = [...existing, ...nouvelles];
         await window.axios.post('/api/reference-compte', { blocs: payload });
         this.saveMessage = 'Référence compte enregistrée avec succès.';
@@ -210,9 +366,13 @@ export default {
         this.blocs = [
           {
             libelle: '',
+            cle_repartition_nom: '',
+            cle_repartition: defaultCleRepartition(),
             rubriques: [{ libelle: '', gls: [{ numero_gl: '', nom_gl: '', error: null }] }]
           }
         ];
+        this.showCleRepartitionByIndex = [false];
+        this.selectedBlocIndex = 0;
         this.$emit('saved');
       } catch (err) {
         this.saveMessage = err.response?.data?.message || err.message || "Erreur lors de l'enregistrement.";
@@ -230,7 +390,7 @@ export default {
       }
 
       const key = this.glKey(blocIndex, rubriqueIndex, glIndex);
-      this.$set(this.glLoading, key, true);
+      this.glLoading[key] = true;
       gl.error = null;
 
       try {
@@ -240,18 +400,17 @@ export default {
         const data = response.data;
         const glData = data && (data.data != null ? data.data : data);
         if (glData && (glData.nom_gl != null || glData.GL_DESC_E != null || glData.gl_desc_e != null)) {
-          const nom = glData.nom_gl || glData.GL_DESC_E || glData.gl_desc_e || '';
-          this.$set(this.blocs[blocIndex].rubriques[rubriqueIndex].gls[glIndex], 'nom_gl', nom);
-          this.$set(this.blocs[blocIndex].rubriques[rubriqueIndex].gls[glIndex], 'error', null);
+          gl.nom_gl = glData.nom_gl || glData.GL_DESC_E || glData.gl_desc_e || '';
+          gl.error = null;
         } else {
-          this.$set(this.blocs[blocIndex].rubriques[rubriqueIndex].gls[glIndex], 'nom_gl', '');
-          this.$set(this.blocs[blocIndex].rubriques[rubriqueIndex].gls[glIndex], 'error', (data && data.message) || 'GL non trouvé');
+          gl.nom_gl = '';
+          gl.error = (data && data.message) || 'GL non trouvé';
         }
       } catch (err) {
-        this.$set(this.blocs[blocIndex].rubriques[rubriqueIndex].gls[glIndex], 'nom_gl', '');
-        this.$set(this.blocs[blocIndex].rubriques[rubriqueIndex].gls[glIndex], 'error', err.response?.data?.message || err.message || 'Erreur lors de la récupération');
+        gl.nom_gl = '';
+        gl.error = err.response?.data?.message || err.message || 'Erreur lors de la récupération';
       } finally {
-        this.$set(this.glLoading, key, false);
+        this.glLoading[key] = false;
       }
     }
   }
@@ -279,6 +438,105 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.ref-form-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.rubrique-nav-form {
+  flex: 0 0 260px;
+  max-width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+  padding: 12px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.rubrique-nav-form .rubrique-nav-title {
+  margin: 0 0 10px 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.rubrique-nav-form .rubrique-nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rubrique-nav-form .rubrique-nav-item {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.rubrique-nav-form .rubrique-nav-item:hover {
+  background: #f3f4f6;
+  border-color: #1A4D3A;
+}
+
+.rubrique-nav-form .rubrique-nav-item.active {
+  background: #1A4D3A;
+  border-color: #1A4D3A;
+  color: #fff;
+}
+
+.rubrique-nav-form .rubrique-nav-item.active .nav-num,
+.rubrique-nav-form .rubrique-nav-item.active .nav-libelle {
+  color: #fff;
+}
+
+.rubrique-nav-form .nav-num {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.rubrique-nav-form .nav-libelle {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #111827;
+  word-break: break-word;
+}
+
+.btn-add-bloc-nav {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #1A4D3A;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-add-bloc-nav:hover {
+  background: #153d2a;
+}
+
+.rubrique-detail-form {
+  flex: 1;
+  min-width: 280px;
 }
 
 .form-card {
@@ -549,9 +807,83 @@ export default {
   color: #b91c1c;
 }
 
+.cle-repartition-add-row {
+  margin-top: 16px;
+}
+
+.btn-add-cle-repartition {
+  background: #ecfdf5;
+  color: #1A4D3A;
+  border: 1px solid #a7f3d0;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-add-cle-repartition:hover {
+  background: #d1fae5;
+}
+
+.cle-repartition-in-bloc {
+  margin-top: 20px;
+  border-left: 3px solid #1A4D3A;
+}
+
+.cle-repartition-in-bloc .cle-repartition-title {
+  font-size: 1rem;
+  margin-bottom: 12px;
+}
+
+.cle-repartition-header {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.cle-repartition-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1A4D3A;
+  margin: 0 0 4px 0;
+}
+
+.cle-repartition-desc {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.cle-repartition-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px 20px;
+}
+
+.cle-repartition-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cle-repartition-field label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.cle-repartition-input {
+  width: 100%;
+  max-width: 140px;
+}
+
 @media (max-width: 768px) {
   .gl-fields {
     grid-template-columns: 1fr;
+  }
+  .cle-repartition-grid {
+    grid-template-columns: 1fr 1fr;
   }
 }
 </style>

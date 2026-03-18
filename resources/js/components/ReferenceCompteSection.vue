@@ -7,7 +7,7 @@
           type="button"
           class="view-btn"
           :class="{ active: currentView === 'ajout' }"
-          @click="currentView = 'ajout'"
+          @click="switchTo('ajout')"
         >
           Ajouter
         </button>
@@ -15,15 +15,15 @@
           type="button"
           class="view-btn"
           :class="{ active: currentView === 'liste' }"
-          @click="currentView = 'liste'"
+          @click="switchTo('liste')"
         >
           Liste
         </button>
       </div>
     </div>
 
-    <ReferenceCompteForm v-show="currentView === 'ajout'" @saved="onFormSaved" />
-    <ReferenceCompteList ref="listRef" v-show="currentView === 'liste'" />
+    <ReferenceCompteForm v-if="currentView === 'ajout'" @saved="onFormSaved" />
+    <ReferenceCompteList v-if="currentView === 'liste'" ref="listRef" />
   </div>
 </template>
 
@@ -42,14 +42,15 @@ export default {
       currentView: 'ajout'
     };
   },
-  watch: {
-    currentView(val) {
-      if (val === 'liste') this.$refs.listRef?.load();
-    }
-  },
   methods: {
+    switchTo(view) {
+      this.currentView = view;
+    },
     onFormSaved() {
-      this.$refs.listRef?.load();
+      this.currentView = 'liste';
+      this.$nextTick(() => {
+        if (this.$refs.listRef) this.$refs.listRef.load();
+      });
     }
   }
 };

@@ -2,11 +2,11 @@
   <div class="cr-par-agence-section">
     <div class="section-header">
       <h2 class="section-title">CR par Agence</h2>
-      <span v-if="loadingData" class="loading-data-hint">Chargement des montants...</span>
+      <span v-if="loading || loadingData" class="loading-data-hint">Chargement des données...</span>
+      <span v-else-if="crLoadErrors > 0" class="load-errors-hint">Certaines données n'ont pas pu être chargées (service Oracle indisponible ou erreur).</span>
     </div>
 
-    <div v-if="loading" class="loading-state">Chargement...</div>
-    <div v-else class="table-wrapper">
+    <div class="table-wrapper" :class="{ 'table-loading': loading || loadingData }">
       <table class="cr-table">
         <thead>
           <tr class="header-row territory-row">
@@ -36,6 +36,7 @@
                 row.type === 'total' ? 'row-total' : '',
                 row.type === 'rubrique' ? 'row-rubrique' : '',
                 row.type === 'sous-rubrique' ? 'row-sous-rubrique' : '',
+                row.type === 'cle_repartition' || row.isCleRepartition ? 'row-cle-repartition' : '',
                 row.type === 'rubrique' && hasSousRubriques(row) ? 'row-expandable' : ''
               ]"
               @click="row.type === 'rubrique' && hasSousRubriques(row) ? toggleExpand(row.blocIndex) : null"
@@ -47,9 +48,15 @@
                 }"
               >
                 <span v-if="row.type === 'sous-rubrique'" class="indent-sous-rubrique"></span>
-                <span v-else-if="row.type === 'rubrique' && hasSousRubriques(row)" class="expand-icon-btn">
-                  {{ expandedBlocIndex === row.blocIndex ? '−' : '+' }}
-                </span>
+                <button
+                  v-else-if="row.type === 'rubrique' && hasSousRubriques(row)"
+                  type="button"
+                  class="expand-btn"
+                  @click.stop="toggleExpand(row.blocIndex)"
+                  :aria-label="expandedSections[row.blocIndex] ? 'Replier' : 'Déplier'"
+                >
+                  {{ expandedSections[row.blocIndex] ? '−' : '+' }}
+                </button>
                 {{ row.label }}
               </td>
               <td
@@ -75,14 +82,15 @@ const RUBRIQUES_TOTAL = [
   'RESULTAT NET D\'EXPLOITATION',
   'RESULTAT EXCEPTIONNEL',
   'RESULTAT AVANT IMPÔT',
-  'RESULTAT NET',
-  'Impôt sur le bénéfice (-)'
+  'Impôt sur le bénéfice (-)',
+  'RESULTAT NET'
+ 
 ];
 
-// Ordre d'affichage des postes (PRODUIT NET BANCAIRE avant CHARGES D'EXPLOITATION)
+// Ordre d'affichage strict (alignement comme la capture officielle)
 const CR_DISPLAY_ORDER = [
-  'CHARGES D\'INTÉRÊTS',
   'PRODUITS D\'INTÉRÊTS',
+  'CHARGES D\'INTÉRÊTS',
   'MARGE NETTE D\'INTÉRÊTS',
   'COMMISSIONS NETTES',
   'PRODUIT NET BANCAIRE',
@@ -97,6 +105,21 @@ const CR_DISPLAY_ORDER = [
   'Impôt sur le bénéfice (-)',
   'RESULTAT NET'
 ];
+
+function normalizeLibelle(s) {
+  const t = (s || '').trim();
+  return t.replace(/^[_\-]\s*/, '').trim();
+}
+
+/** Même ligne « clé répartition » que la sous-rubrique (ex. nom clé vs libellé avec « (-) »). */
+function libelleCorrespondCleRepartition(nomCle, libelle) {
+  if (!nomCle || !libelle) return false;
+  const n = normalizeLibelle(nomCle).toLowerCase();
+  const l = normalizeLibelle(libelle).toLowerCase();
+  if (n === l) return true;
+  const lSansParen = l.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  return n === lSansParen;
+}
 
 // Formules officielles du compte de résultat (tous les opérandes en + ; charges/impôts déjà négatifs en données)
 const FORMULA_MARGE_NETTE = [
@@ -148,8 +171,9 @@ export default {
       referenceCompteBlocs: [],
       loading: false,
       loadingData: false,
-      expandedBlocIndex: null,
+      expandedSections: {},
       crRowData: {},
+      crLoadErrors: 0,
       dateFrom: '',
       dateTo: '',
       branchCodeToEntityKey: {
@@ -174,12 +198,20 @@ export default {
       const blocs = this.referenceCompteBlocs || [];
       const withIndex = blocs.map((bloc, originalIndex) => ({ bloc, originalIndex }));
       const getOrderRank = (libelle) => {
-        const L = (libelle || '').trim();
+        const L = normalizeLibelle(libelle || '');
         let r = CR_DISPLAY_ORDER.indexOf(L);
         if (r === -1 && (L.includes('INTÉRÊTS') || L.includes('INTERÊTS'))) {
           const alt = L.includes('INTÉRÊTS') ? L.replace(/INTÉRÊTS/g, 'INTERÊTS') : L.replace(/INTERÊTS/g, 'INTÉRÊTS');
           r = CR_DISPLAY_ORDER.indexOf(alt);
         }
+        if (r === -1 && /RESULTAT\s*BRUT/i.test(L) && L.includes('EXPLOITATION') && !/RESULTAT\s*NET\s*D/i.test(L)) return 7;
+        if (r === -1 && L.includes('PROVISIONS') && L.includes('RISQUES')) return 8;
+        if (r === -1 && /COÛT\s*NET\s*DU\s*RISQUE/i.test(L)) return 9;
+        if (r === -1 && /RESULTAT\s*NET\s*D/i.test(L) && L.includes('EXPLOITATION')) return 10;
+        if (r === -1 && /RESULTAT\s*EXCEPTIONNEL/i.test(L)) return 11;
+        if (r === -1 && /RESULTAT\s*AVANT\s*IMPÔT/i.test(L)) return 12;
+        if (r === -1 && /^Impôt sur le bénéfice/i.test(L)) return 13;
+        if (r === -1 && (/^RESULTAT\s*NET$/i.test(L) || L.trim() === 'RESULTAT NET')) return 14;
         return r === -1 ? 9999 : r;
       };
       withIndex.sort((a, b) => getOrderRank(a.bloc.libelle) - getOrderRank(b.bloc.libelle));
@@ -187,7 +219,7 @@ export default {
       const rows = [];
       withIndex.forEach(({ bloc, originalIndex: blocIndex }) => {
         const rubriqueKey = `rubrique-${blocIndex}`;
-        const isTotal = RUBRIQUES_TOTAL.includes(bloc.libelle);
+        const isTotal = RUBRIQUES_TOTAL.includes(bloc.libelle) || RUBRIQUES_TOTAL.includes(normalizeLibelle(bloc.libelle));
         rows.push({
           uniqueKey: rubriqueKey,
           type: isTotal ? 'total' : 'rubrique',
@@ -195,17 +227,67 @@ export default {
           blocIndex,
           data: this.crRowData[rubriqueKey] || {}
         });
-        if (this.expandedBlocIndex === blocIndex && (bloc.rubriques || []).length > 0) {
+        if (this.expandedSections[blocIndex] && (bloc.rubriques || []).length > 0) {
           (bloc.rubriques || []).forEach((sr, srIndex) => {
             const sousKey = `sous-${blocIndex}-${srIndex}`;
+            const nomCle = (bloc.cle_repartition_nom || '').trim();
+            const cr = bloc.cle_repartition && typeof bloc.cle_repartition === 'object' ? bloc.cle_repartition : {};
+            const useCleForThisSousRubrique = nomCle && normalizeLibelle(sr.libelle || '') === normalizeLibelle(nomCle);
+            const estLigneCle = nomCle && libelleCorrespondCleRepartition(nomCle, sr.libelle || '');
+            const data = useCleForThisSousRubrique ? cr : (this.crRowData[sousKey] || {});
             rows.push({
               uniqueKey: sousKey,
               type: 'sous-rubrique',
+              isCleRepartition: estLigneCle,
               label: sr.libelle || '—',
               blocIndex,
               sousRubriqueIndex: srIndex,
-              data: this.crRowData[sousKey] || {}
+              data
             });
+          });
+        }
+      });
+
+      const rowMatchesLibelle = (row, libelle) => {
+        const L = normalizeLibelle(libelle || '');
+        const rowL = normalizeLibelle(row.label || '');
+        if (rowL === L) return true;
+        if ((L.includes('INTÉRÊTS') || L.includes('INTERÊTS')) && (rowL.includes('INTÉRÊTS') || rowL.includes('INTERÊTS'))) {
+          const alt = L.includes('INTÉRÊTS') ? L.replace(/INTÉRÊTS/g, 'INTERÊTS') : L.replace(/INTERÊTS/g, 'INTÉRÊTS');
+          return rowL === alt;
+        }
+        return false;
+      };
+      CR_DISPLAY_ORDER.forEach((libelle, rank) => {
+        if (rows.some((r) => rowMatchesLibelle(r, libelle))) return;
+        const isTotal = RUBRIQUES_TOTAL.includes(libelle);
+        const synthetic = {
+          uniqueKey: `synthetic-${rank}-${libelle.replace(/\s+/g, '-')}`,
+          type: isTotal ? 'total' : 'rubrique',
+          label: libelle,
+          blocIndex: null,
+          data: {}
+        };
+        const idx = rows.findIndex((r) => (r.type === 'rubrique' || r.type === 'total') && getOrderRank(r.label) > rank);
+        if (idx === -1) rows.push(synthetic);
+        else rows.splice(idx, 0, synthetic);
+      });
+
+      withIndex.forEach(({ bloc, originalIndex: blocIndex }) => {
+        const nom = (bloc.cle_repartition_nom || '').trim();
+        const cr = bloc.cle_repartition && typeof bloc.cle_repartition === 'object' ? bloc.cle_repartition : {};
+        const hasValues = this.entityKeys.some((k) => cr[k] != null && Number(cr[k]) !== 0);
+        const labelCle = nom || 'Clé répartition';
+        const memeNomQuUneSousRubrique = (bloc.rubriques || []).some(
+          (r) => normalizeLibelle(r.libelle || '') === normalizeLibelle(labelCle)
+        );
+        if ((nom || hasValues) && !memeNomQuUneSousRubrique) {
+          rows.push({
+            uniqueKey: `cle-repartition-${blocIndex}`,
+            type: 'cle_repartition',
+            label: labelCle,
+            blocIndex,
+            data: cr
           });
         }
       });
@@ -276,16 +358,21 @@ export default {
     },
     async loadReferenceCompte() {
       this.loading = true;
+      this._entityDataCache = {};
       try {
-        const res = await window.axios.get('/api/reference-compte');
-        const data = res.data && res.data.data;
+        const res = await window.axios.get('/api/reference-compte', { timeout: 15000 });
+        const data = res.data != null && res.data.data != null ? res.data.data : null;
         this.referenceCompteBlocs = Array.isArray(data) ? data : [];
-        await this.loadCrData();
       } catch (err) {
         console.warn('CR par Agence: chargement référence compte', err);
         this.referenceCompteBlocs = [];
       } finally {
         this.loading = false;
+      }
+      try {
+        await this.loadCrData();
+      } catch (err) {
+        console.warn('CR par Agence: chargement données CR', err);
       }
     },
     extractCrRows(raw) {
@@ -298,38 +385,49 @@ export default {
     async loadCrData() {
       if (!this.dateFrom || !this.dateTo) return;
       this.loadingData = true;
+      this.crLoadErrors = 0;
+      this._entityDataCache = {};
       const newCrRowData = {};
       try {
         const blocs = this.referenceCompteBlocs || [];
+        let errorCount = 0;
         for (let blocIndex = 0; blocIndex < blocs.length; blocIndex++) {
           const bloc = blocs[blocIndex];
           const rubriqueKey = `rubrique-${blocIndex}`;
           let rubriqueData = null;
+          const nomCle = (bloc.cle_repartition_nom || '').trim();
+          const cr = bloc.cle_repartition && typeof bloc.cle_repartition === 'object' ? bloc.cle_repartition : {};
           const sousRubriques = bloc.rubriques || [];
           for (let srIndex = 0; srIndex < sousRubriques.length; srIndex++) {
             const sr = sousRubriques[srIndex];
+            const useCleForSousRubrique = nomCle && normalizeLibelle(sr.libelle || '') === normalizeLibelle(nomCle);
             const gls = sr.gls || [];
             const parentGlCodes = gls.map((g) => (g.numero_gl || '').trim()).filter(Boolean);
-            if (parentGlCodes.length === 0) continue;
-            try {
-              const res = await window.axios.post('/api/oracle/data/cr-par-agence', {
-                date_from: this.dateFrom,
-                date_to: this.dateTo,
-                parent_gl_codes: parentGlCodes
-              });
-              const rows = this.extractCrRows(res.data);
-              const rowData = this.mapCrResponseToEntityData(rows);
-              const sousKey = `sous-${blocIndex}-${srIndex}`;
-              newCrRowData[sousKey] = rowData;
-              if (!rubriqueData) rubriqueData = { ...rowData };
-              else this.entityKeys.forEach((k) => { rubriqueData[k] = (rubriqueData[k] || 0) + (rowData[k] || 0); });
-            } catch (err) {
-              console.warn(`CR data sous-rubrique ${blocIndex}-${srIndex}:`, err);
+            const sousKey = `sous-${blocIndex}-${srIndex}`;
+            let dataToStore = useCleForSousRubrique ? cr : null;
+            if (!useCleForSousRubrique && parentGlCodes.length > 0) {
+              try {
+                const res = await window.axios.post('/api/oracle/data/cr-par-agence', {
+                  date_from: this.dateFrom,
+                  date_to: this.dateTo,
+                  parent_gl_codes: parentGlCodes
+                });
+                const rows = this.extractCrRows(res.data);
+                dataToStore = this.mapCrResponseToEntityData(rows);
+              } catch (err) {
+                errorCount += 1;
+              }
+            }
+            if (dataToStore != null) {
+              newCrRowData[sousKey] = dataToStore;
+              if (!rubriqueData) rubriqueData = { ...dataToStore };
+              else this.entityKeys.forEach((k) => { rubriqueData[k] = (rubriqueData[k] || 0) + (dataToStore[k] || 0); });
             }
           }
           if (rubriqueData) newCrRowData[rubriqueKey] = rubriqueData;
         }
         this.crRowData = newCrRowData;
+        this.crLoadErrors = errorCount;
       } finally {
         this.loadingData = false;
       }
@@ -340,26 +438,63 @@ export default {
       return bloc && (bloc.rubriques || []).length > 0;
     },
     toggleExpand(blocIndex) {
-      this.expandedBlocIndex = this.expandedBlocIndex === blocIndex ? null : blocIndex;
+      this.expandedSections[blocIndex] = !this.expandedSections[blocIndex];
     },
     getEntityDataByBlocLibelle(libelle) {
+      if (!this._entityDataCache) this._entityDataCache = {};
+      const target = normalizeLibelle(libelle);
+      if (this._entityDataCache[target] !== undefined) return this._entityDataCache[target];
       const blocs = this.referenceCompteBlocs || [];
-      const trim = (s) => (s || '').trim();
-      const target = trim(libelle);
-      let idx = blocs.findIndex((b) => trim(b.libelle) === target);
+      let idx = blocs.findIndex((b) => normalizeLibelle(b.libelle) === target);
       if (idx === -1 && (target.includes('INTÉRÊTS') || target.includes('INTERÊTS'))) {
         const alt = target.includes('INTÉRÊTS') ? target.replace(/INTÉRÊTS/g, 'INTERÊTS') : target.replace(/INTERÊTS/g, 'INTÉRÊTS');
-        idx = blocs.findIndex((b) => trim(b.libelle) === alt);
+        idx = blocs.findIndex((b) => normalizeLibelle(b.libelle) === alt);
       }
       if (idx === -1 && target === 'MARGE NETTE') {
-        idx = blocs.findIndex((b) => trim(b.libelle || '').startsWith('MARGE NETTE'));
+        idx = blocs.findIndex((b) => normalizeLibelle(b.libelle || '').startsWith('MARGE NETTE'));
       }
-      if (idx === -1) return {};
-      return this.crRowData[`rubrique-${idx}`] || {};
+      if (idx !== -1) {
+        const bloc = blocs[idx];
+        const rubriqueKey = `rubrique-${idx}`;
+        const row = {
+          label: bloc.libelle || '—',
+          blocIndex: idx,
+          data: this.crRowData[rubriqueKey] || {},
+          type: (RUBRIQUES_TOTAL.includes(bloc.libelle) || RUBRIQUES_TOTAL.includes(normalizeLibelle(bloc.libelle))) ? 'total' : 'rubrique'
+        };
+        const out = {};
+        this.entityKeys.forEach((k) => { out[k] = this.getValue(row, k); });
+        this._entityDataCache[target] = out;
+        return out;
+      }
+      // Ligne absente de la référence : si c'est une ligne calculée, calculer par formule
+      for (const [formulaLabel, formula] of Object.entries(RUBRIQUE_FORMULAS)) {
+        const normalizedFormula = normalizeLibelle(formulaLabel);
+        if (normalizedFormula === target || normalizedFormula.startsWith(target)) {
+          const out = {};
+          this.entityKeys.forEach((k) => {
+            let sum = 0;
+            for (const term of formula) {
+              const data = this.getEntityDataByBlocLibelle(term.libelle);
+              const v = data[k];
+              const num = v !== undefined && v !== null ? Number(v) : 0;
+              sum += term.coef * (isNaN(num) ? 0 : num);
+            }
+            out[k] = sum;
+          });
+          this._entityDataCache[target] = out;
+          return out;
+        }
+      }
+      const out = {};
+      this.entityKeys.forEach((k) => { out[k] = 0; });
+      this._entityDataCache[target] = out;
+      return out;
     },
     getFormulaForLabel(label) {
       if (!label) return null;
-      return RUBRIQUE_FORMULAS[label] || RUBRIQUE_FORMULAS[label.replace(/INTERÊTS/g, 'INTÉRÊTS')] || RUBRIQUE_FORMULAS[label.replace(/INTÉRÊTS/g, 'INTERÊTS')] || null;
+      const L = normalizeLibelle(label);
+      return RUBRIQUE_FORMULAS[L] || RUBRIQUE_FORMULAS[label] || RUBRIQUE_FORMULAS[L.replace(/INTERÊTS/g, 'INTÉRÊTS')] || RUBRIQUE_FORMULAS[L.replace(/INTÉRÊTS/g, 'INTERÊTS')] || null;
     },
     getValue(row, colKey) {
       const formula = this.getFormulaForLabel(row.label);
@@ -409,8 +544,15 @@ export default {
 }
 
 .loading-data-hint {
+  font-size: 0.9rem;
+  color: #1A4D3A;
+  margin-left: 12px;
+  font-weight: 500;
+}
+
+.load-errors-hint {
   font-size: 0.85rem;
-  color: #6b7280;
+  color: #b45309;
   margin-left: 12px;
 }
 
@@ -419,6 +561,11 @@ export default {
   color: #1A4D3A;
   margin: 0;
   font-weight: 600;
+}
+
+.table-wrapper.table-loading {
+  position: relative;
+  opacity: 0.92;
 }
 
 .table-wrapper {
@@ -607,6 +754,33 @@ export default {
   background: #e5e7eb;
 }
 
+.row-expandable .col-poste.sticky-col {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.expand-btn {
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(26, 77, 58, 0.35);
+  background: rgba(26, 77, 58, 0.08);
+  color: #1A4D3A;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 14px;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.expand-btn:hover {
+  background: rgba(26, 77, 58, 0.15);
+}
+
 .expand-icon-btn {
   display: inline-flex;
   align-items: center;
@@ -629,10 +803,17 @@ export default {
   color: #374151;
 }
 
+.row-cle-repartition .sticky-col,
+.row-cle-repartition td {
+  color: #b91c1c !important;
+  font-weight: 600;
+}
+
 .indent-sous-rubrique {
   display: inline-block;
-  width: 24px;
-  margin-right: 4px;
+  width: 32px;
+  margin-right: 8px;
+  vertical-align: middle;
 }
 
 .row-line .sticky-col,

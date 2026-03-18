@@ -10,6 +10,380 @@ from database.oracle import get_oracle_connection
 logger = logging.getLogger(__name__)
 
 
+def get_orange_money_data(month: int, year: int) -> List[Dict]:
+    """
+    Récupère les données Orange Money (envois et paiements) depuis Oracle
+    
+    Args:
+        month: Mois (1-12)
+        year: Année
+        
+    Returns:
+        Liste de dictionnaires avec les données par agence
+    """
+    logger.info(f"📅 get_orange_money_data appelé avec month={month}, year={year}")
+    dates = calculate_month_dates(month, year)
+    logger.info(f"📅 Dates calculées pour Orange Money: M={dates['m_debut']} à {dates['m_fin']}, M-1={dates['m1_debut']} à {dates['m1_fin']}")
+    conn = get_oracle_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Requête ultra-optimisée combinant envois et paiements en une seule requête
+        # Conversion des dates pour comparaison directe (plus rapide que TO_CHAR)
+        m1_debut_date = datetime.strptime(dates['m1_debut'], '%d/%m/%Y')
+        m_fin_date = datetime.strptime(dates['m_fin'], '%d/%m/%Y')
+        m_debut_date = datetime.strptime(dates['m_debut'], '%d/%m/%Y')
+        m1_fin_date = datetime.strptime(dates['m1_fin'], '%d/%m/%Y')
+        
+        logger.info(f"📅 Dates pour requête Orange Money:")
+        logger.info(f"   M1 début: {m1_debut_date.strftime('%d/%m/%Y')}")
+        logger.info(f"   M fin: {m_fin_date.strftime('%d/%m/%Y')}")
+        logger.info(f"   M début: {m_debut_date.strftime('%d/%m/%Y')}")
+        logger.info(f"   M1 fin: {m1_fin_date.strftime('%d/%m/%Y')}")
+        
+        combined_query = f"""
+        WITH Journal AS (
+            SELECT
+                AC_BRANCH, AC_NO, DRCR_IND, LCY_AMOUNT, 
+                COALESCE(VALUE_DT, TRN_DT) as TRN_DT
+            FROM CFSFCUBS145.ACVW_ALL_AC_ENTRIES 
+            WHERE COALESCE(VALUE_DT, TRN_DT) >= TO_DATE('{m1_debut_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY') 
+              AND COALESCE(VALUE_DT, TRN_DT) <= TO_DATE('{m_fin_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY')
+        ),
+        RESUL_OM as (
+            select 
+                   nvl(c.gl_code,s.DR_GL) "PARENT_GL"
+                   ,a.ac_branch as CODE_AGENCE
+                   ,a.drcr_ind as SENS_ECR
+                   ,b.branch_name as LIBELLE_AGENCE
+                   ,a.lcy_amount
+                   ,a.TRN_DT
+            from Journal a
+                   LEFT JOIN CFSFCUBS145.gltm_glmaster c ON c.gl_code = a.AC_NO
+                   LEFT JOIN CFSFCUBS145.STTM_CUST_ACCOUNT s ON s.CUST_AC_NO = a.AC_NO
+                   LEFT JOIN CFSFCUBS145.STTM_BRANCH b ON b.branch_code = a.ac_branch
+            where nvl(c.gl_code,s.DR_GL) like '101%'
+        ),
+        ENVOIE_OM_M as (
+            select 
+                OM.CODE_AGENCE,
+                OM.LIBELLE_AGENCE,
+                sum(OM.lcy_amount) as VOLUME_ENVOIE_OM_M
+            from  RESUL_OM OM
+            where OM.TRN_DT >= TO_DATE('{m_debut_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY')
+              and OM.TRN_DT <= TO_DATE('{m_fin_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY')
+            and OM.SENS_ECR='D'
+            group by OM.CODE_AGENCE, OM.LIBELLE_AGENCE
+        ),
+        ENVOIE_OM_M_1 as (
+            select 
+                OM1.CODE_AGENCE,
+                OM1.LIBELLE_AGENCE,
+                sum(OM1.lcy_amount) as VOLUME_ENVOIE_OM_M_1
+            from  RESUL_OM OM1
+            where OM1.TRN_DT >= TO_DATE('{m1_debut_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY')
+              and OM1.TRN_DT <= TO_DATE('{m1_fin_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY')
+            and OM1.SENS_ECR='D'
+            group by OM1.CODE_AGENCE, OM1.LIBELLE_AGENCE
+        ),
+        PAIEMENT_OM_M as (
+            select 
+                OM.CODE_AGENCE,
+                OM.LIBELLE_AGENCE,
+                sum(OM.lcy_amount) as VOLUME_PAIEMENT_OM_M
+            from  RESUL_OM OM
+            where OM.TRN_DT >= TO_DATE('{m_debut_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY')
+              and OM.TRN_DT <= TO_DATE('{m_fin_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY')
+            and OM.SENS_ECR='C'
+            group by OM.CODE_AGENCE, OM.LIBELLE_AGENCE
+        ),
+        PAIEMENT_OM_M_1 as (
+            select 
+                OM1.CODE_AGENCE,
+                OM1.LIBELLE_AGENCE,
+                sum(OM1.lcy_amount) as VOLUME_PAIEMENT_OM_M_1
+            from  RESUL_OM OM1
+            where OM1.TRN_DT >= TO_DATE('{m1_debut_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY')
+              and OM1.TRN_DT <= TO_DATE('{m1_fin_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY')
+            and OM1.SENS_ECR='C'
+            group by OM1.CODE_AGENCE, OM1.LIBELLE_AGENCE
+        )
+        select 
+            COALESCE(EOM.CODE_AGENCE, EOM1.CODE_AGENCE, POM.CODE_AGENCE, POM1.CODE_AGENCE) as CODE_AGENCE,
+            COALESCE(EOM.LIBELLE_AGENCE, EOM1.LIBELLE_AGENCE, POM.LIBELLE_AGENCE, POM1.LIBELLE_AGENCE) as LIBELLE_AGENCE,
+            COALESCE(EOM1.VOLUME_ENVOIE_OM_M_1, 0) + COALESCE(POM1.VOLUME_PAIEMENT_OM_M_1, 0) as VOLUME_M_1,
+            COALESCE(EOM.VOLUME_ENVOIE_OM_M, 0) + COALESCE(POM.VOLUME_PAIEMENT_OM_M, 0) as VOLUME_M,
+            (COALESCE(EOM.VOLUME_ENVOIE_OM_M, 0) + COALESCE(POM.VOLUME_PAIEMENT_OM_M, 0) - 
+             COALESCE(EOM1.VOLUME_ENVOIE_OM_M_1, 0) - COALESCE(POM1.VOLUME_PAIEMENT_OM_M_1, 0)) as Variation_volume,
+            ROUND(
+                (((COALESCE(EOM.VOLUME_ENVOIE_OM_M, 0) + COALESCE(POM.VOLUME_PAIEMENT_OM_M, 0) - 
+                   COALESCE(EOM1.VOLUME_ENVOIE_OM_M_1, 0) - COALESCE(POM1.VOLUME_PAIEMENT_OM_M_1, 0)) / 
+                  NULLIF(COALESCE(EOM1.VOLUME_ENVOIE_OM_M_1, 0) + COALESCE(POM1.VOLUME_PAIEMENT_OM_M_1, 0), 0)) * 100), 
+                2
+            ) AS VARIATION_PCT
+        from ENVOIE_OM_M EOM
+        FULL OUTER JOIN ENVOIE_OM_M_1 EOM1 on EOM1.CODE_AGENCE=EOM.CODE_AGENCE
+        FULL OUTER JOIN PAIEMENT_OM_M POM on POM.CODE_AGENCE=COALESCE(EOM.CODE_AGENCE, EOM1.CODE_AGENCE)
+        FULL OUTER JOIN PAIEMENT_OM_M_1 POM1 on POM1.CODE_AGENCE=COALESCE(EOM.CODE_AGENCE, EOM1.CODE_AGENCE, POM.CODE_AGENCE)
+        """
+        
+        # Exécuter une seule requête combinée
+        cursor.execute(combined_query)
+        results = cursor.fetchall()
+        
+        # Vérifier que la requête a retourné des colonnes
+        if not cursor.description:
+            logger.warning("⚠️ La requête n'a retourné aucune colonne")
+            return []
+        
+        columns = [desc[0] for desc in cursor.description]
+        logger.info(f"📊 Colonnes retournées: {columns}")
+        
+        # Traiter les résultats
+        agencies_data = {}
+        for row in results:
+            try:
+                row_dict = dict(zip(columns, row))
+                # Créer un dictionnaire insensible à la casse pour les clés
+                row_dict_upper = {k.upper(): v for k, v in row_dict.items()}
+                
+                code_agence = row_dict_upper.get('CODE_AGENCE')
+                libelle_agence = row_dict_upper.get('LIBELLE_AGENCE')
+                
+                if not code_agence:
+                    continue
+                    
+                if code_agence not in agencies_data:
+                    agencies_data[code_agence] = {
+                        'agence': libelle_agence or '',
+                        'code_agence': code_agence,
+                        'volume_m': 0,
+                        'volume_m1': 0,
+                        'variation_volume': 0,
+                        'variation_pct': 0
+                    }
+                
+                agencies_data[code_agence]['volume_m'] = float(row_dict_upper.get('VOLUME_M') or 0)
+                agencies_data[code_agence]['volume_m1'] = float(row_dict_upper.get('VOLUME_M_1') or 0)
+                agencies_data[code_agence]['variation_volume'] = float(row_dict_upper.get('VARIATION_VOLUME') or 0)
+                agencies_data[code_agence]['variation_pct'] = float(row_dict_upper.get('VARIATION_PCT') or 0)
+            except Exception as row_error:
+                logger.error(f"❌ Erreur lors du traitement d'une ligne: {str(row_error)}")
+                logger.error(f"   Colonnes disponibles: {list(row_dict.keys()) if 'row_dict' in locals() else 'N/A'}")
+                continue
+        
+        # Calculer les variations si nécessaire
+        result = []
+        for code_agence, data in agencies_data.items():
+            result.append({
+                'agence': data['agence'],
+                'code_agence': code_agence,
+                'volume_m': round(data['volume_m'], 2),
+                'volume_m1': round(data['volume_m1'], 2),
+                'variation_volume': round(data['variation_volume'], 2),
+                'variation_pct': round(data['variation_pct'], 2)
+            })
+        
+        logger.info(f"✅ Données Orange Money récupérées: {len(result)} agences")
+        return result
+        
+        
+    except Exception as e:
+        logger.error(f"❌ Erreur lors de la récupération des données Orange Money: {str(e)}", exc_info=True)
+        raise
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+
+
+def get_ria_data(month: int, year: int) -> List[Dict]:
+    """
+    Récupère les données Ria Money Transfer (envois et paiements) depuis Oracle
+    
+    Args:
+        month: Mois (1-12)
+        year: Année
+        
+    Returns:
+        Liste de dictionnaires avec les données par agence
+    """
+    logger.info(f"📅 get_ria_data appelé avec month={month}, year={year}")
+    dates = calculate_month_dates(month, year)
+    logger.info(f"📅 Dates calculées pour RIA: M={dates['m_debut']} à {dates['m_fin']}, M-1={dates['m1_debut']} à {dates['m1_fin']}")
+    conn = get_oracle_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Requête ultra-optimisée combinant envois et paiements RIA en une seule requête
+        m1_debut_date = datetime.strptime(dates['m1_debut'], '%d/%m/%Y')
+        m_fin_date = datetime.strptime(dates['m_fin'], '%d/%m/%Y')
+        m_debut_date = datetime.strptime(dates['m_debut'], '%d/%m/%Y')
+        m1_fin_date = datetime.strptime(dates['m1_fin'], '%d/%m/%Y')
+        
+        logger.info(f"📅 Dates pour requête RIA:")
+        logger.info(f"   M1 début: {m1_debut_date.strftime('%d/%m/%Y')}")
+        logger.info(f"   M fin: {m_fin_date.strftime('%d/%m/%Y')}")
+        logger.info(f"   M début: {m_debut_date.strftime('%d/%m/%Y')}")
+        logger.info(f"   M1 fin: {m1_fin_date.strftime('%d/%m/%Y')}")
+        
+        combined_query = f"""
+        WITH Journal AS (
+            SELECT
+                AC_BRANCH, AC_NO, DRCR_IND, LCY_AMOUNT, 
+                COALESCE(VALUE_DT, TRN_DT) as TRN_DT
+            FROM CFSFCUBS145.ACVW_ALL_AC_ENTRIES 
+            WHERE COALESCE(VALUE_DT, TRN_DT) >= TO_DATE('{m1_debut_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY') 
+              AND COALESCE(VALUE_DT, TRN_DT) <= TO_DATE('{m_fin_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY')
+        ),
+        RESUL_RIA as (
+            select 
+                   nvl(c.gl_code,s.DR_GL) "PARENT_GL"
+                   ,a.ac_branch as CODE_AGENCE
+                   ,a.drcr_ind as SENS_ECR
+                   ,b.branch_name as LIBELLE_AGENCE
+                   ,a.lcy_amount
+                   ,a.TRN_DT
+            from Journal a
+                   LEFT JOIN CFSFCUBS145.gltm_glmaster c ON c.gl_code = a.AC_NO
+                   LEFT JOIN CFSFCUBS145.STTM_CUST_ACCOUNT s ON s.CUST_AC_NO = a.AC_NO
+                   LEFT JOIN CFSFCUBS145.STTM_BRANCH b ON b.branch_code = a.ac_branch
+            where nvl(c.gl_code,s.DR_GL) like '101%'
+        ),
+        ENVOIE_RIA_M as (
+            select 
+                RA.CODE_AGENCE,
+                RA.LIBELLE_AGENCE,
+                sum(RA.lcy_amount) as VOLUME_ENVOIE_RIA_M
+            from  RESUL_RIA RA
+            where RA.TRN_DT >= TO_DATE('{m_debut_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY')
+              and RA.TRN_DT <= TO_DATE('{m_fin_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY')
+            and RA.SENS_ECR='D'
+            group by RA.CODE_AGENCE, RA.LIBELLE_AGENCE
+        ),
+        ENVOIE_RIA_M_1 as (
+            select 
+                RA1.CODE_AGENCE,
+                RA1.LIBELLE_AGENCE,
+                sum(RA1.lcy_amount) as VOLUME_ENVOIE_RIA_M_1
+            from  RESUL_RIA RA1
+            where RA1.TRN_DT >= TO_DATE('{m1_debut_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY')
+              and RA1.TRN_DT <= TO_DATE('{m1_fin_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY')
+            and RA1.SENS_ECR='D'
+            group by RA1.CODE_AGENCE, RA1.LIBELLE_AGENCE
+        ),
+        PAIEMENT_RIA_M as (
+            select 
+                RA.CODE_AGENCE,
+                RA.LIBELLE_AGENCE,
+                sum(RA.lcy_amount) as VOLUME_PAIEMENT_RIA_M
+            from  RESUL_RIA RA
+            where RA.TRN_DT >= TO_DATE('{m_debut_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY')
+              and RA.TRN_DT <= TO_DATE('{m_fin_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY')
+            and RA.SENS_ECR='C'
+            group by RA.CODE_AGENCE, RA.LIBELLE_AGENCE
+        ),
+        PAIEMENT_RIA_M_1 as (
+            select 
+                RA1.CODE_AGENCE,
+                RA1.LIBELLE_AGENCE,
+                sum(RA1.lcy_amount) as VOLUME_PAIEMENT_RIA_M_1
+            from  RESUL_RIA RA1
+            where RA1.TRN_DT >= TO_DATE('{m1_debut_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY')
+              and RA1.TRN_DT <= TO_DATE('{m1_fin_date.strftime('%d/%m/%Y')}', 'DD/MM/YYYY')
+            and RA1.SENS_ECR='C'
+            group by RA1.CODE_AGENCE, RA1.LIBELLE_AGENCE
+        )
+        select 
+            COALESCE(ERM.CODE_AGENCE, ERM1.CODE_AGENCE, PRM.CODE_AGENCE, PRM1.CODE_AGENCE) as CODE_AGENCE,
+            COALESCE(ERM.LIBELLE_AGENCE, ERM1.LIBELLE_AGENCE, PRM.LIBELLE_AGENCE, PRM1.LIBELLE_AGENCE) as LIBELLE_AGENCE,
+            COALESCE(ERM1.VOLUME_ENVOIE_RIA_M_1, 0) + COALESCE(PRM1.VOLUME_PAIEMENT_RIA_M_1, 0) as VOLUME_M_1,
+            COALESCE(ERM.VOLUME_ENVOIE_RIA_M, 0) + COALESCE(PRM.VOLUME_PAIEMENT_RIA_M, 0) as VOLUME_M,
+            (COALESCE(ERM.VOLUME_ENVOIE_RIA_M, 0) + COALESCE(PRM.VOLUME_PAIEMENT_RIA_M, 0) - 
+             COALESCE(ERM1.VOLUME_ENVOIE_RIA_M_1, 0) - COALESCE(PRM1.VOLUME_PAIEMENT_RIA_M_1, 0)) as Variation_volume,
+            ROUND(
+                (((COALESCE(ERM.VOLUME_ENVOIE_RIA_M, 0) + COALESCE(PRM.VOLUME_PAIEMENT_RIA_M, 0) - 
+                   COALESCE(ERM1.VOLUME_ENVOIE_RIA_M_1, 0) - COALESCE(PRM1.VOLUME_PAIEMENT_RIA_M_1, 0)) / 
+                  NULLIF(COALESCE(ERM1.VOLUME_ENVOIE_RIA_M_1, 0) + COALESCE(PRM1.VOLUME_PAIEMENT_RIA_M_1, 0), 0)) * 100), 
+                2
+            ) AS VARIATION_PCT
+        from ENVOIE_RIA_M ERM
+        FULL OUTER JOIN ENVOIE_RIA_M_1 ERM1 on ERM1.CODE_AGENCE=ERM.CODE_AGENCE
+        FULL OUTER JOIN PAIEMENT_RIA_M PRM on PRM.CODE_AGENCE=COALESCE(ERM.CODE_AGENCE, ERM1.CODE_AGENCE)
+        FULL OUTER JOIN PAIEMENT_RIA_M_1 PRM1 on PRM1.CODE_AGENCE=COALESCE(ERM.CODE_AGENCE, ERM1.CODE_AGENCE, PRM.CODE_AGENCE)
+        """
+        
+        # Exécuter une seule requête combinée
+        cursor.execute(combined_query)
+        results = cursor.fetchall()
+        
+        # Vérifier que la requête a retourné des colonnes
+        if not cursor.description:
+            logger.warning("⚠️ La requête n'a retourné aucune colonne")
+            return []
+        
+        columns = [desc[0] for desc in cursor.description]
+        logger.info(f"📊 Colonnes retournées: {columns}")
+        
+        # Traiter les résultats
+        agencies_data = {}
+        for row in results:
+            try:
+                row_dict = dict(zip(columns, row))
+                # Créer un dictionnaire insensible à la casse pour les clés
+                row_dict_upper = {k.upper(): v for k, v in row_dict.items()}
+                
+                code_agence = row_dict_upper.get('CODE_AGENCE')
+                libelle_agence = row_dict_upper.get('LIBELLE_AGENCE')
+                
+                if not code_agence:
+                    continue
+                    
+                if code_agence not in agencies_data:
+                    agencies_data[code_agence] = {
+                        'agence': libelle_agence or '',
+                        'code_agence': code_agence,
+                        'volume_m': 0,
+                        'volume_m1': 0,
+                        'variation_volume': 0,
+                        'variation_pct': 0
+                    }
+                
+                agencies_data[code_agence]['volume_m'] = float(row_dict_upper.get('VOLUME_M') or 0)
+                agencies_data[code_agence]['volume_m1'] = float(row_dict_upper.get('VOLUME_M_1') or 0)
+                agencies_data[code_agence]['variation_volume'] = float(row_dict_upper.get('VARIATION_VOLUME') or 0)
+                agencies_data[code_agence]['variation_pct'] = float(row_dict_upper.get('VARIATION_PCT') or 0)
+            except Exception as row_error:
+                logger.error(f"❌ Erreur lors du traitement d'une ligne: {str(row_error)}")
+                logger.error(f"   Colonnes disponibles: {list(row_dict.keys()) if 'row_dict' in locals() else 'N/A'}")
+                continue
+        
+        # Calculer les variations si nécessaire
+        result = []
+        for code_agence, data in agencies_data.items():
+            result.append({
+                'agence': data['agence'],
+                'code_agence': code_agence,
+                'volume_m': round(data['volume_m'], 2),
+                'volume_m1': round(data['volume_m1'], 2),
+                'variation_volume': round(data['variation_volume'], 2),
+                'variation_pct': round(data['variation_pct'], 2)
+            })
+        
+        logger.info(f"✅ Données RIA récupérées: {len(result)} agences")
+        return result
+        
+    except Exception as e:
+        logger.error(f"❌ Erreur lors de la récupération des données RIA: {str(e)}", exc_info=True)
+        raise
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+
+
 def calculate_month_dates(month: int, year: int) -> Dict[str, str]:
     """
     Calcule les dates du mois M et M-1
@@ -21,6 +395,12 @@ def calculate_month_dates(month: int, year: int) -> Dict[str, str]:
     Returns:
         Dictionnaire avec les dates au format DD/MM/YYYY et YYYY-MM-DD
     """
+    # S'assurer que month et year sont des entiers
+    month = int(month)
+    year = int(year)
+    
+    logger.info(f"📅 calculate_month_dates appelé avec month={month}, year={year}")
+    
     # Premier jour du mois M
     first_day = datetime(year, month, 1)
     # Dernier jour du mois M
@@ -50,7 +430,7 @@ def calculate_month_dates(month: int, year: int) -> Dict[str, str]:
     }
 
 
-def get_transfer_data(period: str = "month", month: Optional[int] = None, year: Optional[int] = None, date: Optional[str] = None):
+def get_transfer_data(period: str = "month", month: Optional[int] = None, year: Optional[int] = None, date: Optional[str] = None, service: str = "om"):
     """
     Récupère les données de transferts d'argent depuis Oracle
     
@@ -59,16 +439,23 @@ def get_transfer_data(period: str = "month", month: Optional[int] = None, year: 
         month: Mois à analyser (1-12)
         year: Année à analyser
         date: Date au format YYYY-MM-DD pour period="week"
+        service: Service de transfert ("om", "wave", "ria", "wu")
     
     Returns:
         Dictionnaire avec les données de transferts organisées par agences et services
     """
-    logger.info(f"🔍 get_transfer_data appelé avec period={period}, month={month}, year={year}, date={date}")
+    logger.info(f"🔍 get_transfer_data appelé avec period={period}, month={month} (type: {type(month)}), year={year} (type: {type(year)}), date={date}, service={service}")
     
     # Pour l'instant, on ne gère que la période "month"
     if period != "month":
         logger.warning(f"⚠️ Période '{period}' non supportée pour les transferts. Utilisation de 'month' par défaut.")
         period = "month"
+    
+    # S'assurer que month et year sont des entiers
+    if month is not None:
+        month = int(month)
+    if year is not None:
+        year = int(year)
     
     # Utiliser le mois et l'année actuels si non fournis
     if not month or not year:
@@ -76,369 +463,75 @@ def get_transfer_data(period: str = "month", month: Optional[int] = None, year: 
         month = month or now.month
         year = year or now.year
     
-    # Calculer les dates
+    logger.info(f"📅 Paramètres de date finaux (après conversion): month={month} (type: {type(month)}), year={year} (type: {type(year)})")
+    
+    # Calculer les dates - IMPORTANT: recalculer à chaque appel pour éviter le cache
     dates = calculate_month_dates(month, year)
     
     logger.info(f"📅 Dates calculées: M={dates['m_debut']} à {dates['m_fin']}, M-1={dates['m1_debut']} à {dates['m1_fin']}")
     
-    conn = get_oracle_connection()
-    cursor = conn.cursor()
-    
     try:
-        # Requête SQL pour récupérer les données de transferts d'argent
-        # Note: Cette requête est un exemple - elle doit être adaptée selon votre structure de base de données Oracle
-        query = f"""
-        SELECT 
-            b.BRANCH_NAME AS AGENCE,
-            b.BRANCH_CODE,
-            -- Objectif (à définir selon votre logique métier)
-            COALESCE(obj.OBJECTIF, 0) AS OBJECTIF,
-            -- Volume transfert M (mois en cours)
-            COALESCE(SUM(CASE 
-                WHEN t.TRANSACTION_DATE BETWEEN DATE '{dates['m_debut_date']}' AND DATE '{dates['m_fin_date']}'
-                THEN t.AMOUNT ELSE 0 END), 0) AS VOLUME_TRANSFERT_M,
-            -- Volume transfert M-1 (mois précédent)
-            COALESCE(SUM(CASE 
-                WHEN t.TRANSACTION_DATE BETWEEN DATE '{dates['m1_debut_date']}' AND DATE '{dates['m1_fin_date']}'
-                THEN t.AMOUNT ELSE 0 END), 0) AS VOLUME_TRANSFERT_M1,
-            -- Commission générée M
-            COALESCE(SUM(CASE 
-                WHEN t.TRANSACTION_DATE BETWEEN DATE '{dates['m_debut_date']}' AND DATE '{dates['m_fin_date']}'
-                THEN t.COMMISSION ELSE 0 END), 0) AS COMMISSION_M,
-            -- Service de transfert
-            t.SERVICE_NAME AS SERVICE
-        FROM TRANSFER_TRANSACTIONS t
-        LEFT JOIN STTM_BRANCH b ON b.BRANCH_CODE = t.BRANCH_CODE
-        LEFT JOIN TRANSFER_OBJECTIVES obj ON obj.BRANCH_CODE = t.BRANCH_CODE 
-            AND obj.MONTH = {month} AND obj.YEAR = {year}
-        WHERE t.TRANSACTION_DATE BETWEEN DATE '{dates['m1_debut_date']}' AND DATE '{dates['m_fin_date']}'
-        GROUP BY b.BRANCH_NAME, b.BRANCH_CODE, obj.OBJECTIF, t.SERVICE_NAME
-        ORDER BY b.BRANCH_NAME, t.SERVICE_NAME
-        """
+        # Récupérer les données selon le service sélectionné
+        if service == "om":
+            logger.info("📊 Récupération des données Orange Money depuis Oracle")
+            om_data = get_orange_money_data(month, year)
+        elif service == "wave":
+            logger.info("📊 Récupération des données Wave depuis Oracle")
+            # TODO: Implémenter get_wave_data quand les requêtes seront disponibles
+            om_data = []
+        elif service == "ria":
+            logger.info("📊 Récupération des données Ria depuis Oracle")
+            om_data = get_ria_data(month, year)
+        elif service == "wu":
+            logger.info("📊 Récupération des données Western Union depuis Oracle")
+            # TODO: Implémenter get_wu_data quand les requêtes seront disponibles
+            om_data = []
+        else:
+            logger.warning(f"⚠️ Service '{service}' non reconnu. Utilisation d'Orange Money par défaut.")
+            om_data = get_orange_money_data(month, year)
         
-        # Note: La requête ci-dessus est un exemple générique
-        # Vous devez l'adapter selon votre structure de tables Oracle réelle
-        # Pour l'instant, on va créer des données de démonstration
+        # Formater les données pour correspondre au format attendu
+        agencies = []
+        for om_item in om_data:
+            try:
+                # Calculer le TRO (Taux de Réalisation de l'Objectif)
+                # Pour l'instant, objectif = 0 (à définir selon votre logique métier)
+                objectif = 0
+                tro = 0
+                volume_m = om_item.get('volume_m', 0)
+                if objectif > 0 and volume_m:
+                    tro = (volume_m / objectif) * 100
+                
+                agencies.append({
+                    "agence": om_item.get('agence', ''),
+                    "objectif": objectif,
+                    "volume_m": volume_m,
+                    "volume_m1": om_item.get('volume_m1', 0),
+                    "variation_volume": om_item.get('variation_volume', 0),
+                    "variation_pct": om_item.get('variation_pct', 0),
+                    "tro": round(tro, 2),
+                    "contribution": 0,  # Sera calculé après
+                    "commission": 0  # À calculer selon votre logique métier
+                })
+            except Exception as item_error:
+                logger.error(f"❌ Erreur lors du traitement d'un item: {str(item_error)}")
+                logger.error(f"   Item: {om_item}")
+                continue
         
-        logger.info("⚠️ Utilisation de données de démonstration - adapter la requête selon votre structure Oracle")
+        # Calculer les contributions
+        total_volume_m = sum(a['volume_m'] for a in agencies)
+        for agency in agencies:
+            if total_volume_m > 0:
+                agency['contribution'] = round((agency['volume_m'] / total_volume_m) * 100, 2)
         
-        # Données de démonstration basées sur l'image fournie
-        demo_data = {
-            "agencies": [
-                {
-                    "agence": "CORPORATE",
-                    "objectif": 2020,
-                    "volume_m": 2489,
-                    "volume_m1": 1845,
-                    "variation_volume": 644.11,
-                    "variation_pct": -26,
-                    "tro": 91,
-                    "contribution": 68,
-                    "commission": 5.483
-                },
-                {
-                    "agence": "ZONE DAKAR",
-                    "objectif": 1310,
-                    "volume_m": 1647,
-                    "volume_m1": 1274,
-                    "variation_volume": 373.29,
-                    "variation_pct": -23,
-                    "tro": 97,
-                    "contribution": 47,
-                    "commission": 3.593
-                },
-                {
-                    "agence": "POINT E",
-                    "objectif": 300,
-                    "volume_m": 382,
-                    "volume_m1": 381,
-                    "variation_volume": 0.07,
-                    "variation_pct": 0,
-                    "tro": 127,
-                    "contribution": 30,
-                    "commission": 0.862
-                },
-                {
-                    "agence": "NIARRY TALLY",
-                    "objectif": 120,
-                    "volume_m": 187,
-                    "volume_m1": 197,
-                    "variation_volume": -10.27,
-                    "variation_pct": 6,
-                    "tro": 164,
-                    "contribution": 15,
-                    "commission": 0.439
-                },
-                {
-                    "agence": "CASTOR",
-                    "objectif": 250,
-                    "volume_m": 322,
-                    "volume_m1": 264,
-                    "variation_volume": 58.03,
-                    "variation_pct": -18,
-                    "tro": 106,
-                    "contribution": 21,
-                    "commission": 0.616
-                },
-                {
-                    "agence": "SCAT URBAM",
-                    "objectif": 90,
-                    "volume_m": 95,
-                    "volume_m1": 50,
-                    "variation_volume": 44.79,
-                    "variation_pct": -47,
-                    "tro": 55,
-                    "contribution": 4,
-                    "commission": 0.277
-                },
-                {
-                    "agence": "PIKINE",
-                    "objectif": 100,
-                    "volume_m": 164,
-                    "volume_m1": 96,
-                    "variation_volume": 68.21,
-                    "variation_pct": -41,
-                    "tro": 96,
-                    "contribution": 8,
-                    "commission": 0.500
-                },
-                {
-                    "agence": "PARCELLES",
-                    "objectif": 200,
-                    "volume_m": 216,
-                    "volume_m1": 114,
-                    "variation_volume": 101.91,
-                    "variation_pct": -47,
-                    "tro": 57,
-                    "contribution": 9,
-                    "commission": 0.472
-                },
-                {
-                    "agence": "LAMINE GUEYE",
-                    "objectif": 250,
-                    "volume_m": 282,
-                    "volume_m1": 172,
-                    "variation_volume": 110.56,
-                    "variation_pct": -39,
-                    "tro": 69,
-                    "contribution": 13,
-                    "commission": 0.428
-                },
-                {
-                    "agence": "ZONE PROVINCE",
-                    "objectif": 710,
-                    "volume_m": 841,
-                    "volume_m1": 570,
-                    "variation_volume": 270.82,
-                    "variation_pct": -32,
-                    "tro": 80,
-                    "contribution": 21,
-                    "commission": 1.890
-                },
-                {
-                    "agence": "MBOUR",
-                    "objectif": 100,
-                    "volume_m": 134,
-                    "volume_m1": 118,
-                    "variation_volume": 16.53,
-                    "variation_pct": -12,
-                    "tro": 118,
-                    "contribution": 9,
-                    "commission": 0.295
-                },
-                {
-                    "agence": "KAOLACK",
-                    "objectif": 150,
-                    "volume_m": 166,
-                    "volume_m1": 112,
-                    "variation_volume": 54.60,
-                    "variation_pct": -33,
-                    "tro": 74,
-                    "contribution": 9,
-                    "commission": 0.279
-                },
-                {
-                    "agence": "THIES",
-                    "objectif": 110,
-                    "volume_m": 155,
-                    "volume_m1": 139,
-                    "variation_volume": 16.30,
-                    "variation_pct": -11,
-                    "tro": 126,
-                    "contribution": 11,
-                    "commission": 0.529
-                },
-                {
-                    "agence": "TOUBA",
-                    "objectif": 120,
-                    "volume_m": 105,
-                    "volume_m1": 80,
-                    "variation_volume": 24.35,
-                    "variation_pct": -23,
-                    "tro": 67,
-                    "contribution": 6,
-                    "commission": 0.320
-                },
-                {
-                    "agence": "SAINT-LOUIS",
-                    "objectif": 230,
-                    "volume_m": 281,
-                    "volume_m1": 122,
-                    "variation_volume": 159.04,
-                    "variation_pct": -57,
-                    "tro": 53,
-                    "contribution": 10,
-                    "commission": 0.466
-                },
-                {
-                    "agence": "RETAIL",
-                    "objectif": 875,
-                    "volume_m": 999,
-                    "volume_m1": 882,
-                    "variation_volume": 116.39,
-                    "variation_pct": -12,
-                    "tro": 101,
-                    "contribution": 32,
-                    "commission": 2.868
-                },
-                {
-                    "agence": "RUFISQUE",
-                    "objectif": 150,
-                    "volume_m": 215,
-                    "volume_m1": 165,
-                    "variation_volume": 50.41,
-                    "variation_pct": -23,
-                    "tro": 110,
-                    "contribution": 13,
-                    "commission": 0.666
-                },
-                {
-                    "agence": "DIOURBEL",
-                    "objectif": 80,
-                    "volume_m": 72,
-                    "volume_m1": 81,
-                    "variation_volume": -9.11,
-                    "variation_pct": 13,
-                    "tro": 101,
-                    "contribution": 6,
-                    "commission": 0.197
-                },
-                {
-                    "agence": "LOUGA",
-                    "objectif": 80,
-                    "volume_m": 26,
-                    "volume_m1": 44,
-                    "variation_volume": -18.26,
-                    "variation_pct": 70,
-                    "tro": 55,
-                    "contribution": 3,
-                    "commission": 0.102
-                },
-                {
-                    "agence": "MARISTES",
-                    "objectif": 250,
-                    "volume_m": 347,
-                    "volume_m1": 280,
-                    "variation_volume": 66.79,
-                    "variation_pct": -19,
-                    "tro": 112,
-                    "contribution": 22,
-                    "commission": 0.901
-                },
-                {
-                    "agence": "OUROSSOGUI",
-                    "objectif": 75,
-                    "volume_m": 59,
-                    "volume_m1": 41,
-                    "variation_volume": 18.05,
-                    "variation_pct": -31,
-                    "tro": 55,
-                    "contribution": 3,
-                    "commission": 0.216
-                },
-                {
-                    "agence": "TAMBA",
-                    "objectif": 90,
-                    "volume_m": 56,
-                    "volume_m1": 40,
-                    "variation_volume": 15.08,
-                    "variation_pct": -27,
-                    "tro": 45,
-                    "contribution": 3,
-                    "commission": 0.226
-                },
-                {
-                    "agence": "LINGUERE'LA",
-                    "objectif": 150,
-                    "volume_m": 225,
-                    "volume_m1": 231,
-                    "variation_volume": -6.55,
-                    "variation_pct": 3,
-                    "tro": 154,
-                    "contribution": 18,
-                    "commission": 0.560
-                },
-                {
-                    "agence": "TOTAL",
-                    "objectif": 2895,
-                    "volume_m": 3487,
-                    "volume_m1": 2727,
-                    "variation_volume": 760.50,
-                    "variation_pct": -22,
-                    "tro": 94,
-                    "contribution": 100,
-                    "commission": 8.351
-                }
-            ],
-            "services": [
-                {
-                    "service": "Orange Money",
-                    "volume": 205,
-                    "commission": 1.06
-                },
-                {
-                    "service": "MoneyGram",
-                    "volume": 52,
-                    "commission": 0.43
-                },
-                {
-                    "service": "Ria Money Transfer",
-                    "volume": 77,
-                    "commission": 0.50
-                },
-                {
-                    "service": "Penguin",
-                    "volume": 2279,
-                    "commission": 5.45
-                },
-                {
-                    "service": "Western Union",
-                    "volume": 113,
-                    "commission": 0.90
-                },
-                {
-                    "service": "Wizall Money",
-                    "volume": 0.1,
-                    "commission": 0.004
-                },
-                {
-                    "service": "Mixx",
-                    "volume": 0,
-                    "commission": 0
-                }
-            ]
+        result_data = {
+            "agencies": agencies,
+            "services": []  # Services seront ajoutés séparément si nécessaire
         }
         
-        cursor.close()
-        conn.close()
-        
-        logger.info(f"✅ Données de transferts récupérées: {len(demo_data['agencies'])} agences, {len(demo_data['services'])} services")
-        return demo_data
+        logger.info(f"✅ Données de transferts récupérées: {len(result_data['agencies'])} agences")
+        return result_data
         
     except Exception as e:
         logger.error(f"❌ Erreur lors de la récupération des données de transferts: {str(e)}", exc_info=True)
-        if 'cursor' in locals():
-            cursor.close()
-        if 'conn' in locals():
-            conn.close()
         raise

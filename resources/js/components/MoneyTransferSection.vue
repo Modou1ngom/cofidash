@@ -45,6 +45,18 @@
       </div>
     </div>
     
+    <!-- Boutons de sélection de service -->
+    <div class="service-selector">
+      <button 
+        v-for="service in availableServices" 
+        :key="service.value"
+        :class="['service-btn', { active: selectedService === service.value }]"
+        @click="selectService(service.value)"
+      >
+        {{ service.label }}
+      </button>
+    </div>
+    
     <!-- Message de chargement ou d'erreur -->
     <div v-if="loading" class="loading-message">
       <p>🔄 Chargement des données depuis Oracle...</p>
@@ -53,8 +65,8 @@
       <p>⚠️ {{ errorMessage }}</p>
     </div>
     
-    <!-- Contenu principal -->
-    <div v-if="!loading && !errorMessage" class="transfer-content">
+    <!-- Contenu principal - toujours affiché -->
+    <div class="transfer-content">
       <!-- Tableau détaillé à gauche -->
       <div class="zone-agencies-section">
         <div class="table-container">
@@ -63,18 +75,18 @@
               <tr>
                 <th>AGENCE</th>
                 <th>Objectif</th>
-                <th>Nombre de crédit décaissé M-1</th>
-                <th>Nombre de crédit décaissé M</th>
-                <th>Variation <br>(nombre)</th>
+                <th>Volume transfert M-1</th>
+                <th>Volume transfert M</th>
+                <th>Variation <br>(Volume)</th>
                 <th>Variation <br>(%)</th>
                 <th>TRO</th>
                 <th>Contribution agence <br>sur la zone</th>
+                <th>Commission générée</th>
               </tr>
             </thead>
             <tbody>
-              <!-- TERRITOIRE -->
-              <tr v-if="Object.keys(filteredHierarchicalData.TERRITOIRE || {}).length > 0" 
-                  class="level-1-row" 
+              <!-- TERRITOIRE - toujours affiché -->
+              <tr class="level-1-row" 
                   @click="toggleExpand('TERRITOIRE')">
                 <td class="level-1">
                   <button class="expand-btn" @click.stop="toggleExpand('TERRITOIRE')">
@@ -97,6 +109,7 @@
                 <td :class="getContributionClass(territoireTotal.contribution)">
                   <strong>{{ formatPercent(territoireTotal.contribution) }}</strong>
                 </td>
+                <td><strong>{{ formatNumber(territoireTotal.commission || 0, 2) }}</strong></td>
               </tr>
 
               <!-- Territoires dans TERRITOIRE -->
@@ -124,30 +137,32 @@
                     <td :class="getContributionClass(territory.total.contribution || 0)">
                       <strong>{{ formatPercent(territory.total.contribution || 0) }}</strong>
                     </td>
+                    <td><strong>{{ formatNumber(territory.total.commission || 0, 2) }}</strong></td>
                   </tr>
-                  <!-- Agences dans chaque territoire -->
+                  <!-- Entités dans chaque territoire (agences, zones, corporate, retail, etc.) -->
                   <template v-if="expandedSections[`TERRITOIRE_${territoryKey}`]">
                     <tr 
-                      v-for="agency in territory.data" 
-                      :key="agency.agence || agency.name" 
+                      v-for="entity in territory.data" 
+                      :key="entity.agence || entity.name" 
                       class="level-3-row"
                     >
-                      <td class="level-3">{{ agency.agence || agency.name }}</td>
-                      <td>{{ formatNumber(agency.objectif || 0) }}</td>
-                      <td>{{ formatNumber(agency.volume_m1 || 0) }}</td>
-                      <td>{{ formatNumber(agency.volume_m || 0) }}</td>
-                      <td :class="getVariationClass(agency.variation_volume || 0)">
-                        {{ formatVariation(agency.variation_volume || 0) }}
+                      <td class="level-3">{{ entity.agence || entity.name }}</td>
+                      <td>{{ formatNumber(entity.objectif || 0) }}</td>
+                      <td>{{ formatNumber(entity.volume_m1 || 0) }}</td>
+                      <td>{{ formatNumber(entity.volume_m || 0) }}</td>
+                      <td :class="getVariationClass(entity.variation_volume || 0)">
+                        {{ formatVariation(entity.variation_volume || 0) }}
                       </td>
-                      <td :class="getVariationClass(agency.variation_pct || 0)">
-                        {{ formatVariationPercent(agency.variation_pct || 0) }}
+                      <td :class="getVariationClass(entity.variation_pct || 0)">
+                        {{ formatVariationPercent(entity.variation_pct || 0) }}
                       </td>
-                      <td :class="getTROClass(agency.tro || 0)">
-                        {{ formatTRO(agency.tro || 0) }}
+                      <td :class="getTROClass(entity.tro || 0)">
+                        {{ formatTRO(entity.tro || 0) }}
                       </td>
-                      <td :class="getContributionClass(agency.contribution || 0)">
-                        {{ formatPercent(agency.contribution || 0) }}
+                      <td :class="getContributionClass(entity.contribution || 0)">
+                        {{ formatPercent(entity.contribution || 0) }}
                       </td>
+                      <td>{{ formatNumber(entity.commission || 0, 2) }}</td>
                     </tr>
                   </template>
                 </template>
@@ -178,6 +193,7 @@
                 <td :class="getContributionClass(pointServicesTotal.contribution)">
                   <strong>{{ formatPercent(pointServicesTotal.contribution) }}</strong>
                 </td>
+                <td><strong>{{ formatNumber(pointServicesTotal.commission || 0, 2) }}</strong></td>
               </tr>
               
               <!-- Points de service individuels directement sous POINT SERVICES -->
@@ -185,26 +201,27 @@
                 <template v-for="(servicePoint, servicePointKey) in filteredHierarchicalData['POINT SERVICES']" :key="servicePointKey">
                   <template v-if="servicePoint.data && servicePoint.data.length > 0">
                     <tr 
-                      v-for="agency in servicePoint.data" 
-                      :key="agency.agence || agency.name" 
+                      v-for="entity in servicePoint.data" 
+                      :key="entity.agence || entity.name" 
                       class="level-2-row service-point-row"
                     >
-                      <td class="level-2 service-point-cell">{{ agency.agence || agency.name }}</td>
-                      <td>{{ formatNumber(agency.objectif || 0) }}</td>
-                      <td>{{ formatNumber(agency.volume_m1 || 0) }}</td>
-                      <td>{{ formatNumber(agency.volume_m || 0) }}</td>
-                      <td :class="getVariationClass(agency.variation_volume || 0)">
-                        {{ formatVariation(agency.variation_volume || 0) }}
+                      <td class="level-2 service-point-cell">{{ entity.agence || entity.name }}</td>
+                      <td>{{ formatNumber(entity.objectif || 0) }}</td>
+                      <td>{{ formatNumber(entity.volume_m1 || 0) }}</td>
+                      <td>{{ formatNumber(entity.volume_m || 0) }}</td>
+                      <td :class="getVariationClass(entity.variation_volume || 0)">
+                        {{ formatVariation(entity.variation_volume || 0) }}
                       </td>
-                      <td :class="getVariationClass(agency.variation_pct || 0)">
-                        {{ formatVariationPercent(agency.variation_pct || 0) }}
+                      <td :class="getVariationClass(entity.variation_pct || 0)">
+                        {{ formatVariationPercent(entity.variation_pct || 0) }}
                       </td>
-                      <td :class="getTROClass(agency.tro || 0)">
-                        {{ formatTRO(agency.tro || 0) }}
+                      <td :class="getTROClass(entity.tro || 0)">
+                        {{ formatTRO(entity.tro || 0) }}
                       </td>
-                      <td :class="getContributionClass(agency.contribution || 0)">
-                        {{ formatPercent(agency.contribution || 0) }}
+                      <td :class="getContributionClass(entity.contribution || 0)">
+                        {{ formatPercent(entity.contribution || 0) }}
                       </td>
+                      <td>{{ formatNumber(entity.commission || 0, 2) }}</td>
                     </tr>
                   </template>
                 </template>
@@ -228,6 +245,7 @@
                 <td :class="getContributionClass(grandCompte.contribution || 0)">
                   {{ formatPercent(grandCompte.contribution || 0) }}
                 </td>
+                <td>{{ formatNumber(grandCompte.commission || 0, 2) }}</td>
               </tr>
 
               <!-- Ligne TOTAL -->
@@ -248,32 +266,10 @@
                 <td :class="getContributionClass(getGrandTotal('contribution'))">
                   <strong>{{ formatPercent(getGrandTotal('contribution')) }}</strong>
                 </td>
+                <td><strong>{{ formatNumber(getGrandTotal('commission'), 2) }}</strong></td>
               </tr>
             </tbody>
           </table>
-        </div>
-      </div>
-      
-      <!-- Résumé par service à droite -->
-      <div class="transfer-services-container">
-        <h3 class="services-title">Volume de transfert</h3>
-        <div class="services-list">
-          <div 
-            v-for="(service, index) in services" 
-            :key="index"
-            class="service-item"
-          >
-            <div class="service-logo">
-              <div class="service-logo-placeholder">{{ getServiceInitials(service.service) }}</div>
-            </div>
-            <div class="service-name">{{ service.service }}</div>
-            <div class="service-volume">
-              <div class="volume-box">{{ formatNumber(service.volume) }} M</div>
-              <div class="arrow">→</div>
-              <div class="commission-box">{{ formatNumber(service.commission, 2) }} M</div>
-            </div>
-            <div class="service-label">Commission générée</div>
-          </div>
         </div>
       </div>
     </div>
@@ -291,7 +287,28 @@ export default {
       agencies: [],
       services: [],
       hierarchicalData: {
-        TERRITOIRE: {},
+        TERRITOIRE: {
+          territoire_dakar_ville: {
+            name: 'TERRITOIRE DAKAR VILLE',
+            data: [],
+            total: { objectif: 0, volume_m1: 0, volume_m: 0, variation_volume: 0, variation_pct: 0, tro: 0, contribution: 0, commission: 0 }
+          },
+          territoire_dakar_banlieue: {
+            name: 'TERRITOIRE DAKAR BANLIEUE',
+            data: [],
+            total: { objectif: 0, volume_m1: 0, volume_m: 0, variation_volume: 0, variation_pct: 0, tro: 0, contribution: 0, commission: 0 }
+          },
+          territoire_province_centre_sud: {
+            name: 'TERRITOIRE PROVINCE CENTRE-SUD',
+            data: [],
+            total: { objectif: 0, volume_m1: 0, volume_m: 0, variation_volume: 0, variation_pct: 0, tro: 0, contribution: 0, commission: 0 }
+          },
+          territoire_province_nord: {
+            name: 'TERRITOIRE PROVINCE NORD',
+            data: [],
+            total: { objectif: 0, volume_m1: 0, volume_m: 0, variation_volume: 0, variation_pct: 0, tro: 0, contribution: 0, commission: 0 }
+          }
+        },
         'POINT SERVICES': {}
       },
       expandedSections: {
@@ -307,6 +324,13 @@ export default {
       selectedDate: now.toISOString().split('T')[0],
       selectedMonth: now.getMonth() + 1,
       selectedYear: now.getFullYear(),
+      selectedService: 'om', // Service par défaut: Orange Money
+      availableServices: [
+        { value: 'om', label: 'Orange Money' },
+        { value: 'wave', label: 'Wave' },
+        { value: 'ria', label: 'Ria' },
+        { value: 'wu', label: 'Western Union' }
+      ],
       months: [
         'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
         'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
@@ -327,7 +351,8 @@ export default {
         variation_volume: 0,
         variation_pct: 0,
         tro: 0,
-        contribution: 100 // TERRITOIRE représente 100% de la contribution totale
+        contribution: 100, // TERRITOIRE représente 100% de la contribution totale
+        commission: 0
       };
       
       Object.values(territories).forEach(territory => {
@@ -335,6 +360,7 @@ export default {
           total.objectif += territory.total.objectif || 0;
           total.volume_m1 += territory.total.volume_m1 || 0;
           total.volume_m += territory.total.volume_m || 0;
+          total.commission += territory.total.commission || 0;
         }
       });
       
@@ -355,7 +381,8 @@ export default {
         variation_volume: 0,
         variation_pct: 0,
         tro: 0,
-        contribution: 0
+        contribution: 0,
+        commission: 0
       };
       
       Object.values(servicePoints).forEach(servicePoint => {
@@ -364,6 +391,7 @@ export default {
             total.objectif += agency.objectif || 0;
             total.volume_m1 += agency.volume_m1 || 0;
             total.volume_m += agency.volume_m || 0;
+            total.commission += agency.commission || 0;
           });
         }
       });
@@ -390,6 +418,7 @@ export default {
         const params = new URLSearchParams();
         
         params.append('period', this.selectedPeriod);
+        params.append('service', this.selectedService);
         
         if (this.selectedPeriod === 'month') {
           params.append('month', this.selectedMonth);
@@ -400,9 +429,15 @@ export default {
           params.append('date', this.selectedDate);
         }
         
+        // Ajouter un timestamp pour éviter le cache
+        params.append('_t', Date.now().toString());
+        
         if (params.toString()) {
           url += '?' + params.toString();
         }
+        
+        console.log('🔍 Requête API avec URL:', url);
+        console.log('📅 Paramètres envoyés:', { month: this.selectedMonth, year: this.selectedYear, service: this.selectedService });
         
         const response = await fetch(url);
         
@@ -426,15 +461,47 @@ export default {
         this.loading = false;
       }
     },
+    selectService(service) {
+      this.selectedService = service;
+      this.fetchTransferData();
+    },
     organizeDataHierarchically() {
-      // Réinitialiser les structures
+      // Réinitialiser les structures mais préserver la structure des territoires
+      const territoryNames = {
+        territoire_dakar_ville: 'TERRITOIRE DAKAR VILLE',
+        territoire_dakar_banlieue: 'TERRITOIRE DAKAR BANLIEUE',
+        territoire_province_centre_sud: 'TERRITOIRE PROVINCE CENTRE-SUD',
+        territoire_province_nord: 'TERRITOIRE PROVINCE NORD'
+      };
+      
       this.hierarchicalData = {
-        TERRITOIRE: {},
+        TERRITOIRE: {
+          territoire_dakar_ville: {
+            name: territoryNames.territoire_dakar_ville,
+            data: [],
+            total: { objectif: 0, volume_m1: 0, volume_m: 0, variation_volume: 0, variation_pct: 0, tro: 0, contribution: 0, commission: 0 }
+          },
+          territoire_dakar_banlieue: {
+            name: territoryNames.territoire_dakar_banlieue,
+            data: [],
+            total: { objectif: 0, volume_m1: 0, volume_m: 0, variation_volume: 0, variation_pct: 0, tro: 0, contribution: 0, commission: 0 }
+          },
+          territoire_province_centre_sud: {
+            name: territoryNames.territoire_province_centre_sud,
+            data: [],
+            total: { objectif: 0, volume_m1: 0, volume_m: 0, variation_volume: 0, variation_pct: 0, tro: 0, contribution: 0, commission: 0 }
+          },
+          territoire_province_nord: {
+            name: territoryNames.territoire_province_nord,
+            data: [],
+            total: { objectif: 0, volume_m1: 0, volume_m: 0, variation_volume: 0, variation_pct: 0, tro: 0, contribution: 0, commission: 0 }
+          }
+        },
         'POINT SERVICES': {}
       };
       this.grandCompte = null;
       
-      // Mapping des agences vers les territoires (identique à ProductionSection)
+      // Mapping des entités (agences, zones, corporate, retail) vers les territoires
       const territoryMap = {
         'CASTOR': 'territoire_dakar_ville',
         'CASTORS': 'territoire_dakar_ville',
@@ -465,8 +532,8 @@ export default {
         'TAMBA': 'territoire_province_nord'
       };
       
-      // Organiser les agences par territoire
-      const agenciesByTerritory = {
+      // Organiser les entités par territoire
+      const entitiesByTerritory = {
         territoire_dakar_ville: [],
         territoire_dakar_banlieue: [],
         territoire_province_centre_sud: [],
@@ -485,6 +552,14 @@ export default {
         
         // Ignorer TOTAL
         if (agenceUpper === 'TOTAL') {
+          return;
+        }
+        
+        // Ignorer les zones, corporate et retail
+        if (agenceUpper.includes('ZONE DAKAR') || 
+            agenceUpper.includes('ZONE PROVINCE') || 
+            agenceUpper.includes('CORPORATE') || 
+            agenceUpper.includes('RETAIL')) {
           return;
         }
         
@@ -509,25 +584,16 @@ export default {
             territoryKey = 'territoire_dakar_ville';
           }
           
-          agenciesByTerritory[territoryKey].push(agency);
+          entitiesByTerritory[territoryKey].push(agency);
         }
       });
       
-      // Construire la structure hiérarchique
-      const territoryNames = {
-        territoire_dakar_ville: 'TERRITOIRE DAKAR VILLE',
-        territoire_dakar_banlieue: 'TERRITOIRE DAKAR BANLIEUE',
-        territoire_province_centre_sud: 'TERRITOIRE PROVINCE CENTRE-SUD',
-        territoire_province_nord: 'TERRITOIRE PROVINCE NORD'
-      };
-      
-      Object.entries(agenciesByTerritory).forEach(([key, agencies]) => {
-        if (agencies.length > 0) {
-          this.hierarchicalData.TERRITOIRE[key] = {
-            name: territoryNames[key],
-            data: agencies,
-            total: this.calculateTerritoryTotal(agencies)
-          };
+      // Construire la structure hiérarchique - mettre à jour les territoires existants
+      Object.entries(entitiesByTerritory).forEach(([key, entities]) => {
+        // Mettre à jour le territoire avec les données
+        if (this.hierarchicalData.TERRITOIRE[key]) {
+          this.hierarchicalData.TERRITOIRE[key].data = entities;
+          this.hierarchicalData.TERRITOIRE[key].total = this.calculateTerritoryTotal(entities);
         }
       });
       
@@ -539,10 +605,10 @@ export default {
         };
       }
       
-      // Calculer les contributions pour chaque agence
+      // Calculer les contributions pour chaque entité
       this.calculateContributions();
     },
-    calculateTerritoryTotal(agencies) {
+    calculateTerritoryTotal(entities) {
       const total = {
         objectif: 0,
         volume_m1: 0,
@@ -550,13 +616,15 @@ export default {
         variation_volume: 0,
         variation_pct: 0,
         tro: 0,
-        contribution: 0
+        contribution: 0,
+        commission: 0
       };
       
-      agencies.forEach(agency => {
-        total.objectif += agency.objectif || 0;
-        total.volume_m1 += agency.volume_m1 || 0;
-        total.volume_m += agency.volume_m || 0;
+      entities.forEach(entity => {
+        total.objectif += entity.objectif || 0;
+        total.volume_m1 += entity.volume_m1 || 0;
+        total.volume_m += entity.volume_m || 0;
+        total.commission += entity.commission || 0;
       });
       
       total.variation_volume = total.volume_m - total.volume_m1;
@@ -572,18 +640,18 @@ export default {
     calculateContributions() {
       // Calculer les contributions pour chaque territoire
       Object.values(this.hierarchicalData.TERRITOIRE).forEach(territory => {
-        const totalM = territory.data.reduce((sum, a) => sum + (a.volume_m || 0), 0);
-        territory.data.forEach(agency => {
-          agency.contribution = totalM > 0 ? ((agency.volume_m || 0) / totalM) * 100 : 0;
+        const totalM = territory.data.reduce((sum, entity) => sum + (entity.volume_m || 0), 0);
+        territory.data.forEach(entity => {
+          entity.contribution = totalM > 0 ? ((entity.volume_m || 0) / totalM) * 100 : 0;
         });
       });
       
       // Calculer les contributions pour POINT SERVICES
       const pointServices = this.hierarchicalData['POINT SERVICES']['points'];
       if (pointServices && pointServices.data) {
-        const totalM = pointServices.data.reduce((sum, a) => sum + (a.volume_m || 0), 0);
-        pointServices.data.forEach(agency => {
-          agency.contribution = totalM > 0 ? ((agency.volume_m || 0) / totalM) * 100 : 0;
+        const totalM = pointServices.data.reduce((sum, entity) => sum + (entity.volume_m || 0), 0);
+        pointServices.data.forEach(entity => {
+          entity.contribution = totalM > 0 ? ((entity.volume_m || 0) / totalM) * 100 : 0;
         });
       }
     },
@@ -709,6 +777,41 @@ export default {
   margin: 0;
 }
 
+.service-selector {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  background: white;
+  padding: 15px 20px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.service-btn {
+  padding: 10px 20px;
+  border: 2px solid #DC2626;
+  background: white;
+  color: #DC2626;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.service-btn:hover {
+  background: #DC2626;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);
+}
+
+.service-btn.active {
+  background: #DC2626;
+  color: white;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
+}
+
 .period-selector {
   display: flex;
   gap: 10px;
@@ -758,9 +861,7 @@ export default {
 }
 
 .transfer-content {
-  display: grid;
-  grid-template-columns: 1fr 350px;
-  gap: 20px;
+  display: block;
 }
 
 .zone-agencies-section {
@@ -906,112 +1007,4 @@ export default {
   font-weight: 600;
 }
 
-.transfer-services-container {
-  background: white;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  padding: 20px;
-}
-
-.services-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1A4D3A;
-  margin: 0 0 20px 0;
-  text-align: center;
-}
-
-.services-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.service-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 15px;
-  border: 1px solid #eee;
-  border-radius: 4px;
-  background: #fafafa;
-}
-
-.service-logo {
-  width: 60px;
-  height: 60px;
-  margin-bottom: 10px;
-}
-
-.service-logo-placeholder {
-  width: 100%;
-  height: 100%;
-  background: #1A4D3A;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  font-weight: 600;
-  font-size: 18px;
-}
-
-.service-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 10px;
-  text-align: center;
-}
-
-.service-volume {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 5px;
-}
-
-.volume-box {
-  background: #ef4444;
-  color: white;
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-weight: 600;
-  font-size: 14px;
-  min-width: 80px;
-  text-align: center;
-}
-
-.arrow {
-  color: #666;
-  font-size: 18px;
-}
-
-.commission-box {
-  background: #f0f0f0;
-  border: 1px solid #ef4444;
-  color: #333;
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-weight: 600;
-  font-size: 14px;
-  min-width: 80px;
-  text-align: center;
-}
-
-.service-label {
-  font-size: 11px;
-  color: #666;
-  margin-top: 5px;
-}
-
-@media (max-width: 1200px) {
-  .transfer-content {
-    grid-template-columns: 1fr;
-  }
-  
-  .transfer-services-container {
-    margin-top: 20px;
-  }
-}
 </style>
