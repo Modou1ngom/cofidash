@@ -1,5 +1,5 @@
 <template>
-  <div class="add-objective-page">
+  <div class="add-objective-page page-adapt">
     <div class="page-container">
       <div class="page-header">
         <h1>Ajouter un Objectif</h1>
@@ -350,12 +350,15 @@ export default {
 
 <style scoped>
 .add-objective-page {
+  width: 100%;
   min-height: 100vh;
   background: #f5f5f5;
-  padding: 20px;
+  padding: 16px;
+  box-sizing: border-box;
 }
 
 .page-container {
+  width: 100%;
   max-width: 800px;
   margin: 0 auto;
   background: white;
@@ -365,9 +368,11 @@ export default {
 
 .page-header {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   justify-content: space-between;
   align-items: center;
-  padding: 30px;
+  padding: 20px;
   border-bottom: 1px solid #e0e0e0;
 }
 
@@ -393,7 +398,7 @@ export default {
 }
 
 .form-container {
-  padding: 30px;
+  padding: 20px;
 }
 
 .objective-form {
@@ -493,5 +498,35 @@ export default {
 .btn-submit:disabled {
   background: #9ca3af;
   cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .add-objective-page {
+    padding: 12px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 16px;
+  }
+
+  .page-header h1 {
+    font-size: 22px;
+  }
+
+  .form-container {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-header h1 {
+    font-size: 20px;
+  }
+
+  .form-container {
+    padding: 12px;
+  }
 }
 </style>

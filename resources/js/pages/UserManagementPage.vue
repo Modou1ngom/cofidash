@@ -1,5 +1,5 @@
 <template>
-  <div class="user-management">
+  <div class="user-management page-adapt">
     <div class="page-header">
       <h1>Gestion des Utilisateurs</h1>
       <button @click="showCreateModal = true" class="btn-primary">
@@ -178,14 +178,19 @@ export default {
 
 <style scoped>
 .user-management {
-  padding: 30px;
+  width: 100%;
+  min-height: 100vh;
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .page-header {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 24px;
 }
 
 .page-header h1 {
@@ -207,11 +212,13 @@ export default {
   background: white;
   border: 1px solid #DDD;
   border-radius: 8px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 .users-table table {
   width: 100%;
+  min-width: 600px;
   border-collapse: collapse;
 }
 
@@ -282,9 +289,12 @@ export default {
 .modal-content {
   background: white;
   border-radius: 8px;
-  padding: 30px;
+  padding: 24px;
   width: 90%;
   max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  margin: 16px;
 }
 
 .modal-content h2 {
@@ -332,6 +342,35 @@ export default {
 .btn-save {
   background: #1A4D3A;
   color: white;
+}
+
+@media (max-width: 768px) {
+  .user-management {
+    padding: 16px;
+  }
+
+  .page-header h1 {
+    font-size: 22px;
+  }
+
+  .users-table table {
+    min-width: 500px;
+  }
+}
+
+@media (max-width: 480px) {
+  .user-management {
+    padding: 12px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .page-header h1 {
+    font-size: 20px;
+  }
 }
 </style>
 

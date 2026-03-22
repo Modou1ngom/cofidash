@@ -218,8 +218,8 @@ export default {
 
 <style scoped>
 .dashboard {
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -233,12 +233,14 @@ export default {
 
 .dashboard-top {
   width: 100%;
+  flex-shrink: 0;
   display: flex;
   align-items: stretch;
 }
 
 .dashboard-body {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
   background: #FFFFFF;
   display: flex;
@@ -246,8 +248,11 @@ export default {
 
 .main-content {
   flex: 1;
+  min-width: 0;
+  width: 100%;
   background: #FFFFFF;
   overflow-y: auto;
+  overflow-x: auto;
   padding: 20px;
 }
 
@@ -347,9 +352,15 @@ export default {
     flex-direction: column;
   }
   
+  .dashboard-body :deep(.sidebar) {
+    max-height: 45vh;
+  }
+  
   .main-content {
     padding: 15px;
     width: 100%;
+    flex: 1;
+    min-height: 0;
   }
   
   .production-tabs {

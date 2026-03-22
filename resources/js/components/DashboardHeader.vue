@@ -149,6 +149,7 @@ export default {
   align-items: stretch;
   width: 100%;
   min-height: 100px;
+  flex-wrap: wrap;
 }
 
 .header-left-section {
@@ -156,6 +157,7 @@ export default {
   flex-direction: column;
   width: 260px;
   min-width: 260px;
+  flex-shrink: 0;
 }
 
 .logo-area {
@@ -236,6 +238,7 @@ export default {
 
 .header-center-section {
   flex: 1;
+  min-width: 0;
   background: #6E8B7A;
   display: flex;
   flex-direction: column;
@@ -343,6 +346,7 @@ export default {
   align-items: center;
   gap: 12px;
   padding: 12px 20px;
+  flex-shrink: 0;
 }
 
 .search-container {

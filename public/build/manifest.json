@@ -1,11 +1,6 @@
 {
-  "resources/css/app.css": {
-    "file": "assets/app-CBsakCxD.css",
-    "src": "resources/css/app.css",
-    "isEntry": true
-  },
   "resources/js/app.js": {
-    "file": "assets/app-CQzh8JQY.js",
+    "file": "assets/app-DIi32jS3.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -13,11 +8,11 @@
       "resources/js/pages/UserManagementPage.vue"
     ],
     "css": [
-      "assets/app-DoJvLdP3.css"
+      "assets/app-BWUsC5gv.css"
     ]
   },
   "resources/js/pages/UserManagementPage.vue": {
-    "file": "assets/UserManagementPage-DVFjsxdq.js",
+    "file": "assets/UserManagementPage-CrmL0jZF.js",
     "name": "UserManagementPage",
     "src": "resources/js/pages/UserManagementPage.vue",
     "isDynamicEntry": true,
@@ -25,7 +20,7 @@
       "resources/js/app.js"
     ],
     "css": [
-      "assets/UserManagementPage-Bj9UZaGz.css"
+      "assets/UserManagementPage-POLtA9Hb.css"
     ]
   }
 }

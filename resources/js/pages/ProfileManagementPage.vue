@@ -1,5 +1,5 @@
 <template>
-  <div class="profile-management">
+  <div class="profile-management page-adapt">
     <div class="page-header">
       <h1>Gestion des Profils</h1>
       <button @click="showCreateModal = true" class="btn-primary">
@@ -174,14 +174,19 @@ export default {
 
 <style scoped>
 .profile-management {
-  padding: 30px;
+  width: 100%;
+  min-height: 100vh;
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .page-header {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: 24px;
 }
 
 .page-header h1 {
@@ -201,7 +206,7 @@ export default {
 
 .profiles-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 20px;
 }
 
@@ -373,6 +378,41 @@ export default {
 .btn-save {
   background: #1A4D3A;
   color: white;
+}
+
+@media (max-width: 768px) {
+  .profile-management {
+    padding: 16px;
+  }
+
+  .page-header h1 {
+    font-size: 22px;
+  }
+
+  .profiles-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .permissions-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-management {
+    padding: 12px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .page-header h1 {
+    font-size: 20px;
+  }
 }
 </style>
 

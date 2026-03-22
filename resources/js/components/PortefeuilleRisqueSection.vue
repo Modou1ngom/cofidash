@@ -1378,14 +1378,17 @@ export default {
 
 .section-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
   margin-bottom: 30px;
   padding: 20px;
   background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%);
   border-radius: 12px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   border: 1px solid #e5e7eb;
+  width: 100%;
 }
 
 .tabs-menu {
@@ -1425,6 +1428,9 @@ export default {
   margin: 0;
   color: #1f2937;
   letter-spacing: -0.5px;
+  flex: 1 1 auto;
+  min-width: 0;
+  word-break: break-word;
 }
 
 .period-selector {

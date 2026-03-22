@@ -573,18 +573,23 @@ export default {
 <style scoped>
 .sidebar {
   width: 260px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  position: relative;
   background: linear-gradient(180deg, #ffffff, #f5f5f5);
   border-right: 1px solid #e5e7eb;
   height: 100%;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   box-shadow: 2px 0 8px rgba(15, 23, 42, 0.06);
 }
 
 .sidebar-nav {
   flex: 1;
-  padding: 16px 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 0 190px;
   display: flex;
   flex-direction: column;
 }
@@ -724,21 +729,28 @@ export default {
 }
 
 .sidebar-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  flex-shrink: 0;
   padding: 16px 20px 20px;
   border-top: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 90px;
   background: #f9fafb;
+}
+
+.sidebar-footer > div {
+  width: 100%;
 }
 
 .building-image {
   width: 100%;
   height: 140px;
+  max-height: 140px;
   object-fit: cover;
   border-radius: 10px;
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.15);
+  display: block;
 }
 
 /* Media Queries pour le responsive */
@@ -747,6 +759,10 @@ export default {
 @media (max-width: 1200px) {
   .sidebar {
     width: 220px;
+  }
+  
+  .sidebar-nav {
+    padding-bottom: 185px;
   }
   
   .nav-section-header {
@@ -793,12 +809,17 @@ export default {
     padding-left: 35px;
   }
   
+  .sidebar-nav {
+    padding-bottom: 165px;
+  }
+  
   .sidebar-footer {
     padding: 12px 15px 15px;
   }
   
   .building-image {
     height: 120px;
+    max-height: 120px;
   }
 }
 
@@ -834,12 +855,17 @@ export default {
     padding-left: 35px;
   }
   
+  .sidebar-nav {
+    padding-bottom: 140px;
+  }
+  
   .sidebar-footer {
     padding: 10px 12px 12px;
   }
   
   .building-image {
     height: 100px;
+    max-height: 100px;
   }
 }
 </style>

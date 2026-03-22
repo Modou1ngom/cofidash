@@ -63,11 +63,11 @@ const handleSubmit = async (e: Event) => {
 </script>
 
 <template>
-  <div class="relative min-h-screen overflow-hidden" style="background-image: url('/im1.png'); background-size: cover; background-position: center; background-repeat: no-repeat;"> 
-    <div class="absolute left-0 top-0 h-full w-1/3 rounded-br-[120px] overflow-hidden" style="background-image: url('/im2.png'); background-size: cover; background-position: center; background-repeat: no-repeat;"></div>
+  <div class="login-page relative min-h-screen w-full overflow-hidden" style="background-image: url('/im1.png'); background-size: cover; background-position: center; background-repeat: no-repeat;"> 
+    <div class="login-panel-left absolute left-0 top-0 h-full w-1/3 min-w-[120px] rounded-br-[120px] overflow-hidden" style="background-image: url('/im2.png'); background-size: cover; background-position: center; background-repeat: no-repeat;"></div>
 
-    <div class="relative z-20 flex min-h-screen items-center justify-center p-6 perspective-1000">
-      <div class="w-full max-w-3xl rounded-3xl bg-white/95 backdrop-blur-sm p-10 card-3d transform-gpu transition-all duration-500 hover:scale-[1.02] hover:rotate-y-2">
+    <div class="relative z-20 flex min-h-screen min-w-0 w-full items-center justify-center p-4 sm:p-6 perspective-1000">
+      <div class="login-card w-full max-w-3xl rounded-3xl bg-white/95 backdrop-blur-sm p-6 sm:p-10 card-3d transform-gpu transition-all duration-500 hover:scale-[1.02] hover:rotate-y-2">
         <div class="mb-6 flex flex-col items-start gap-4">
           <img src="/logo_Cofina.png" alt="Cofina" class="h-16 object-contain" onerror="this.src='/logo.png'" />
           <div>
@@ -279,5 +279,19 @@ const handleSubmit = async (e: Event) => {
   box-shadow: 
     0 2px 8px rgba(220, 38, 38, 0.3),
     inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 768px) {
+  .login-panel-left {
+    width: 0;
+    min-width: 0;
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-card {
+    padding: 16px;
+  }
 }
 </style>

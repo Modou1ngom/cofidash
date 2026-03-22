@@ -363,9 +363,16 @@ export default {
         const res = await window.axios.get('/api/reference-compte', { timeout: 15000 });
         const data = res.data != null && res.data.data != null ? res.data.data : null;
         this.referenceCompteBlocs = Array.isArray(data) ? data : [];
+        // Afficher les sous-rubriques par défaut pour éviter l'impression de rubriques manquantes.
+        const expanded = {};
+        this.referenceCompteBlocs.forEach((bloc, idx) => {
+          expanded[idx] = Array.isArray(bloc?.rubriques) && bloc.rubriques.length > 0;
+        });
+        this.expandedSections = expanded;
       } catch (err) {
         console.warn('CR par Agence: chargement référence compte', err);
         this.referenceCompteBlocs = [];
+        this.expandedSections = {};
       } finally {
         this.loading = false;
       }
