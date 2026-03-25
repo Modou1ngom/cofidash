@@ -328,7 +328,7 @@ export default {
         let existing = [];
         let getExistingFailed = false;
         try {
-          const res = await window.axios.get('/api/reference-compte', { timeout: 10000 });
+          const res = await window.axios.get('/api/reference-compte');
           const data = res.data && res.data.data;
           if (data && Array.isArray(data)) {
             existing = data.map((b) => {

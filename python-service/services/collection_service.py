@@ -137,7 +137,6 @@ def get_collection_data(period: str = "month", zone: Optional[str] = None,
         
         try:
             logger.info("🔍 Exécution de la requête complète pour l'exigible...")
-            logger.info("⏱️  Timeout configuré: 5 minutes (300 secondes)")
             
             # Construire la requête SQL complète avec les dates dynamiques
             query = f"""

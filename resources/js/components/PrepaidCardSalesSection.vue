@@ -518,16 +518,7 @@ export default {
           params.date = this.selectedDate;
         }
         
-        params._t = Date.now();
-        
-        const response = await window.axios.get('/api/oracle/data/prepaid-card-sales', {
-          params,
-          timeout: 300000,
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        });
+        const response = await window.axios.get('/api/oracle/data/prepaid-card-sales', { params });
         
         let data = null;
         if (response.data && response.data.data) {

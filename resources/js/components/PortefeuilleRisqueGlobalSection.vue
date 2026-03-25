@@ -34,6 +34,35 @@
     
     <!-- Barre de navigation -->
     <div class="navigation-tabs">
+     
+      <button 
+        class="nav-tab par-agence-tab"
+        :class="{ active: activeTab === 'par-agence' }"
+        @click="activeTab = 'par-agence'"
+      >
+        PAR AGENCE
+      </button>
+      <button 
+        class="nav-tab par-caf-tab"
+        :class="{ active: activeTab === 'par-caf' }"
+        @click="activeTab = 'par-caf'"
+      >
+        PAR | CAF
+      </button>
+      <button 
+        class="nav-tab flop-30-tab"
+        :class="{ active: activeTab === 'flop-30' }"
+        @click="activeTab = 'flop-30'"
+      >
+        FLOP 30
+      </button>
+      <button 
+        class="nav-tab top-50-tab"
+        :class="{ active: activeTab === 'top-50' }"
+        @click="activeTab = 'top-50'"
+      >
+        TOP 50
+      </button>
       <button 
         class="nav-tab entrees-par-tab entrees-par0-tab"
         :class="{ active: activeTab === 'entrees-par0' }"
@@ -69,41 +98,13 @@
       >
         Entrées PAR360
       </button>
-      <button 
-        class="nav-tab par-agence-tab"
-        :class="{ active: activeTab === 'par-agence' }"
-        @click="activeTab = 'par-agence'"
-      >
-        PAR AGENCE
-      </button>
-      <button 
-        class="nav-tab par-caf-tab"
-        :class="{ active: activeTab === 'par-caf' }"
-        @click="activeTab = 'par-caf'"
-      >
-        PAR | CAF
-      </button>
-      <button 
-        class="nav-tab flop-30-tab"
-        :class="{ active: activeTab === 'flop-30' }"
-        @click="activeTab = 'flop-30'"
-      >
-        FLOP 30
-      </button>
-      <button 
-        class="nav-tab top-50-tab"
-        :class="{ active: activeTab === 'top-50' }"
-        @click="activeTab = 'top-50'"
-      >
-        TOP 50
-      </button>
     </div>
     
     <!-- Résultat Global -->
     <div class="global-result-section">
       <div v-if="loading" class="loading-message">
         <p>🔄 Chargement des données ...</p>
-        <p style="font-size: 12px; color: #666; margin-top: 5px;">
+        <--<p style="font-size: 12px; color: #666; margin-top: 5px;">
           ⏱️ Cette opération peut prendre jusqu'à 5 minutes en raison de la complexité des calculs.
         </p>
       </div>
@@ -263,7 +264,6 @@
               <th class="flop-caf">CAF</th>
               <th class="flop-num">NBRE DE DOSSIERS</th>
               <th class="flop-amount">Encours de crédit</th>
-              <th class="flop-num">NBRE DE DOSSIERS IMPAYÉS</th>
               <th class="flop-amount">ENCOURS IMPAYÉS</th>
               <th class="flop-pct">RATIO NBRE DOSSIERS IMPAYÉS</th>
               <th class="flop-pct">RATIO ENCOURS IMPAYÉS</th>
@@ -1278,8 +1278,7 @@ export default {
             year: this.selectedYear,
             par,
             _t: Date.now()
-          },
-          timeout: 300000
+          }
         });
         const payload = response.data || {};
         this.entreesParList = Array.isArray(payload.data) ? payload.data : (Array.isArray(payload) ? payload : []);
@@ -1307,8 +1306,7 @@ export default {
             month_ref: this.selectedMonthRef,
             year_ref: this.selectedYearRef,
             _t: Date.now()
-          },
-          timeout: 300000
+          }
         });
         
         if (response.data && response.data.hierarchicalData) {
@@ -1687,8 +1685,7 @@ export default {
           _t: Date.now()
         };
         const response = await axios.get('/api/oracle/data/portefeuille-risque-caf', {
-          params,
-          timeout: 300000
+          params
         });
 
         const payload = response.data || {};

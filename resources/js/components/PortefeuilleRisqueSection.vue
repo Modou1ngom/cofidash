@@ -1004,8 +1004,7 @@ export default {
             year: this.selectedYear,
             month_ref: this.selectedMonthRef,
             year_ref: this.selectedYearRef
-          },
-          timeout: 300000
+          }
         });
         
         if (response.data && response.data.hierarchicalData) {
@@ -1156,8 +1155,7 @@ export default {
           params: {
             month: this.selectedMonth,
             year: this.selectedYear
-          },
-          timeout: 300000
+          }
         });
         
         // Gérer la nouvelle structure hiérarchique

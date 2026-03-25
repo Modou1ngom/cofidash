@@ -326,14 +326,7 @@ export default {
         
         console.log('📅 Chargement des données pour la période:', params);
         
-        const response = await window.axios.get('/api/oracle/data/encours', { 
-          params,
-          timeout: 300000,
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        });
+        const response = await window.axios.get('/api/oracle/data/encours', { params });
         
         if (response.data && response.data.data && response.data.data.hierarchicalData) {
           const hierarchicalData = response.data.data.hierarchicalData;

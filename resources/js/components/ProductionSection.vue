@@ -954,9 +954,8 @@ export default {
           params.year = this.selectedYear;
         }
         
-        const response = await axios.get(apiUrl, { 
-          params,
-          timeout: 300000 // 5 minutes en millisecondes
+        const response = await axios.get(apiUrl, {
+          params
         });
         const apiData = response.data;
         

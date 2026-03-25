@@ -19,12 +19,139 @@ class OracleService
     }
 
     /**
+     * Client HTTP vers le service Python : aucune limite de durée (timeout / connect_timeout = 0).
+     */
+    protected function pythonHttp()
+    {
+        return Http::timeout(0)->connectTimeout(0);
+    }
+
+    /**
+     * Normalise les paramètres pour une clé de cache stable.
+     */
+    protected function normalizeParamsForCache(array $params): array
+    {
+        return \Illuminate\Support\Arr::sortRecursive($params);
+    }
+
+    /**
+     * Met en cache les réponses réussies des lectures vers le service Python (moins d'appels Oracle).
+     * TTL : ORACLE_DATA_CACHE_TTL (secondes), défaut 300. Mettre 0 pour désactiver.
+     */
+    protected function rememberSuccessfulRead(string $name, array $params, \Closure $fetch): array
+    {
+        $ttl = (int) env('ORACLE_DATA_CACHE_TTL', 300);
+        if ($ttl <= 0) {
+            return $fetch();
+        }
+
+        $params = $this->normalizeParamsForCache($params);
+        $userId = function_exists('auth') && auth()->check() ? (string) auth()->id() : 'guest';
+        $cacheKey = 'oracle_data:'.$userId.':'.$name.':'.hash('sha256', json_encode($params, JSON_UNESCAPED_UNICODE));
+
+        $cached = Cache::get($cacheKey);
+        if ($cached !== null && is_array($cached) && ($cached['success'] ?? false)) {
+            return $cached;
+        }
+
+        $result = $fetch();
+
+        if (($result['success'] ?? false) === true) {
+            Cache::put($cacheKey, $result, $ttl);
+        }
+
+        return $result;
+    }
+
+    /**
+     * GET JSON vers le service Python avec cache (réponses succès uniquement).
+     */
+    public function getPythonGetCached(string $cacheName, string $path, array $params, ?string $logContext = null): array
+    {
+        $label = $logContext ?? $cacheName;
+
+        return $this->rememberSuccessfulRead($cacheName, $params, function () use ($path, $params, $label) {
+            try {
+                $response = $this->pythonHttp()->get("{$this->pythonServiceUrl}{$path}", $params);
+
+                if ($response->successful()) {
+                    return [
+                        'success' => true,
+                        'data' => $response->json(),
+                    ];
+                }
+
+                Log::error('Erreur API Python ['.$label.']', [
+                    'path' => $path,
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+
+                return [
+                    'success' => false,
+                    'error' => 'Erreur du service Python',
+                    'message' => $response->body(),
+                ];
+            } catch (\Exception $e) {
+                Log::error('Erreur HTTP Python ['.$label.']: '.$e->getMessage());
+
+                return [
+                    'success' => false,
+                    'error' => 'Erreur interne',
+                    'message' => $e->getMessage(),
+                ];
+            }
+        });
+    }
+
+    /**
+     * POST JSON vers le service Python avec cache (réponses succès uniquement).
+     */
+    public function getPythonPostCached(string $cacheName, string $path, array $body, ?string $logContext = null): array
+    {
+        $label = $logContext ?? $cacheName;
+
+        return $this->rememberSuccessfulRead($cacheName, $body, function () use ($path, $body, $label) {
+            try {
+                $response = $this->pythonHttp()->post("{$this->pythonServiceUrl}{$path}", $body);
+
+                if ($response->successful()) {
+                    return [
+                        'success' => true,
+                        'data' => $response->json(),
+                    ];
+                }
+
+                Log::error('Erreur API Python POST ['.$label.']', [
+                    'path' => $path,
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+
+                return [
+                    'success' => false,
+                    'error' => 'Erreur du service Python',
+                    'message' => $response->body(),
+                ];
+            } catch (\Exception $e) {
+                Log::error('Erreur HTTP Python POST ['.$label.']: '.$e->getMessage());
+
+                return [
+                    'success' => false,
+                    'error' => 'Erreur interne',
+                    'message' => $e->getMessage(),
+                ];
+            }
+        });
+    }
+
+    /**
      * Teste la connexion à Oracle
      */
     public function testConnection(): array
     {
         try {
-            $response = Http::timeout(30)->get("{$this->pythonServiceUrl}/api/oracle/test");
+            $response = $this->pythonHttp()->get("{$this->pythonServiceUrl}/api/oracle/test");
 
             if ($response->successful()) {
                 return [
@@ -55,7 +182,7 @@ class OracleService
     public function getTables(): array
     {
         try {
-            $response = Http::timeout(30)->get("{$this->pythonServiceUrl}/api/oracle/tables");
+            $response = $this->pythonHttp()->get("{$this->pythonServiceUrl}/api/oracle/tables");
 
             if ($response->successful()) {
                 return [
@@ -88,7 +215,7 @@ class OracleService
         try {
             // Pour l'instant, on envoie juste la requête SQL
             // TODO: Implémenter le binding de paramètres si nécessaire
-            $response = Http::timeout(60)->post("{$this->pythonServiceUrl}/api/oracle/query", [
+            $response = $this->pythonHttp()->post("{$this->pythonServiceUrl}/api/oracle/query", [
                 'sql' => $sql
             ]);
 
@@ -138,49 +265,21 @@ class OracleService
      */
     public function getClientsData(string $period = 'month', ?string $zone = null, ?int $month = null, ?int $year = null, ?string $date = null): array
     {
-        try {
-            $params = ['period' => $period];
-            if ($zone) {
-                $params['zone'] = $zone;
-            }
-            if ($month) {
-                $params['month'] = $month;
-            }
-            if ($year) {
-                $params['year'] = $year;
-            }
-            if ($date) {
-                $params['date'] = $date;
-            }
-
-            $response = Http::timeout(120)->get("{$this->pythonServiceUrl}/api/oracle/data/clients", $params);
-
-            if ($response->successful()) {
-                return [
-                    'success' => true,
-                    'data' => $response->json()
-                ];
-            }
-
-            Log::error('Erreur API Python Clients', [
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-
-            return [
-                'success' => false,
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Erreur lors de la récupération des données clients: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
+        $params = ['period' => $period];
+        if ($zone) {
+            $params['zone'] = $zone;
         }
+        if ($month) {
+            $params['month'] = $month;
+        }
+        if ($year) {
+            $params['year'] = $year;
+        }
+        if ($date) {
+            $params['date'] = $date;
+        }
+
+        return $this->getPythonGetCached('clients', '/api/oracle/data/clients', $params, 'Clients');
     }
 
     /**
@@ -188,49 +287,21 @@ class OracleService
      */
     public function getEncoursEpargneData(string $period = 'month', ?string $zone = null, ?int $month = null, ?int $year = null, ?string $date = null, string $type = 'epargne-pep-simple'): array
     {
-        try {
-            $params = ['period' => $period, 'type' => $type];
-            if ($zone) {
-                $params['zone'] = $zone;
-            }
-            if ($month) {
-                $params['month'] = $month;
-            }
-            if ($year) {
-                $params['year'] = $year;
-            }
-            if ($date) {
-                $params['date'] = $date;
-            }
-
-            $response = Http::timeout(120)->get("{$this->pythonServiceUrl}/api/oracle/data/encours", $params);
-
-            if ($response->successful()) {
-                return [
-                    'success' => true,
-                    'data' => $response->json()
-                ];
-            }
-
-            Log::error('Erreur API Python Encours Épargne', [
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-
-            return [
-                'success' => false,
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Erreur lors de la récupération des données encours épargne: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
+        $params = ['period' => $period, 'type' => $type];
+        if ($zone) {
+            $params['zone'] = $zone;
         }
+        if ($month) {
+            $params['month'] = $month;
+        }
+        if ($year) {
+            $params['year'] = $year;
+        }
+        if ($date) {
+            $params['date'] = $date;
+        }
+
+        return $this->getPythonGetCached('encours', '/api/oracle/data/encours', $params, 'Encours épargne');
     }
 
     /**
@@ -238,49 +309,21 @@ class OracleService
      */
     public function getCollectionData(string $period = 'month', ?string $zone = null, ?int $month = null, ?int $year = null, ?string $date = null): array
     {
-        try {
-            $params = ['period' => $period];
-            if ($zone) {
-                $params['zone'] = $zone;
-            }
-            if ($month) {
-                $params['month'] = $month;
-            }
-            if ($year) {
-                $params['year'] = $year;
-            }
-            if ($date) {
-                $params['date'] = $date;
-            }
-
-            $response = Http::timeout(300)->get("{$this->pythonServiceUrl}/api/oracle/data/collection", $params);
-
-            if ($response->successful()) {
-                return [
-                    'success' => true,
-                    'data' => $response->json()
-                ];
-            }
-
-            Log::error('Erreur API Python Collection', [
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-
-            return [
-                'success' => false,
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Erreur lors de la récupération des données collection: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
+        $params = ['period' => $period];
+        if ($zone) {
+            $params['zone'] = $zone;
         }
+        if ($month) {
+            $params['month'] = $month;
+        }
+        if ($year) {
+            $params['year'] = $year;
+        }
+        if ($date) {
+            $params['date'] = $date;
+        }
+
+        return $this->getPythonGetCached('collection', '/api/oracle/data/collection', $params, 'Collection');
     }
 
     /**
@@ -288,49 +331,21 @@ class OracleService
      */
     public function getVolumeDatData(string $period = 'month', ?string $zone = null, ?int $month = null, ?int $year = null, ?string $date = null): array
     {
-        try {
-            $params = ['period' => $period];
-            if ($zone) {
-                $params['zone'] = $zone;
-            }
-            if ($month) {
-                $params['month'] = $month;
-            }
-            if ($year) {
-                $params['year'] = $year;
-            }
-            if ($date) {
-                $params['date'] = $date;
-            }
-
-            $response = Http::timeout(120)->get("{$this->pythonServiceUrl}/api/oracle/data/volume-dat", $params);
-
-            if ($response->successful()) {
-                return [
-                    'success' => true,
-                    'data' => $response->json()
-                ];
-            }
-
-            Log::error('Erreur API Python Volume DAT', [
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-
-            return [
-                'success' => false,
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Erreur lors de la récupération des données volume DAT: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
+        $params = ['period' => $period];
+        if ($zone) {
+            $params['zone'] = $zone;
         }
+        if ($month) {
+            $params['month'] = $month;
+        }
+        if ($year) {
+            $params['year'] = $year;
+        }
+        if ($date) {
+            $params['date'] = $date;
+        }
+
+        return $this->getPythonGetCached('volume-dat', '/api/oracle/data/volume-dat', $params, 'Volume DAT');
     }
 
     /**
@@ -338,49 +353,21 @@ class OracleService
      */
     public function getDepotGarantieData(string $period = 'month', ?string $zone = null, ?int $month = null, ?int $year = null, ?string $date = null): array
     {
-        try {
-            $params = ['period' => $period];
-            if ($zone) {
-                $params['zone'] = $zone;
-            }
-            if ($month) {
-                $params['month'] = $month;
-            }
-            if ($year) {
-                $params['year'] = $year;
-            }
-            if ($date) {
-                $params['date'] = $date;
-            }
-
-            $response = Http::timeout(120)->get("{$this->pythonServiceUrl}/api/oracle/data/depot-garantie", $params);
-
-            if ($response->successful()) {
-                return [
-                    'success' => true,
-                    'data' => $response->json()
-                ];
-            }
-
-            Log::error('Erreur API Python Dépôt de Garantie', [
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-
-            return [
-                'success' => false,
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Erreur lors de la récupération des données dépôt de garantie: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
+        $params = ['period' => $period];
+        if ($zone) {
+            $params['zone'] = $zone;
         }
+        if ($month) {
+            $params['month'] = $month;
+        }
+        if ($year) {
+            $params['year'] = $year;
+        }
+        if ($date) {
+            $params['date'] = $date;
+        }
+
+        return $this->getPythonGetCached('depot-garantie', '/api/oracle/data/depot-garantie', $params, 'Dépôt de garantie');
     }
 
     /**
@@ -388,32 +375,9 @@ class OracleService
      */
     public function getProductionData(string $period = 'month'): array
     {
-        try {
-            $response = Http::timeout(60)->get("{$this->pythonServiceUrl}/api/oracle/data/production", [
-                'period' => $period
-            ]);
-
-            if ($response->successful()) {
-                return [
-                    'success' => true,
-                    'data' => $response->json()
-                ];
-            }
-
-            return [
-                'success' => false,
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Erreur lors de la récupération des données de production: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
-        }
+        return $this->getPythonGetCached('production-period', '/api/oracle/data/production', [
+            'period' => $period,
+        ], 'Production');
     }
 
     /**
@@ -640,49 +604,21 @@ class OracleService
      */
     public function getPortefeuilleRisqueData(?int $month = null, ?int $year = null, ?int $monthRef = null, ?int $yearRef = null): array
     {
-        try {
-            $params = [];
-            if ($month) {
-                $params['month'] = $month;
-            }
-            if ($year) {
-                $params['year'] = $year;
-            }
-            if ($monthRef) {
-                $params['month_ref'] = $monthRef;
-            }
-            if ($yearRef) {
-                $params['year_ref'] = $yearRef;
-            }
-
-            $response = Http::timeout(300)->get("{$this->pythonServiceUrl}/api/oracle/data/portefeuille-risque", $params);
-
-            if ($response->successful()) {
-                return [
-                    'success' => true,
-                    'data' => $response->json()
-                ];
-            }
-
-            Log::error('Erreur API Python Portefeuille Risque', [
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-
-            return [
-                'success' => false,
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Erreur lors de la récupération des données portefeuille à risque: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
+        $params = [];
+        if ($month) {
+            $params['month'] = $month;
         }
+        if ($year) {
+            $params['year'] = $year;
+        }
+        if ($monthRef) {
+            $params['month_ref'] = $monthRef;
+        }
+        if ($yearRef) {
+            $params['year_ref'] = $yearRef;
+        }
+
+        return $this->getPythonGetCached('portefeuille-risque', '/api/oracle/data/portefeuille-risque', $params, 'Portefeuille risque');
     }
 
     /**
@@ -695,52 +631,24 @@ class OracleService
         ?int $monthRef = null,
         ?int $yearRef = null
     ): array {
-        try {
-            $params = [];
-            if ($month) {
-                $params['month'] = $month;
-            }
-            if ($year) {
-                $params['year'] = $year;
-            }
-            if ($monthRef) {
-                $params['month_ref'] = $monthRef;
-            }
-            if ($yearRef) {
-                $params['year_ref'] = $yearRef;
-            }
-            if ($agency) {
-                $params['agency'] = $agency;
-            }
-
-            $response = Http::timeout(300)->get("{$this->pythonServiceUrl}/api/oracle/data/portefeuille-risque-caf", $params);
-
-            if ($response->successful()) {
-                return [
-                    'success' => true,
-                    'data' => $response->json(),
-                ];
-            }
-
-            Log::error('Erreur API Python Portefeuille Risque CAF', [
-                'status' => $response->status(),
-                'body' => $response->body(),
-            ]);
-
-            return [
-                'success' => false,
-                'error' => 'Erreur du service Python',
-                'message' => $response->body(),
-            ];
-        } catch (\Exception $e) {
-            Log::error('Erreur lors de la récupération des données PAR CAF: ' . $e->getMessage());
-
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage(),
-            ];
+        $params = [];
+        if ($month) {
+            $params['month'] = $month;
         }
+        if ($year) {
+            $params['year'] = $year;
+        }
+        if ($monthRef) {
+            $params['month_ref'] = $monthRef;
+        }
+        if ($yearRef) {
+            $params['year_ref'] = $yearRef;
+        }
+        if ($agency) {
+            $params['agency'] = $agency;
+        }
+
+        return $this->getPythonGetCached('portefeuille-risque-caf', '/api/oracle/data/portefeuille-risque-caf', $params, 'Portefeuille risque CAF');
     }
 
     /**
@@ -748,43 +656,15 @@ class OracleService
      */
     public function getStockProvisionData(?int $month = null, ?int $year = null): array
     {
-        try {
-            $params = [];
-            if ($month) {
-                $params['month'] = $month;
-            }
-            if ($year) {
-                $params['year'] = $year;
-            }
-
-            $response = Http::timeout(300)->get("{$this->pythonServiceUrl}/api/oracle/data/stock-provision", $params);
-
-            if ($response->successful()) {
-                return [
-                    'success' => true,
-                    'data' => $response->json()
-                ];
-            }
-
-            Log::error('Erreur API Python Stock Provision', [
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-
-            return [
-                'success' => false,
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Erreur lors de la récupération des données stock provision: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
+        $params = [];
+        if ($month) {
+            $params['month'] = $month;
         }
+        if ($year) {
+            $params['year'] = $year;
+        }
+
+        return $this->getPythonGetCached('stock-provision', '/api/oracle/data/stock-provision', $params, 'Stock provision');
     }
 
     /**
@@ -792,42 +672,15 @@ class OracleService
      */
     public function getEntreesParData(?int $month = null, ?int $year = null, ?int $par = 0): array
     {
-        try {
-            $params = ['par' => (int) $par];
-            if ($month) {
-                $params['month'] = $month;
-            }
-            if ($year) {
-                $params['year'] = $year;
-            }
-
-            $response = Http::timeout(300)->get("{$this->pythonServiceUrl}/api/oracle/data/entrees-par", $params);
-
-            if ($response->successful()) {
-                return [
-                    'success' => true,
-                    'data' => $response->json()
-                ];
-            }
-
-            Log::error('Erreur API Python Entrées PAR', [
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-
-            return [
-                'success' => false,
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
-            ];
-        } catch (\Exception $e) {
-            Log::error('Erreur lors de la récupération des données entrées PAR: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
+        $params = ['par' => (int) $par];
+        if ($month) {
+            $params['month'] = $month;
         }
+        if ($year) {
+            $params['year'] = $year;
+        }
+
+        return $this->getPythonGetCached('entrees-par', '/api/oracle/data/entrees-par', $params, 'Entrées PAR');
     }
 
     /**
@@ -835,42 +688,15 @@ class OracleService
      */
     public function getGlLookup(?string $glCode = null, ?string $glDesc = null): array
     {
-        try {
-            $params = [];
-            if ($glCode) {
-                $params['gl_code'] = $glCode;
-            }
-            if ($glDesc) {
-                $params['gl_desc'] = $glDesc;
-            }
-
-            $response = Http::timeout(30)->get("{$this->pythonServiceUrl}/api/oracle/data/gl-lookup", $params);
-
-            if ($response->successful()) {
-                return [
-                    'success' => true,
-                    'data' => $response->json()
-                ];
-            }
-
-            Log::error('Erreur API Python GL lookup', [
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-
-            return [
-                'success' => false,
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
-            ];
-        } catch (\Exception $e) {
-            Log::error('Erreur lors du lookup GL: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
+        $params = [];
+        if ($glCode) {
+            $params['gl_code'] = $glCode;
         }
+        if ($glDesc) {
+            $params['gl_desc'] = $glDesc;
+        }
+
+        return $this->getPythonGetCached('gl-lookup', '/api/oracle/data/gl-lookup', $params, 'GL lookup');
     }
 
     /**
@@ -884,38 +710,13 @@ class OracleService
      */
     public function getCrParAgenceData(string $dateFrom, string $dateTo, array $parentGlCodes): array
     {
-        try {
-            $response = Http::timeout(60)->post("{$this->pythonServiceUrl}/api/oracle/data/cr-par-agence", [
-                'date_from' => $dateFrom,
-                'date_to' => $dateTo,
-                'parent_gl_codes' => $parentGlCodes,
-            ]);
+        $body = [
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+            'parent_gl_codes' => $parentGlCodes,
+        ];
 
-            if ($response->successful()) {
-                return [
-                    'success' => true,
-                    'data' => $response->json()
-                ];
-            }
-
-            Log::error('Erreur API Python CR par Agence', [
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-
-            return [
-                'success' => false,
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
-            ];
-        } catch (\Exception $e) {
-            Log::error('Erreur CR par Agence: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
-        }
+        return $this->getPythonPostCached('cr-par-agence', '/api/oracle/data/cr-par-agence', $body, 'CR par Agence');
     }
 }
 

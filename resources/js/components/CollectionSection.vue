@@ -88,7 +88,9 @@
               <th>chargé d'affaire</th>
               <th>Exigible M-1</th>
               <th>MT Echeanche</th>
+              <th>Objectif</th>
               <th>Collecte M</th>
+              <th>TRO</th>
               <th>Collecte S1</th>
               <th>Collecte S2</th>
               <th>Collecte S3</th>
@@ -98,7 +100,7 @@
           <tbody>
             <!-- Message si aucune donnée -->
             <tr v-if="!loading && !errorMessage && Object.keys(filteredHierarchicalData.TERRITOIRE || {}).length === 0 && Object.keys(filteredHierarchicalData['POINT SERVICES'] || {}).length === 0" class="no-data-row">
-              <td colspan="10" style="text-align: center; padding: 40px; color: #666;">
+              <td colspan="12" style="text-align: center; padding: 40px; color: #666;">
                 <p>Aucune donnée de collection disponible pour la période sélectionnée.</p>
                 <p style="font-size: 12px; margin-top: 10px;">Vérifiez que l'API /api/oracle/data/collection retourne des données.</p>
               </td>
@@ -116,7 +118,9 @@
               <td><strong>-</strong></td>
               <td><strong>{{ formatNumber(territoireTotal.exigibleM1) }}</strong></td>
               <td><strong>{{ formatCurrency(territoireTotal.mtEcheance) }}</strong></td>
+              <td><strong>{{ formatCurrency(territoireTotal.objectif) }}</strong></td>
               <td><strong>{{ formatCurrency(territoireTotal.collecteM) }}</strong></td>
+              <td><strong>{{ formatTroPercent(territoireTotal.tro) }}</strong></td>
               <td><strong>{{ formatCurrency(territoireTotal.collecteS1) }}</strong></td>
               <td><strong>{{ formatCurrency(territoireTotal.collecteS2) }}</strong></td>
               <td><strong>{{ formatCurrency(territoireTotal.collecteS3) }}</strong></td>
@@ -139,7 +143,9 @@
                   <td><strong>-</strong></td>
                   <td><strong>{{ formatNumber(territory.totals.exigibleM1) }}</strong></td>
                   <td><strong>{{ formatCurrency(territory.totals.mtEcheance) }}</strong></td>
+                  <td><strong>{{ formatCurrency(territory.totals.objectif) }}</strong></td>
                   <td><strong>{{ formatCurrency(territory.totals.collecteM) }}</strong></td>
+                  <td><strong>{{ formatTroPercent(territory.totals.tro) }}</strong></td>
                   <td><strong>{{ formatCurrency(territory.totals.collecteS1) }}</strong></td>
                   <td><strong>{{ formatCurrency(territory.totals.collecteS2) }}</strong></td>
                   <td><strong>{{ formatCurrency(territory.totals.collecteS3) }}</strong></td>
@@ -167,7 +173,9 @@
                       <td>{{ getChargeAffaireDisplay(agency) }}</td>
                       <td>{{ formatNumber(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'exigibleM1')) }}</td>
                       <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'mtEcheance')) }}</td>
+                      <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'objectif')) }}</td>
                       <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'collecteM')) }}</td>
+                      <td>{{ formatTroPercent(getCollecteTroForAgencyName(agency.name || agency.AGENCE || getAgencyName(agency))) }}</td>
                       <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'collecteS1')) }}</td>
                       <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'collecteS2')) }}</td>
                       <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'collecteS3')) }}</td>
@@ -187,14 +195,16 @@
                         <td>{{ chargeDetail.chargeAffaire || chargeDetail.CHARGE_AFFAIRE || '-' }}</td>
                         <td>{{ formatNumber(chargeDetail.exigibleM1 || chargeDetail.EXIGIBLE_M1 || 0) }}</td>
                         <td>{{ formatCurrency(chargeDetail.mtEcheance || chargeDetail.MT_ECHEANCE || 0) }}</td>
+                        <td>-</td>
                         <td>{{ formatCurrency(chargeDetail.collecteM || chargeDetail.COLLECTE_M || 0) }}</td>
+                        <td>-</td>
                         <td>{{ formatCurrency(chargeDetail.collecteS1 || chargeDetail.COLLECTE_S1 || 0) }}</td>
                         <td>{{ formatCurrency(chargeDetail.collecteS2 || chargeDetail.COLLECTE_S2 || 0) }}</td>
                         <td>{{ formatCurrency(chargeDetail.collecteS3 || chargeDetail.COLLECTE_S3 || 0) }}</td>
                         <td>{{ formatCurrency(chargeDetail.collecteS4 || chargeDetail.COLLECTE_S4 || 0) }}</td>
                       </tr>
                       <tr v-if="getCachedChargeAffaireLines(`TERRITOIRE_${territoryKey}_${getAgencyKey(agency, index)}`).length === 0" class="level-4-row">
-                        <td colspan="10" style="text-align: center; padding: 10px; color: #666;">
+                        <td colspan="12" style="text-align: center; padding: 10px; color: #666;">
                           Aucun chargé d'affaire trouvé pour cette agence
                         </td>
                       </tr>
@@ -217,7 +227,9 @@
               <td><strong>-</strong></td>
               <td><strong>-</strong></td>
               <td><strong>{{ formatCurrency(pointServicesTotal.mtEcheance) }}</strong></td>
+              <td><strong>{{ formatCurrency(pointServicesTotal.objectif) }}</strong></td>
               <td><strong>{{ formatCurrency(pointServicesTotal.collecteM) }}</strong></td>
+              <td><strong>{{ formatTroPercent(pointServicesTotal.tro) }}</strong></td>
               <td><strong>{{ formatCurrency(pointServicesTotal.collecteS1) }}</strong></td>
               <td><strong>{{ formatCurrency(pointServicesTotal.collecteS2) }}</strong></td>
               <td><strong>{{ formatCurrency(pointServicesTotal.collecteS3) }}</strong></td>
@@ -248,7 +260,9 @@
                       <td>{{ getChargeAffaireDisplay(agency) }}</td>
                       <td>{{ formatNumber(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'exigibleM1')) }}</td>
                       <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'mtEcheance')) }}</td>
+                      <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'objectif')) }}</td>
                       <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'collecteM')) }}</td>
+                      <td>{{ formatTroPercent(getCollecteTroForAgencyName(agency.name || agency.AGENCE || getAgencyName(agency))) }}</td>
                       <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'collecteS1')) }}</td>
                       <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'collecteS2')) }}</td>
                       <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'collecteS3')) }}</td>
@@ -268,14 +282,16 @@
                         <td>{{ chargeDetail.chargeAffaire || chargeDetail.CHARGE_AFFAIRE || '-' }}</td>
                         <td>{{ formatNumber(chargeDetail.exigibleM1 || chargeDetail.EXIGIBLE_M1 || 0) }}</td>
                         <td>{{ formatCurrency(chargeDetail.mtEcheance || chargeDetail.MT_ECHEANCE || 0) }}</td>
+                        <td>-</td>
                         <td>{{ formatCurrency(chargeDetail.collecteM || chargeDetail.COLLECTE_M || 0) }}</td>
+                        <td>-</td>
                         <td>{{ formatCurrency(chargeDetail.collecteS1 || chargeDetail.COLLECTE_S1 || 0) }}</td>
                         <td>{{ formatCurrency(chargeDetail.collecteS2 || chargeDetail.COLLECTE_S2 || 0) }}</td>
                         <td>{{ formatCurrency(chargeDetail.collecteS3 || chargeDetail.COLLECTE_S3 || 0) }}</td>
                         <td>{{ formatCurrency(chargeDetail.collecteS4 || chargeDetail.COLLECTE_S4 || 0) }}</td>
                       </tr>
                       <tr v-if="getCachedChargeAffaireLines(`POINT_SERVICES_${getAgencyKey(agency, index)}`).length === 0" class="level-4-row">
-                        <td colspan="10" style="text-align: center; padding: 10px; color: #666;">
+                        <td colspan="12" style="text-align: center; padding: 10px; color: #666;">
                           Aucun chargé d'affaire trouvé pour cette agence
                         </td>
                       </tr>
@@ -292,7 +308,9 @@
               <td>{{ getChargeAffaireDisplay(grandCompte) }}</td>
               <td>{{ formatNumber(grandCompte.exigibleM1 || grandCompte.EXIGIBLE_M1 || 0) }}</td>
               <td>{{ formatCurrency(grandCompte.mtEcheance || grandCompte.MT_ECHEANCE || 0) }}</td>
+              <td>{{ formatCurrency(grandCompte.objectif || grandCompte.OBJECTIF || 0) }}</td>
               <td>{{ formatCurrency(grandCompte.collecteM || grandCompte.COLLECTE_M || 0) }}</td>
+              <td>{{ formatTroPercent(getCollecteTroFromValues(grandCompte.collecteM || grandCompte.COLLECTE_M, grandCompte.objectif || grandCompte.OBJECTIF)) }}</td>
               <td>{{ formatCurrency(grandCompte.collecteS1 || grandCompte.COLLECTE_S1 || 0) }}</td>
               <td>{{ formatCurrency(grandCompte.collecteS2 || grandCompte.COLLECTE_S2 || 0) }}</td>
               <td>{{ formatCurrency(grandCompte.collecteS3 || grandCompte.COLLECTE_S3 || 0) }}</td>
@@ -306,7 +324,9 @@
               <td><strong>-</strong></td>
               <td><strong>{{ formatNumber(getGrandTotal('exigibleM1')) }}</strong></td>
               <td><strong>{{ formatCurrency(getGrandTotal('mtEcheance')) }}</strong></td>
+              <td><strong>{{ formatCurrency(getGrandTotal('objectif')) }}</strong></td>
               <td><strong>{{ formatCurrency(getGrandTotal('collecteM')) }}</strong></td>
+              <td><strong>{{ formatTroPercent(getGrandTotalCollecteTro()) }}</strong></td>
               <td><strong>{{ formatCurrency(getGrandTotal('collecteS1')) }}</strong></td>
               <td><strong>{{ formatCurrency(getGrandTotal('collecteS2')) }}</strong></td>
               <td><strong>{{ formatCurrency(getGrandTotal('collecteS3')) }}</strong></td>
@@ -962,12 +982,17 @@ export default {
       const t3 = this.calculateZoneTotals(provinceCentreSudData.agencies || []);
       const t4 = this.calculateZoneTotals(provinceNordData.agencies || []);
       
+      const sumObjectif = t1.objectif + t2.objectif + t3.objectif + t4.objectif;
+      const sumCollecteM = t1.collecteM + t2.collecteM + t3.collecteM + t4.collecteM;
+      
       return {
         exigibleM1: t1.exigibleM1 + t2.exigibleM1 + t3.exigibleM1 + t4.exigibleM1,
         mtEcheance: t1.mtEcheance + t2.mtEcheance + t3.mtEcheance + t4.mtEcheance,
         m: t1.m + t2.m + t3.m + t4.m,
         sldM: t1.sldM + t2.sldM + t3.sldM + t4.sldM,
-        collecteM: t1.collecteM + t2.collecteM + t3.collecteM + t4.collecteM,
+        collecteM: sumCollecteM,
+        objectif: sumObjectif,
+        tro: sumObjectif > 0 ? (sumCollecteM / sumObjectif) * 100 : null,
         exigibleS1: t1.exigibleS1 + t2.exigibleS1 + t3.exigibleS1 + t4.exigibleS1,
         mtEcheanceS1: t1.mtEcheanceS1 + t2.mtEcheanceS1 + t3.mtEcheanceS1 + t4.mtEcheanceS1,
         mS1: t1.mS1 + t2.mS1 + t3.mS1 + t4.mS1,
@@ -990,6 +1015,8 @@ export default {
         m: totals.m,
         sldM: totals.sldM,
         collecteM: totals.collecteM,
+        objectif: totals.objectif,
+        tro: totals.tro,
         exigibleS1: totals.exigibleS1,
         mtEcheanceS1: totals.mtEcheanceS1,
         mS1: totals.mS1,
@@ -1388,6 +1415,24 @@ export default {
       if (num === null || num === undefined || isNaN(num)) return '-';
       return `${num.toFixed(0)}%`;
     },
+    formatTroPercent(num) {
+      if (num === null || num === undefined || isNaN(num)) return '-';
+      return `${num.toFixed(0)}%`;
+    },
+    getCollecteTroFromValues(collecteM, objectif) {
+      const c = parseFloat(collecteM) || 0;
+      const o = parseFloat(objectif) || 0;
+      if (o <= 0) return null;
+      return (c / o) * 100;
+    },
+    getCollecteTroForAgencyName(agencyName) {
+      const c = this.getAgencyTotalByName(agencyName, 'collecteM');
+      const o = this.getAgencyTotalByName(agencyName, 'objectif');
+      return this.getCollecteTroFromValues(c, o);
+    },
+    getGrandTotalCollecteTro() {
+      return this.getCollecteTroFromValues(this.getGrandTotal('collecteM'), this.getGrandTotal('objectif'));
+    },
     getAgencyName(agency) {
       if (!agency) return 'Agence non identifiée';
       
@@ -1718,6 +1763,8 @@ export default {
         m: 0,
         sldM: 0,
         collecteM: 0,
+        objectif: 0,
+        tro: null,
         exigibleS1: 0,
         mtEcheanceS1: 0,
         mS1: 0,
@@ -1737,6 +1784,7 @@ export default {
         totals.m += agency.m || agency.M || 0;
         totals.sldM += agency.sldM || agency.SLD_M || 0;
         totals.collecteM += agency.collecteM || agency.COLLECTE_M || 0;
+        totals.objectif += parseFloat(agency.objectif || agency.OBJECTIF || 0) || 0;
         totals.exigibleS1 += agency.exigibleS1 || agency.EXIGIBLE_S1 || 0;
         totals.mtEcheanceS1 += agency.mtEcheanceS1 || agency.MT_ECHEANCE_S1 || 0;
         totals.mS1 += agency.mS1 || agency.M_S1 || 0;
@@ -1750,6 +1798,7 @@ export default {
         totals.sldS4 += agency.sldS4 || agency.SLD_S4 || 0;
       });
 
+      totals.tro = totals.objectif > 0 ? (totals.collecteM / totals.objectif) * 100 : null;
       return totals;
     },
     getAgencyKey(agency, index) {
@@ -2350,27 +2399,10 @@ export default {
         }
         
         this.errorMessage = null;
-        params._t = Date.now();
         
         const endpoint = '/api/oracle/data/collection';
-        
-        // Récupérer le token d'authentification
-        const token = localStorage.getItem('token');
-        const headers = {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache',
-          'Accept': 'application/json'
-        };
-        
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
-        
-        const response = await window.axios.get(endpoint, { 
-          params,
-          timeout: 300000, // 5 minutes pour les requêtes complexes
-          headers: headers
-        });
+
+        const response = await window.axios.get(endpoint, { params });
         
         let data = null;
         let chargeAffaireDetailsFromResponse = null;
@@ -2569,6 +2601,10 @@ export default {
           };
           this.globalResult = { mois: 0, mois1: 0, evolution: 0 };
         }
+
+        if (this.hierarchicalDataFromBackend) {
+          await this.loadObjectives();
+        }
       } catch (error) {
         this.territories = {
           territoire_dakar_ville: { name: 'TERRITOIRE DAKAR VILLE', agencies: [] },
@@ -2652,6 +2688,126 @@ export default {
       this.$nextTick(() => {
         this.loadDataForPeriod();
       });
+    },
+    async loadObjectives() {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          return;
+        }
+
+        const params = {
+          type: 'COLLECT',
+          year: this.selectedYear
+        };
+
+        if (this.selectedPeriod === 'month') {
+          params.period = 'month';
+          params.month = this.selectedMonth;
+        } else if (this.selectedPeriod === 'year') {
+          params.period = 'year';
+        } else if (this.selectedPeriod === 'week') {
+          params.period = 'month';
+          if (this.selectedDate) {
+            const date = new Date(this.selectedDate);
+            params.month = date.getMonth() + 1;
+          }
+        }
+
+        const response = await window.axios.get('/api/objectives', {
+          params: params,
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.data && response.data.success && response.data.data) {
+          const objectives = Array.isArray(response.data.data) ? response.data.data : [response.data.data];
+          const objectivesMapByCode = {};
+          const objectivesMapByName = {};
+          objectives.forEach(obj => {
+            const agencyCode = (obj.agency_code || '').toString().trim();
+            const agencyName = (obj.agency_name || '').toString().trim();
+            const value = obj.value || 0;
+            if (agencyCode) {
+              objectivesMapByCode[agencyCode] = value;
+            }
+            if (agencyName) {
+              objectivesMapByName[agencyName.toUpperCase().trim()] = value;
+            }
+          });
+
+          this.mergeObjectivesWithOracleData(objectivesMapByCode, objectivesMapByName);
+        }
+      } catch (error) {
+        console.warn('Erreur lors du chargement des objectifs collecte:', error);
+      }
+    },
+    mergeObjectivesWithOracleData(objectivesMapByCode, objectivesMapByName) {
+      const applyToAgency = (agency) => {
+        const agencyCode = (agency.CODE_AGENCE || agency.code_agence || agency.code || agency.CODE || '').toString().trim();
+        const agencyName = (agency.name || agency.AGENCE || agency.NOM_AGENCE || '').toString().trim();
+        let objectiveValue = null;
+        if (agencyCode && objectivesMapByCode[agencyCode]) {
+          objectiveValue = objectivesMapByCode[agencyCode];
+        } else if (agencyName) {
+          const normalizedName = agencyName.toUpperCase().trim();
+          if (objectivesMapByName[normalizedName]) {
+            objectiveValue = objectivesMapByName[normalizedName];
+          }
+        }
+        if (objectiveValue !== null) {
+          agency.objectif = objectiveValue;
+          agency.OBJECTIF = objectiveValue;
+        }
+      };
+
+      const h = this.hierarchicalDataFromBackend;
+      if (!h) return;
+
+      if (h.TERRITOIRE) {
+        Object.keys(h.TERRITOIRE).forEach(territoryKey => {
+          const territory = h.TERRITOIRE[territoryKey];
+          if (territory && territory.agencies && Array.isArray(territory.agencies)) {
+            territory.agencies.forEach(applyToAgency);
+          }
+        });
+      }
+
+      if (h['POINT SERVICES']) {
+        Object.keys(h['POINT SERVICES']).forEach(servicePointKey => {
+          const servicePoint = h['POINT SERVICES'][servicePointKey];
+          if (servicePoint && servicePoint.agencies && Array.isArray(servicePoint.agencies)) {
+            servicePoint.agencies.forEach(applyToAgency);
+          }
+        });
+      }
+
+      this.refreshZoneTotalsAfterObjectives();
+      this.$nextTick(() => {
+        this.$forceUpdate();
+      });
+    },
+    refreshZoneTotalsAfterObjectives() {
+      const h = this.hierarchicalDataFromBackend;
+      if (!h) return;
+
+      if (h.TERRITOIRE) {
+        Object.keys(h.TERRITOIRE).forEach(k => {
+          const zone = h.TERRITOIRE[k];
+          if (zone && zone.agencies && Array.isArray(zone.agencies)) {
+            zone.totals = this.calculateZoneTotals(zone.agencies);
+          }
+        });
+      }
+      if (h['POINT SERVICES']) {
+        Object.keys(h['POINT SERVICES']).forEach(k => {
+          const zone = h['POINT SERVICES'][k];
+          if (zone && zone.agencies && Array.isArray(zone.agencies)) {
+            zone.totals = this.calculateZoneTotals(zone.agencies);
+          }
+        });
+      }
     }
   }
 }

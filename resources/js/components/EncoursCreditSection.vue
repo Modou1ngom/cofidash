@@ -379,7 +379,6 @@ export default {
       
       try {
         const response = await axios.get('/api/oracle/data/encours-credit', {
-          timeout: 300000, // 5 minutes en millisecondes
           params: {
             month_m: this.selectedMonth,
             year_m: this.selectedYear

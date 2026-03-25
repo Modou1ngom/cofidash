@@ -873,16 +873,7 @@ export default {
         }
         
         this.errorMessage = null;
-        params._t = Date.now();
-        
-        const response = await window.axios.get('/api/oracle/data/encours', { 
-          params,
-          timeout: 300000,
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        });
+        const response = await window.axios.get('/api/oracle/data/encours', { params });
         
         let data = null;
         

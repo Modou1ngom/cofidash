@@ -1,8 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import Dashboard from '../pages/Dashboard.vue';
 import LoginPage from '../pages/LoginPage.vue';
-import ProfileManagementPage from '../pages/ProfileManagementPage.vue';
-import AddObjectivePage from '../pages/AddObjectivePage.vue';
 
 const routes = [
   {
@@ -18,13 +15,13 @@ const routes = [
   {
     path: '/dashboard',
     name: 'dashboard',
-    component: Dashboard,
+    component: () => import('../pages/Dashboard.vue'),
     meta: { requiresAuth: true }
   },
   {
     path: '/admin/profiles',
     name: 'profile-management',
-    component: ProfileManagementPage,
+    component: () => import('../pages/ProfileManagementPage.vue'),
     meta: { requiresAuth: true, requiresAdmin: true }
   },
   {
@@ -36,7 +33,7 @@ const routes = [
   {
     path: '/objectives/add',
     name: 'add-objective',
-    component: AddObjectivePage,
+    component: () => import('../pages/AddObjectivePage.vue'),
     meta: { requiresAuth: true }
   }
 ];

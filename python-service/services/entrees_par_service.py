@@ -6,7 +6,7 @@ import calendar
 from typing import List, Dict, Optional
 from datetime import datetime
 
-from database.oracle import get_oracle_connection
+from database.oracle_pool import get_pool
 from services.entrees_par_query import get_query_entrees_par
 
 logger = logging.getLogger(__name__)
@@ -56,15 +56,17 @@ def get_entrees_par_data(
     logger.info("📊 Entrées PAR: date=%s, par_bucket=%s", date_str, par_bucket)
 
     sql = get_query_entrees_par(date_str, par_bucket)
-    conn = get_oracle_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute(sql)
-        columns = [desc[0] for desc in cursor.description]
-        rows = cursor.fetchall()
-        result = [_serialize_row(dict(zip(columns, row))) for row in rows]
-        logger.info("✅ Entrées PAR: %d lignes pour PAR%s", len(result), par_bucket)
-        return result
-    finally:
-        cursor.close()
-        conn.close()
+    pool = get_pool()
+    with pool.get_connection_context() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.arraysize = 1000
+            cursor.prefetchrows = 1000
+            cursor.execute(sql)
+            columns = [desc[0] for desc in cursor.description]
+            rows = cursor.fetchall()
+            result = [_serialize_row(dict(zip(columns, row))) for row in rows]
+            logger.info("✅ Entrées PAR: %d lignes pour PAR%s", len(result), par_bucket)
+            return result
+        finally:
+            cursor.close()

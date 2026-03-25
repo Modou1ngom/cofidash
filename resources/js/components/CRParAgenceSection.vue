@@ -33,13 +33,13 @@
             <tr
               :class="[
                 'data-row',
-                row.type === 'total' ? 'row-total' : '',
+                row.type === 'total' && !isNeutralNegativeRow(row) ? 'row-total' : '',
                 row.type === 'rubrique' ? 'row-rubrique' : '',
                 row.type === 'sous-rubrique' ? 'row-sous-rubrique' : '',
                 row.type === 'cle_repartition' || row.isCleRepartition ? 'row-cle-repartition' : '',
-                row.type === 'rubrique' && hasSousRubriques(row) ? 'row-expandable' : ''
+                hasSousRubriques(row) ? 'row-expandable' : ''
               ]"
-              @click="row.type === 'rubrique' && hasSousRubriques(row) ? toggleExpand(row.blocIndex) : null"
+              @click="hasSousRubriques(row) ? toggleExpand(row.blocIndex) : null"
             >
               <td
                 class="col-poste sticky-col"
@@ -49,7 +49,7 @@
               >
                 <span v-if="row.type === 'sous-rubrique'" class="indent-sous-rubrique"></span>
                 <button
-                  v-else-if="row.type === 'rubrique' && hasSousRubriques(row)"
+                  v-else-if="hasSousRubriques(row)"
                   type="button"
                   class="expand-btn"
                   @click.stop="toggleExpand(row.blocIndex)"
@@ -360,13 +360,23 @@ export default {
       this.loading = true;
       this._entityDataCache = {};
       try {
-        const res = await window.axios.get('/api/reference-compte', { timeout: 15000 });
+        const res = await window.axios.get('/api/reference-compte');
         const data = res.data != null && res.data.data != null ? res.data.data : null;
         this.referenceCompteBlocs = Array.isArray(data) ? data : [];
         // Afficher les sous-rubriques par défaut pour éviter l'impression de rubriques manquantes.
         const expanded = {};
         this.referenceCompteBlocs.forEach((bloc, idx) => {
-          expanded[idx] = Array.isArray(bloc?.rubriques) && bloc.rubriques.length > 0;
+          const hasChildren = Array.isArray(bloc?.rubriques) && bloc.rubriques.length > 0;
+          const labelNorm = String(bloc?.libelle || '')
+            .toUpperCase()
+            .trim()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/^[_\-]\s*/, '')
+            .trim();
+          const neutralToggleDefault = labelNorm === 'RESULTAT EXCEPTIONNEL' || labelNorm.includes('IMPOT SUR LE BENEFICE');
+          // Garder ces lignes repliées pour qu'elles affichent bien le bouton `+`.
+          expanded[idx] = hasChildren && !neutralToggleDefault;
         });
         this.expandedSections = expanded;
       } catch (err) {
@@ -440,12 +450,25 @@ export default {
       }
     },
     hasSousRubriques(row) {
-      if (row.type !== 'rubrique' || row.blocIndex == null) return false;
+      if (!row || (row.type !== 'rubrique' && row.type !== 'total') || row.blocIndex == null) return false;
       const bloc = this.referenceCompteBlocs[row.blocIndex];
       return bloc && (bloc.rubriques || []).length > 0;
     },
     toggleExpand(blocIndex) {
       this.expandedSections[blocIndex] = !this.expandedSections[blocIndex];
+    },
+    isNeutralNegativeRow(row) {
+      const label = row && row.label ? String(row.label) : '';
+      // Normaliser pour comparer sans accents/espaces parasites
+      const norm = label
+        .toUpperCase()
+        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/^[_\-]\s*/, '')
+        .trim();
+
+      return norm === 'RESULTAT EXCEPTIONNEL' || norm.includes('IMPOT SUR LE BENEFICE');
     },
     getEntityDataByBlocLibelle(libelle) {
       if (!this._entityDataCache) this._entityDataCache = {};

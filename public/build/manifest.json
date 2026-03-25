@@ -1,18 +1,388 @@
 {
+  "_Dashboard-!~{002}~.js": {
+    "file": "assets/Dashboard-CYHBWBFY.css",
+    "src": "_Dashboard-!~{002}~.js"
+  },
+  "_Dashboard-D8C7DVFk.js": {
+    "file": "assets/Dashboard-D8C7DVFk.js",
+    "name": "Dashboard",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "dynamicImports": [
+      "resources/js/components/ClientSection.vue",
+      "resources/js/components/CollectionSection.vue",
+      "resources/js/components/ProductionSection.vue",
+      "resources/js/components/ProductionVolumeSection.vue",
+      "resources/js/components/EncoursCreditSection.vue",
+      "resources/js/components/AddObjectiveSection.vue",
+      "resources/js/components/ValidationSection.vue",
+      "resources/js/components/AgencyPerformanceSection.vue",
+      "resources/js/components/PrepaidCardSalesSection.vue",
+      "resources/js/components/PrepaidCardRechargeSection.vue",
+      "resources/js/components/TerritoryAgencyManagement.vue",
+      "resources/js/components/MoneyTransferSection.vue",
+      "resources/js/components/EnvironmentsSection.vue",
+      "resources/js/components/DepotGarantieSection.vue",
+      "resources/js/components/VolumeDatSection.vue",
+      "resources/js/components/EncoursSection.vue",
+      "resources/js/components/PortefeuilleRisqueSection.vue",
+      "resources/js/components/PortefeuilleRisqueGlobalSection.vue",
+      "resources/js/components/CRParAgenceSection.vue",
+      "resources/js/components/ReferenceCompteSection.vue"
+    ],
+    "css": [
+      "assets/Dashboard-CYHBWBFY.css"
+    ]
+  },
+  "_KPICard-!~{00r}~.js": {
+    "file": "assets/KPICard-BUcpeQjw.css",
+    "src": "_KPICard-!~{00r}~.js"
+  },
+  "_KPICard-CiyfBbI2.js": {
+    "file": "assets/KPICard-CiyfBbI2.js",
+    "name": "KPICard",
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/KPICard-BUcpeQjw.css"
+    ]
+  },
+  "_PythonChart-!~{00q}~.js": {
+    "file": "assets/PythonChart-Bn7Pf-Yv.css",
+    "src": "_PythonChart-!~{00q}~.js"
+  },
+  "_PythonChart-CD2jcEFg.js": {
+    "file": "assets/PythonChart-CD2jcEFg.js",
+    "name": "PythonChart",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/PythonChart-Bn7Pf-Yv.css"
+    ]
+  },
+  "_chart-CBlv0Hvs.js": {
+    "file": "assets/chart-CBlv0Hvs.js",
+    "name": "chart"
+  },
   "resources/js/app.js": {
-    "file": "assets/app-DIi32jS3.js",
+    "file": "assets/app-D7Bs7ySc.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
     "dynamicImports": [
-      "resources/js/pages/UserManagementPage.vue"
+      "_Dashboard-D8C7DVFk.js",
+      "resources/js/pages/ProfileManagementPage.vue",
+      "resources/js/pages/UserManagementPage.vue",
+      "resources/js/pages/AddObjectivePage.vue"
     ],
     "css": [
-      "assets/app-BWUsC5gv.css"
+      "assets/app-DRWvABV4.css"
+    ]
+  },
+  "resources/js/components/AddObjectiveSection.vue": {
+    "file": "assets/AddObjectiveSection-BMIdGTt2.js",
+    "name": "AddObjectiveSection",
+    "src": "resources/js/components/AddObjectiveSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js",
+      "_Dashboard-D8C7DVFk.js"
+    ],
+    "css": [
+      "assets/AddObjectiveSection-DFX8Iey-.css"
+    ]
+  },
+  "resources/js/components/AgencyPerformanceSection.vue": {
+    "file": "assets/AgencyPerformanceSection-DEpDQJf0.js",
+    "name": "AgencyPerformanceSection",
+    "src": "resources/js/components/AgencyPerformanceSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/AgencyPerformanceSection-CkmVXo7G.css"
+    ]
+  },
+  "resources/js/components/CRParAgenceSection.vue": {
+    "file": "assets/CRParAgenceSection-DqWYNa-l.js",
+    "name": "CRParAgenceSection",
+    "src": "resources/js/components/CRParAgenceSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/CRParAgenceSection-NsvTFjac.css"
+    ]
+  },
+  "resources/js/components/ClientSection.vue": {
+    "file": "assets/ClientSection-DjVTrUkT.js",
+    "name": "ClientSection",
+    "src": "resources/js/components/ClientSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js",
+      "_KPICard-CiyfBbI2.js",
+      "_PythonChart-CD2jcEFg.js",
+      "_Dashboard-D8C7DVFk.js"
+    ],
+    "dynamicImports": [
+      "_PythonChart-CD2jcEFg.js"
+    ],
+    "css": [
+      "assets/ClientSection-ENQh0UUW.css"
+    ]
+  },
+  "resources/js/components/CollectionSection.vue": {
+    "file": "assets/CollectionSection-CoiD0P5p.js",
+    "name": "CollectionSection",
+    "src": "resources/js/components/CollectionSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js",
+      "_KPICard-CiyfBbI2.js",
+      "_PythonChart-CD2jcEFg.js",
+      "resources/js/components/AgencyPerformanceSection.vue",
+      "_Dashboard-D8C7DVFk.js"
+    ],
+    "dynamicImports": [
+      "_PythonChart-CD2jcEFg.js"
+    ],
+    "css": [
+      "assets/CollectionSection-7_ilNa0z.css"
+    ]
+  },
+  "resources/js/components/DepotGarantieSection.vue": {
+    "file": "assets/DepotGarantieSection-j-0cwrxd.js",
+    "name": "DepotGarantieSection",
+    "src": "resources/js/components/DepotGarantieSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js",
+      "_PythonChart-CD2jcEFg.js",
+      "resources/js/components/AgencyPerformanceSection.vue"
+    ],
+    "dynamicImports": [
+      "_PythonChart-CD2jcEFg.js"
+    ],
+    "css": [
+      "assets/DepotGarantieSection-DHJEqM3e.css"
+    ]
+  },
+  "resources/js/components/EncoursCreditSection.vue": {
+    "file": "assets/EncoursCreditSection-WqpYO76V.js",
+    "name": "EncoursCreditSection",
+    "src": "resources/js/components/EncoursCreditSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/EncoursCreditSection-CYRGLATp.css"
+    ]
+  },
+  "resources/js/components/EncoursSection.vue": {
+    "file": "assets/EncoursSection-C2jcp5GQ.js",
+    "name": "EncoursSection",
+    "src": "resources/js/components/EncoursSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js",
+      "_PythonChart-CD2jcEFg.js",
+      "resources/js/components/AgencyPerformanceSection.vue"
+    ],
+    "dynamicImports": [
+      "_PythonChart-CD2jcEFg.js",
+      "_PythonChart-CD2jcEFg.js",
+      "_PythonChart-CD2jcEFg.js"
+    ],
+    "css": [
+      "assets/EncoursSection-DX9HPU9D.css"
+    ]
+  },
+  "resources/js/components/EnvironmentsSection.vue": {
+    "file": "assets/EnvironmentsSection-4LVdtyfY.js",
+    "name": "EnvironmentsSection",
+    "src": "resources/js/components/EnvironmentsSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/EnvironmentsSection-2Zpp_Dpd.css"
+    ]
+  },
+  "resources/js/components/MoneyTransferSection.vue": {
+    "file": "assets/MoneyTransferSection-CRD-wima.js",
+    "name": "MoneyTransferSection",
+    "src": "resources/js/components/MoneyTransferSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/MoneyTransferSection-BwJiqB0H.css"
+    ]
+  },
+  "resources/js/components/PortefeuilleRisqueGlobalSection.vue": {
+    "file": "assets/PortefeuilleRisqueGlobalSection-DBT64kl2.js",
+    "name": "PortefeuilleRisqueGlobalSection",
+    "src": "resources/js/components/PortefeuilleRisqueGlobalSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/PortefeuilleRisqueGlobalSection-DXXZ5l3H.css"
+    ]
+  },
+  "resources/js/components/PortefeuilleRisqueSection.vue": {
+    "file": "assets/PortefeuilleRisqueSection-82JCgtV3.js",
+    "name": "PortefeuilleRisqueSection",
+    "src": "resources/js/components/PortefeuilleRisqueSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/PortefeuilleRisqueSection-zgc4nLgk.css"
+    ]
+  },
+  "resources/js/components/PrepaidCardRechargeSection.vue": {
+    "file": "assets/PrepaidCardRechargeSection-BMJ0Nahc.js",
+    "name": "PrepaidCardRechargeSection",
+    "src": "resources/js/components/PrepaidCardRechargeSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_chart-CBlv0Hvs.js",
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/PrepaidCardRechargeSection-DlZYtpox.css"
+    ]
+  },
+  "resources/js/components/PrepaidCardSalesSection.vue": {
+    "file": "assets/PrepaidCardSalesSection-DpFMaWNc.js",
+    "name": "PrepaidCardSalesSection",
+    "src": "resources/js/components/PrepaidCardSalesSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_chart-CBlv0Hvs.js",
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/PrepaidCardSalesSection-D2ojX_-w.css"
+    ]
+  },
+  "resources/js/components/ProductionSection.vue": {
+    "file": "assets/ProductionSection-BitagQm4.js",
+    "name": "ProductionSection",
+    "src": "resources/js/components/ProductionSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/ProductionSection-BB004hI-.css"
+    ]
+  },
+  "resources/js/components/ProductionVolumeSection.vue": {
+    "file": "assets/ProductionVolumeSection-8zvv4Ie6.js",
+    "name": "ProductionVolumeSection",
+    "src": "resources/js/components/ProductionVolumeSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/ProductionVolumeSection-gX3QiJrU.css"
+    ]
+  },
+  "resources/js/components/ReferenceCompteSection.vue": {
+    "file": "assets/ReferenceCompteSection-DiemPvXX.js",
+    "name": "ReferenceCompteSection",
+    "src": "resources/js/components/ReferenceCompteSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/ReferenceCompteSection-CRQCV7Xs.css"
+    ]
+  },
+  "resources/js/components/TerritoryAgencyManagement.vue": {
+    "file": "assets/TerritoryAgencyManagement-CJhXIN1r.js",
+    "name": "TerritoryAgencyManagement",
+    "src": "resources/js/components/TerritoryAgencyManagement.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/TerritoryAgencyManagement-SLLa3lRE.css"
+    ]
+  },
+  "resources/js/components/ValidationSection.vue": {
+    "file": "assets/ValidationSection-rCNoeO31.js",
+    "name": "ValidationSection",
+    "src": "resources/js/components/ValidationSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/ValidationSection-DNzgosnp.css"
+    ]
+  },
+  "resources/js/components/VolumeDatSection.vue": {
+    "file": "assets/VolumeDatSection-CBRwwGCG.js",
+    "name": "VolumeDatSection",
+    "src": "resources/js/components/VolumeDatSection.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js",
+      "_PythonChart-CD2jcEFg.js",
+      "resources/js/components/AgencyPerformanceSection.vue"
+    ],
+    "dynamicImports": [
+      "_PythonChart-CD2jcEFg.js"
+    ],
+    "css": [
+      "assets/VolumeDatSection-CXtISHB4.css"
+    ]
+  },
+  "resources/js/pages/AddObjectivePage.vue": {
+    "file": "assets/AddObjectivePage-BhEoPfEi.js",
+    "name": "AddObjectivePage",
+    "src": "resources/js/pages/AddObjectivePage.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/AddObjectivePage-la5Xae54.css"
+    ]
+  },
+  "resources/js/pages/ProfileManagementPage.vue": {
+    "file": "assets/ProfileManagementPage-fm5PN2fl.js",
+    "name": "ProfileManagementPage",
+    "src": "resources/js/pages/ProfileManagementPage.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/ProfileManagementPage-CqjtgNsi.css"
     ]
   },
   "resources/js/pages/UserManagementPage.vue": {
-    "file": "assets/UserManagementPage-CrmL0jZF.js",
+    "file": "assets/UserManagementPage-BcbCukmG.js",
     "name": "UserManagementPage",
     "src": "resources/js/pages/UserManagementPage.vue",
     "isDynamicEntry": true,

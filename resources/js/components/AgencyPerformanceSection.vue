@@ -716,12 +716,7 @@ export default {
           };
           
           const collectionResponse = await window.axios.get(collectionEndpoint, {
-            params: collectionParams,
-            timeout: 120000,
-            headers: {
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache'
-            }
+            params: collectionParams
           });
           
           // Extraire les agences depuis la réponse
@@ -743,12 +738,7 @@ export default {
           };
           
           const volumeDatResponse = await window.axios.get(volumeDatEndpoint, {
-            params: volumeDatParams,
-            timeout: 120000,
-            headers: {
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache'
-            }
+            params: volumeDatParams
           });
           
           // Extraire les agences depuis la réponse
@@ -771,12 +761,7 @@ export default {
           };
           
           const encoursResponse = await window.axios.get(encoursEndpoint, {
-            params: encoursParams,
-            timeout: 120000,
-            headers: {
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache'
-            }
+            params: encoursParams
           });
           
           // Extraire les agences depuis la réponse
@@ -798,14 +783,7 @@ export default {
             year: now.getFullYear()
           };
           
-          const response = await window.axios.get(endpoint, { 
-            params,
-            timeout: 120000,
-            headers: {
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache'
-            }
-          });
+          const response = await window.axios.get(endpoint, { params });
           
           // Extraire les agences depuis la réponse
           const agencies = extractAgencies(response.data, this.dataType, this.currentCollectionTab, (agency) => this.getAgencyName(agency));

@@ -580,6 +580,7 @@ export default {
   background: linear-gradient(180deg, #ffffff, #f5f5f5);
   border-right: 1px solid #e5e7eb;
   height: 100%;
+  max-height: 100vh;
   min-height: 0;
   overflow: hidden;
   box-shadow: 2px 0 8px rgba(15, 23, 42, 0.06);
@@ -589,9 +590,11 @@ export default {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px 0 190px;
+  padding: 16px 0 0;
   display: flex;
   flex-direction: column;
+  position: relative;
+  z-index: 1;
 }
 
 .nav-section {
@@ -729,10 +732,7 @@ export default {
 }
 
 .sidebar-footer {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  margin-top: auto;
   flex-shrink: 0;
   padding: 16px 20px 20px;
   border-top: 1px solid #e5e7eb;
@@ -762,7 +762,7 @@ export default {
   }
   
   .sidebar-nav {
-    padding-bottom: 185px;
+    padding-bottom: 0;
   }
   
   .nav-section-header {
@@ -810,7 +810,7 @@ export default {
   }
   
   .sidebar-nav {
-    padding-bottom: 165px;
+    padding-bottom: 0;
   }
   
   .sidebar-footer {
@@ -856,7 +856,7 @@ export default {
   }
   
   .sidebar-nav {
-    padding-bottom: 140px;
+    padding-bottom: 0;
   }
   
   .sidebar-footer {

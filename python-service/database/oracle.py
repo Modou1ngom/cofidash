@@ -23,7 +23,6 @@ def get_oracle_connection():
     # Vérifier d'abord la connectivité réseau
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(5)  # Timeout de 5 secondes
         result = sock.connect_ex((ORACLE_CONFIG['host'], int(ORACLE_CONFIG['port'])))
         sock.close()
         

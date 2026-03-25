@@ -252,7 +252,7 @@ export default {
       this.loading = true;
       this.loadError = null;
       try {
-        const response = await window.axios.get('/api/reference-compte', { timeout: 10000 });
+        const response = await window.axios.get('/api/reference-compte');
         const data = response.data && response.data.data;
         if (data && Array.isArray(data) && data.length > 0) {
           this.savedBlocs = data.map((b) => {

@@ -6,16 +6,10 @@ use App\Services\OracleService;
 use App\Models\Objective;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class DataController extends Controller
 {
-    /**
-     * URL de base du service Python
-     */
-    private $pythonServiceUrl;
-    
     /**
      * Service Oracle
      */
@@ -23,7 +17,6 @@ class DataController extends Controller
 
     public function __construct(OracleService $oracleService)
     {
-        $this->pythonServiceUrl = env('PYTHON_SERVICE_URL', 'http://localhost:8001');
         $this->oracleService = $oracleService;
     }
 
@@ -836,9 +829,6 @@ class DataController extends Controller
     public function getProductionData(Request $request): JsonResponse
     {
         try {
-            // Construire l'URL de l'API Python
-            $apiUrl = $this->pythonServiceUrl . '/api/oracle/data/production';
-            
             // Récupérer les paramètres de la requête
             $month = $request->input('month');
             $year = $request->input('year');
@@ -863,27 +853,23 @@ class DataController extends Controller
                 $params['month'] = (int)date('n');
                 $params['year'] = (int)date('Y');
             }
-            
-            // Faire l'appel à l'API Python
-            $response = Http::timeout(30)->get($apiUrl, $params);
-            
-            if ($response->successful()) {
-                return response()->json($response->json());
+
+            $result = $this->oracleService->getPythonGetCached('production', '/api/oracle/data/production', $params, 'Production dashboard');
+
+            if ($result['success']) {
+                return response()->json($result['data']);
             }
-            
-            // En cas d'erreur, retourner le message d'erreur
-            $errorData = $response->json();
+
             Log::error('Erreur API Python Production', [
-                'status' => $response->status(),
-                'error' => $errorData
+                'message' => $result['message'] ?? '',
             ]);
-            
+
             return response()->json([
                 'error' => 'Erreur lors de la récupération des données',
-                'detail' => $errorData['detail'] ?? $response->body(),
-                'status' => $response->status()
-            ], $response->status() ?: 500);
-            
+                'detail' => $result['message'] ?? '',
+                'status' => 500,
+            ], 500);
+
         } catch (\Exception $e) {
             Log::error('Exception lors de l\'appel API Python Production', [
                 'message' => $e->getMessage(),
@@ -903,9 +889,6 @@ class DataController extends Controller
     public function getProductionVolumeData(Request $request): JsonResponse
     {
         try {
-            // Construire l'URL de l'API Python
-            $apiUrl = $this->pythonServiceUrl . '/api/oracle/data/production-volume';
-            
             // Récupérer les paramètres de la requête
             $month = $request->input('month');
             $year = $request->input('year');
@@ -930,27 +913,23 @@ class DataController extends Controller
                 $params['month'] = (int)date('n');
                 $params['year'] = (int)date('Y');
             }
-            
-            // Faire l'appel à l'API Python
-            $response = Http::timeout(30)->get($apiUrl, $params);
-            
-            if ($response->successful()) {
-                return response()->json($response->json());
+
+            $result = $this->oracleService->getPythonGetCached('production-volume', '/api/oracle/data/production-volume', $params, 'Production volume');
+
+            if ($result['success']) {
+                return response()->json($result['data']);
             }
-            
-            // En cas d'erreur, retourner le message d'erreur
-            $errorData = $response->json();
+
             Log::error('Erreur API Python Production Volume', [
-                'status' => $response->status(),
-                'error' => $errorData
+                'message' => $result['message'] ?? '',
             ]);
-            
+
             return response()->json([
                 'error' => 'Erreur lors de la récupération des données',
-                'detail' => $errorData['detail'] ?? $response->body(),
-                'status' => $response->status()
-            ], $response->status() ?: 500);
-            
+                'detail' => $result['message'] ?? '',
+                'status' => 500,
+            ], 500);
+
         } catch (\Exception $e) {
             Log::error('Exception lors de l\'appel API Python Production Volume', [
                 'message' => $e->getMessage(),
@@ -1230,9 +1209,6 @@ class DataController extends Controller
             $year = $request->input('year');
             $date = $request->input('date'); // Pour la période "week"
 
-            // Construire l'URL de l'API Python
-            $apiUrl = $this->pythonServiceUrl . '/api/oracle/data/prepaid-card-sales';
-            
             // Construire les paramètres de requête
             $params = [];
             if ($period) {
@@ -1250,24 +1226,23 @@ class DataController extends Controller
             if ($date) {
                 $params['date'] = $date;
             }
-            
-            // Faire l'appel à l'API Python
-            $response = Http::timeout(300)->get($apiUrl, $params);
-            
-            if ($response->successful()) {
-                $data = $response->json();
-                
+
+            $result = $this->oracleService->getPythonGetCached('prepaid-card-sales', '/api/oracle/data/prepaid-card-sales', $params, 'Prepaid card sales');
+
+            if ($result['success']) {
+                $data = $result['data'];
+
                 // Les données peuvent être dans $data directement ou dans $data['data']
                 $actualData = $data;
                 if (isset($data['data']) && is_array($data['data'])) {
                     $actualData = $data['data'];
                 }
-                
+
                 // Fusionner les objectifs personnalisés avec les données Oracle
                 // Utiliser l'année et le mois de la requête, ou les valeurs actuelles
                 $mergeYear = $year ? (int)$year : (int)date('Y');
                 $mergeMonth = null;
-                
+
                 // Déterminer le mois selon la période
                 if ($period === 'month' && $month) {
                     $mergeMonth = (int)$month;
@@ -1280,40 +1255,37 @@ class DataController extends Controller
                 } elseif ($period === 'month') {
                     $mergeMonth = (int)date('n');
                 }
-                
+
                 Log::info('🔄 Début fusion des objectifs PREPAID_CARD', [
                     'year' => $mergeYear,
                     'month' => $mergeMonth,
-                    'period' => $period
+                    'period' => $period,
                 ]);
-                
+
                 // Fusionner les objectifs (utiliser 'PREPAID_CARD' comme type)
                 $actualData = $this->mergeObjectivesWithData($actualData, 'PREPAID_CARD', $mergeYear, $mergeMonth);
-                
+
                 // Remettre les données fusionnées dans la structure originale
                 if (isset($data['data'])) {
                     $data['data'] = $actualData;
                 } else {
                     $data = $actualData;
                 }
-                
+
                 Log::info('✅ Données PREPAID_CARD fusionnées retournées au client');
-                
+
                 return response()->json($data);
             }
-            
-            // En cas d'erreur, retourner le message d'erreur
-            $errorData = $response->json();
+
             Log::error('Erreur API Python Ventes Cartes Prépayées', [
-                'status' => $response->status(),
-                'error' => $errorData
+                'message' => $result['message'] ?? '',
             ]);
-            
+
             return response()->json([
                 'error' => 'Erreur lors de la récupération des données',
-                'detail' => $errorData['detail'] ?? $response->body(),
-                'status' => $response->status()
-            ], $response->status() ?: 500);
+                'detail' => $result['message'] ?? '',
+                'status' => 500,
+            ], 500);
             
         } catch (\Exception $e) {
             Log::error('Exception lors de l\'appel API Python Ventes Cartes Prépayées', [

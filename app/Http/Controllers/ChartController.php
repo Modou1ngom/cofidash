@@ -21,12 +21,20 @@ class ChartController extends Controller
     }
 
     /**
+     * Client HTTP vers le service Python : aucune limite de durée (timeout / connect_timeout = 0).
+     */
+    private function pythonHttp()
+    {
+        return Http::timeout(0)->connectTimeout(0);
+    }
+
+    /**
      * Génère un graphique en ligne (time series)
      */
     public function timeseries(Request $request): JsonResponse
     {
         try {
-            $response = Http::timeout(30)->post("{$this->pythonServiceUrl}/api/charts/timeseries", [
+            $response = $this->pythonHttp()->post("{$this->pythonServiceUrl}/api/charts/timeseries", [
                 'labels' => $request->input('labels', []),
                 'values' => $request->input('values', []),
                 'title' => $request->input('title', 'Évolution des données'),
@@ -57,7 +65,7 @@ class ChartController extends Controller
     public function multiseries(Request $request): JsonResponse
     {
         try {
-            $response = Http::timeout(30)->post("{$this->pythonServiceUrl}/api/charts/multiseries", [
+            $response = $this->pythonHttp()->post("{$this->pythonServiceUrl}/api/charts/multiseries", [
                 'labels' => $request->input('labels', []),
                 'series' => $request->input('series', []),
                 'title' => $request->input('title', 'Graphique multi-séries'),
@@ -88,7 +96,7 @@ class ChartController extends Controller
     public function barchart(Request $request): JsonResponse
     {
         try {
-            $response = Http::timeout(30)->post("{$this->pythonServiceUrl}/api/charts/barchart", [
+            $response = $this->pythonHttp()->post("{$this->pythonServiceUrl}/api/charts/barchart", [
                 'labels' => $request->input('labels', []),
                 'values' => $request->input('values', []),
                 'title' => $request->input('title', 'Graphique en barres'),
@@ -121,7 +129,7 @@ class ChartController extends Controller
     public function evolution(Request $request): JsonResponse
     {
         try {
-            $response = Http::timeout(30)->post("{$this->pythonServiceUrl}/api/charts/evolution", [
+            $response = $this->pythonHttp()->post("{$this->pythonServiceUrl}/api/charts/evolution", [
                 'labels' => $request->input('labels', []),
                 'current' => $request->input('current', []),
                 'previous' => $request->input('previous'),
@@ -153,7 +161,7 @@ class ChartController extends Controller
     public function pie(Request $request): JsonResponse
     {
         try {
-            $response = Http::timeout(30)->post("{$this->pythonServiceUrl}/api/charts/pie", [
+            $response = $this->pythonHttp()->post("{$this->pythonServiceUrl}/api/charts/pie", [
                 'labels' => $request->input('labels', []),
                 'values' => $request->input('values', []),
                 'title' => $request->input('title', 'Graphique circulaire'),

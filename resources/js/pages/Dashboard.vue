@@ -110,29 +110,46 @@
 </template>
 
 <script>
+import { defineAsyncComponent } from 'vue';
 import DashboardHeader from '../components/DashboardHeader.vue';
 import Sidebar from '../components/Sidebar.vue';
-import ClientSection from '../components/ClientSection.vue';
-import CollectionSection from '../components/CollectionSection.vue';
-import ProductionSection from '../components/ProductionSection.vue';
-import ProductionVolumeSection from '../components/ProductionVolumeSection.vue';
-import EncoursCreditSection from '../components/EncoursCreditSection.vue';
-import AddObjectiveSection from '../components/AddObjectiveSection.vue';
-import ValidationSection from '../components/ValidationSection.vue';
-import AgencyPerformanceSection from '../components/AgencyPerformanceSection.vue';
-import PrepaidCardSalesSection from '../components/PrepaidCardSalesSection.vue';
-import PrepaidCardRechargeSection from '../components/PrepaidCardRechargeSection.vue';
-import TerritoryAgencyManagement from '../components/TerritoryAgencyManagement.vue';
-import MoneyTransferSection from '../components/MoneyTransferSection.vue';
-import EnvironmentsSection from '../components/EnvironmentsSection.vue';
-import DepotGarantieSection from '../components/DepotGarantieSection.vue';
-import VolumeDatSection from '../components/VolumeDatSection.vue';
-import EncoursSection from '../components/EncoursSection.vue';
-import PortefeuilleRisqueSection from '../components/PortefeuilleRisqueSection.vue';
-import PortefeuilleRisqueGlobalSection from '../components/PortefeuilleRisqueGlobalSection.vue';
-import CRParAgenceSection from '../components/CRParAgenceSection.vue';
-import ReferenceCompteSection from '../components/ReferenceCompteSection.vue';
 import { ProfileManager } from '../utils/profiles.js';
+
+/** Chargement paresseux des sections : un chunk JS par section, chargé à la navigation. */
+const SectionLoader = {
+  name: 'SectionAsyncLoading',
+  template:
+    '<div class="section-async-loading" role="status" aria-live="polite">Chargement de la section…</div>'
+};
+
+function lazySection(loader) {
+  return defineAsyncComponent({
+    loader,
+    delay: 80,
+    loadingComponent: SectionLoader
+  });
+}
+
+const ClientSection = lazySection(() => import('../components/ClientSection.vue'));
+const CollectionSection = lazySection(() => import('../components/CollectionSection.vue'));
+const ProductionSection = lazySection(() => import('../components/ProductionSection.vue'));
+const ProductionVolumeSection = lazySection(() => import('../components/ProductionVolumeSection.vue'));
+const EncoursCreditSection = lazySection(() => import('../components/EncoursCreditSection.vue'));
+const AddObjectiveSection = lazySection(() => import('../components/AddObjectiveSection.vue'));
+const ValidationSection = lazySection(() => import('../components/ValidationSection.vue'));
+const AgencyPerformanceSection = lazySection(() => import('../components/AgencyPerformanceSection.vue'));
+const PrepaidCardSalesSection = lazySection(() => import('../components/PrepaidCardSalesSection.vue'));
+const PrepaidCardRechargeSection = lazySection(() => import('../components/PrepaidCardRechargeSection.vue'));
+const TerritoryAgencyManagement = lazySection(() => import('../components/TerritoryAgencyManagement.vue'));
+const MoneyTransferSection = lazySection(() => import('../components/MoneyTransferSection.vue'));
+const EnvironmentsSection = lazySection(() => import('../components/EnvironmentsSection.vue'));
+const DepotGarantieSection = lazySection(() => import('../components/DepotGarantieSection.vue'));
+const VolumeDatSection = lazySection(() => import('../components/VolumeDatSection.vue'));
+const EncoursSection = lazySection(() => import('../components/EncoursSection.vue'));
+const PortefeuilleRisqueSection = lazySection(() => import('../components/PortefeuilleRisqueSection.vue'));
+const PortefeuilleRisqueGlobalSection = lazySection(() => import('../components/PortefeuilleRisqueGlobalSection.vue'));
+const CRParAgenceSection = lazySection(() => import('../components/CRParAgenceSection.vue'));
+const ReferenceCompteSection = lazySection(() => import('../components/ReferenceCompteSection.vue'));
 
 export default {
   name: 'Dashboard',
@@ -219,6 +236,7 @@ export default {
 <style scoped>
 .dashboard {
   width: 100%;
+  height: 100vh;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -415,6 +433,15 @@ export default {
   .section-placeholder p {
     font-size: 13px;
   }
+}
+</style>
+
+<style>
+/* Utilisé par SectionLoader (composant inline, hors scope du SFC) */
+.section-async-loading {
+  padding: 1.5rem;
+  color: #6b7280;
+  font-size: 14px;
 }
 </style>
 

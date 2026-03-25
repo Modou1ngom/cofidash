@@ -950,8 +950,7 @@ export default {
         }
         
         const response = await axios.get(apiUrl, { 
-          params,
-          timeout: 300000 // 5 minutes en millisecondes
+          params
         });
         const apiData = response.data;
         

@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 # Configuration du pool
 POOL_SIZE = 5
 MAX_OVERFLOW = 10
-POOL_TIMEOUT = 30  # secondes
 
 class OracleConnectionPool:
     """Pool de connexions Oracle thread-safe"""
@@ -52,12 +51,12 @@ class OracleConnectionPool:
             logger.error(f"Erreur lors de la création d'une connexion: {e}")
             raise
     
-    def get_connection(self, timeout: float = POOL_TIMEOUT):
+    def get_connection(self, timeout: Optional[float] = None):
         """
         Récupère une connexion du pool
         
         Args:
-            timeout: Timeout en secondes pour obtenir une connexion
+            timeout: Délai max en secondes pour obtenir une connexion (None = attente illimitée)
             
         Returns:
             Connexion Oracle
@@ -118,7 +117,7 @@ class OracleConnectionPool:
                 pass
     
     @contextmanager
-    def get_connection_context(self, timeout: float = POOL_TIMEOUT):
+    def get_connection_context(self, timeout: Optional[float] = None):
         """
         Context manager pour obtenir une connexion du pool
         

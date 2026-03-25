@@ -1633,17 +1633,7 @@ export default {
         console.log('🔍 Chargement des données Oracle avec les paramètres:', params);
         console.log('📅 Période sélectionnée:', this.selectedPeriod, 'Date:', this.selectedDate);
         console.log('📅 Timestamp de la requête:', new Date().toISOString());
-        // Ajouter un timestamp pour éviter le cache
-        params._t = Date.now();
-        
-        const response = await window.axios.get('/api/oracle/data/clients', { 
-          params,
-          timeout: 120000, // 120 secondes de timeout
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        });
+        const response = await window.axios.get('/api/oracle/data/clients', { params });
         console.log('✅ Réponse reçue de l\'API Oracle:', response.data);
         
         // La réponse peut être directement les données ou dans response.data.data
