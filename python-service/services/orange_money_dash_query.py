@@ -1,0 +1,45 @@
+# Tables DASH Orange Money (Cofina) — même principe de snapshot que Volume DAT / Production DASH.
+
+
+def sql_dash_envoi_orange_money(inner_where: str) -> str:
+    return f"""
+SELECT
+    CODE_AGENCE,
+    LIBELLE_AGENCE,
+    VOLUME_ENVOIE_OM_M_1,
+    VOLUME_ENVOIE_OM_M,
+    VARIATION_VOLUME,
+    "VARIATION%",
+    MIGRATION_DATE,
+    MIGRATION_DATETIME,
+    MIGRATION_DATE_MINUS1
+FROM DASH_ENVOIE_ORANGE_MONEY
+WHERE MIGRATION_DATETIME = (
+    SELECT MAX(d.MIGRATION_DATETIME)
+    FROM DASH_ENVOIE_ORANGE_MONEY d
+    WHERE {inner_where}
+)
+ORDER BY CODE_AGENCE, LIBELLE_AGENCE
+"""
+
+
+def sql_dash_paiement_orange_money(inner_where: str) -> str:
+    return f"""
+SELECT
+    CODE_AGENCE,
+    LIBELLE_AGENCE,
+    VOLUME_PAIEMENT_OM_M_1,
+    VOLUME_PAIEMENT_OM_M,
+    VARIATION_VOLUME,
+    "VARIATION%",
+    MIGRATION_DATE,
+    MIGRATION_DATETIME,
+    MIGRATION_DATE_MINUS1
+FROM DASH_PAIEMENT_ORANGE_MONEY
+WHERE MIGRATION_DATETIME = (
+    SELECT MAX(d.MIGRATION_DATETIME)
+    FROM DASH_PAIEMENT_ORANGE_MONEY d
+    WHERE {inner_where}
+)
+ORDER BY CODE_AGENCE, LIBELLE_AGENCE
+"""

@@ -63,7 +63,7 @@ const handleSubmit = async (e: Event) => {
 </script>
 
 <template>
-  <div class="login-page relative min-h-screen w-full overflow-hidden" style="background-image: url('/im1.png'); background-size: cover; background-position: center; background-repeat: no-repeat;"> 
+  <div class="login-page relative min-h-screen w-full overflow-hidden" style="background-image: url('/imag.png'); background-size: cover; background-position: center; background-repeat: no-repeat;"> 
     <div class="login-panel-left absolute left-0 top-0 h-full w-1/3 min-w-[120px] rounded-br-[120px] overflow-hidden" style="background-image: url('/im2.png'); background-size: cover; background-position: center; background-repeat: no-repeat;"></div>
 
     <div class="relative z-20 flex min-h-screen min-w-0 w-full items-center justify-center p-4 sm:p-6 perspective-1000">

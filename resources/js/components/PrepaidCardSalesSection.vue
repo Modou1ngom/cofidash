@@ -168,62 +168,6 @@
               </template>
             </template>
 
-            <!-- POINT SERVICES -->
-            <tr v-if="servicePointsTotal && hierarchicalData && hierarchicalData['POINT SERVICES']" class="category-row">
-              <td class="category-cell">
-                <button @click="toggleSection('POINT SERVICES')" class="expand-btn">
-                  {{ expandedSections['POINT SERVICES'] ? '-' : '+' }}
-                </button>
-                <strong>POINT SERVICES</strong>
-              </td>
-              <td><strong>{{ formatNumber(servicePointsTotal.objectif) }}</strong></td>
-              <td><strong>{{ formatNumber(servicePointsTotal.m1) }}</strong></td>
-              <td><strong>{{ formatNumber(servicePointsTotal.m) }}</strong></td>
-              <td :class="getVariationClass(servicePointsTotal.variation)">
-                <strong>{{ formatNumber(servicePointsTotal.variation) }}</strong>
-              </td>
-              <td :class="getVariationClass(servicePointsTotal.variation_pourcent)">
-                <strong>{{ formatPercent(servicePointsTotal.variation_pourcent) }}</strong>
-              </td>
-              <td :class="getAtteinteClass(servicePointsTotal.atteinte)">
-                <strong>{{ formatPercent(servicePointsTotal.atteinte) }}</strong>
-              </td>
-              <td class="contribution">
-                <strong>{{ formatPercent(servicePointsTotal.contribution) }}</strong>
-              </td>
-            </tr>
-            
-            <!-- Agences des points de service -->
-            <template v-if="expandedSections['POINT SERVICES'] && hierarchicalData && hierarchicalData['POINT SERVICES']">
-              <template v-if="hierarchicalData['POINT SERVICES'].service_points && hierarchicalData['POINT SERVICES'].service_points.data && hierarchicalData['POINT SERVICES'].service_points.data.length > 0">
-                <tr v-for="(agency, index) in hierarchicalData['POINT SERVICES'].service_points.data" 
-                    :key="`sp-${agency.CODE_AGENCE || agency.AGENCE || index}`" 
-                    class="sub-agency">
-                  <td class="indent-cell level-2">{{ agency.AGENCE || agency.DESCRIPTION || 'N/A' }}</td>
-                  <td>{{ formatNumber(agency.OBJECTIF_COFICARTE || agency.objectif) }}</td>
-                  <td>{{ formatNumber(agency.NOMBRE_COFICARTE_VENDU_M_1 || agency.m1) }}</td>
-                  <td>{{ formatNumber(agency.NOMBRE_COFICARTE_VENDU_M || agency.m) }}</td>
-                  <td :class="getVariationClass(agency.Variation_Nombre || agency.variationNombre)">
-                    {{ formatNumber(agency.Variation_Nombre || agency.variationNombre) }}
-                  </td>
-                  <td :class="getVariationClass(agency['VARIATION%'] || agency.variationPourcent)">
-                    {{ formatPercent(agency['VARIATION%'] || agency.variationPourcent) }}
-                  </td>
-                  <td :class="getAtteinteClass(agency.TAUX_REALISATION || agency.atteinte)">
-                    {{ formatPercent(agency.TAUX_REALISATION || agency.atteinte) }}
-                  </td>
-                  <td class="contribution">
-                    {{ formatPercent(agency.CONTRIBUTION || agency.contribution) }}
-                  </td>
-                </tr>
-              </template>
-              <tr v-else class="no-data-sub-row">
-                <td colspan="8" class="indent-cell level-2" style="text-align: center; color: #999; padding: 20px;">
-                  Aucune agence de point de service disponible
-                </td>
-              </tr>
-            </template>
-
             <!-- TOTAL -->
             <tr v-if="globalTotal && hierarchicalData" class="total-row">
               <td class="category-cell">TOTAL</td>
@@ -338,12 +282,10 @@ export default {
       hierarchicalData: null,
       expandedSections: {
         TERRITOIRE: true,
-        'POINT SERVICES': false,
         'TERRITOIRE_territoire_dakar_ville': false,
         'TERRITOIRE_territoire_dakar_banlieue': false,
         'TERRITOIRE_territoire_province_centre_sud': false,
-        'TERRITOIRE_territoire_province_nord': false,
-        'POINT SERVICES_service_points': false
+        'TERRITOIRE_territoire_province_nord': false
       },
       selectedPeriod: 'month',
       selectedDate: (() => {
@@ -389,30 +331,24 @@ export default {
       if (total.objectif > 0) {
         total.atteinte = Math.round((total.m / total.objectif) * 100);
       }
-      const globalTotal = total.m + (this.servicePointsTotal?.m || 0);
+      const globalTotal = total.m;
       if (globalTotal > 0) {
         total.contribution = Math.round((total.m / globalTotal) * 100);
       }
       return total;
     },
-    servicePointsTotal() {
-      if (!this.hierarchicalData || !this.hierarchicalData['POINT SERVICES']) return null;
-      const sp = this.hierarchicalData['POINT SERVICES'].service_points;
-      return sp && sp.total ? sp.total : null;
-    },
     globalTotal() {
       const territoire = this.territoireTotal || { m: 0, m1: 0, objectif: 0 };
-      const servicePoints = this.servicePointsTotal || { m: 0, m1: 0, objectif: 0 };
       return {
-        objectif: territoire.objectif + servicePoints.objectif,
-        m1: territoire.m1 + servicePoints.m1,
-        m: territoire.m + servicePoints.m,
-        variation: (territoire.m + servicePoints.m) - (territoire.m1 + servicePoints.m1),
-        variation_pourcent: territoire.m1 + servicePoints.m1 > 0 
-          ? Math.round((((territoire.m + servicePoints.m) - (territoire.m1 + servicePoints.m1)) / (territoire.m1 + servicePoints.m1)) * 100)
+        objectif: territoire.objectif,
+        m1: territoire.m1,
+        m: territoire.m,
+        variation: territoire.m - territoire.m1,
+        variation_pourcent: territoire.m1 > 0
+          ? Math.round(((territoire.m - territoire.m1) / territoire.m1) * 100)
           : 0,
-        atteinte: territoire.objectif + servicePoints.objectif > 0
-          ? Math.round(((territoire.m + servicePoints.m) / (territoire.objectif + servicePoints.objectif)) * 100)
+        atteinte: territoire.objectif > 0
+          ? Math.round((territoire.m / territoire.objectif) * 100)
           : 0
       };
     },
@@ -425,9 +361,6 @@ export default {
             allAgencies.push(...territory.data);
           }
         });
-      }
-      if (this.hierarchicalData['POINT SERVICES'] && this.hierarchicalData['POINT SERVICES'].service_points) {
-        allAgencies.push(...(this.hierarchicalData['POINT SERVICES'].service_points.data || []));
       }
       return allAgencies
         .sort((a, b) => (b.NOMBRE_COFICARTE_VENDU_M || 0) - (a.NOMBRE_COFICARTE_VENDU_M || 0))
@@ -442,9 +375,6 @@ export default {
             allAgencies.push(...territory.data);
           }
         });
-      }
-      if (this.hierarchicalData['POINT SERVICES'] && this.hierarchicalData['POINT SERVICES'].service_points) {
-        allAgencies.push(...(this.hierarchicalData['POINT SERVICES'].service_points.data || []));
       }
       return allAgencies
         .filter(a => (a.NOMBRE_COFICARTE_VENDU_M || 0) > 0)
@@ -530,11 +460,6 @@ export default {
         if (data && data.hierarchicalData) {
           this.hierarchicalData = data.hierarchicalData;
           console.log('✅ Données récupérées:', this.hierarchicalData);
-          console.log('📋 POINT SERVICES:', this.hierarchicalData['POINT SERVICES']);
-          if (this.hierarchicalData['POINT SERVICES'] && this.hierarchicalData['POINT SERVICES'].service_points) {
-            console.log('📋 service_points.data:', this.hierarchicalData['POINT SERVICES'].service_points.data);
-            console.log('📋 Nombre d\'agences:', this.hierarchicalData['POINT SERVICES'].service_points.data?.length || 0);
-          }
           // Attendre que le DOM soit mis à jour puis créer les graphiques
           this.$nextTick(() => {
             setTimeout(() => {

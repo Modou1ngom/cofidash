@@ -3,32 +3,38 @@
     <div class="section-header">
       <h2 class="section-title">Evolution du Portefeuille à risque % - {{ getPeriodTitle() }}</h2>
       <div class="period-selector">
-        <div class="period-group">
-          <label class="period-label">Mois de référence</label>
-          <select v-model="selectedMonthRef" class="month-select" @change="handlePeriodChange">
-            <option v-for="(month, index) in months" :key="'ref-m-' + index" :value="index + 1">
+        <select v-model="selectedPeriod" class="period-select" @change="refreshPortefeuilleData">
+          <option value="week">Semaine</option>
+          <option value="month">Mois</option>
+          <option value="year">Année</option>
+        </select>
+        <template v-if="selectedPeriod === 'week'">
+          <input
+            type="date"
+            v-model="selectedDate"
+            class="date-select"
+            @change="refreshPortefeuilleData"
+          />
+        </template>
+        <template v-if="selectedPeriod === 'month'">
+          <select v-model="selectedMonth" class="month-select" @change="refreshPortefeuilleData">
+            <option v-for="(month, index) in months" :key="'m-' + index" :value="index + 1">
               {{ month }}
             </option>
           </select>
-          <select v-model="selectedYearRef" class="year-select" @change="handlePeriodChange">
-            <option v-for="year in years" :key="'ref-y-' + year" :value="year">
+          <select v-model="selectedYear" class="year-select" @change="refreshPortefeuilleData">
+            <option v-for="year in years" :key="'y-' + year" :value="year">
               {{ year }}
             </option>
           </select>
-        </div>
-        <div class="period-group">
-          <label class="period-label">Mois en cours</label>
-          <select v-model="selectedMonth" class="month-select" @change="handleMonthChange">
-            <option v-for="(month, index) in months" :key="index" :value="index + 1">
-              {{ month }}
-            </option>
-          </select>
-          <select v-model="selectedYear" class="year-select" @change="handleYearChange">
-            <option v-for="year in years" :key="year" :value="year">
+        </template>
+        <template v-if="selectedPeriod === 'year'">
+          <select v-model="selectedYear" class="year-select" @change="refreshPortefeuilleData">
+            <option v-for="year in years" :key="'ya-' + year" :value="year">
               {{ year }}
             </option>
           </select>
-        </div>
+        </template>
       </div>
     </div>
     
@@ -104,9 +110,11 @@
     <div class="global-result-section">
       <div v-if="loading" class="loading-message">
         <p>🔄 Chargement des données ...</p>
-        <--<p style="font-size: 12px; color: #666; margin-top: 5px;">
+        <!--
+        <p style="font-size: 12px; color: #666; margin-top: 5px;">
           ⏱️ Cette opération peut prendre jusqu'à 5 minutes en raison de la complexité des calculs.
         </p>
+        -->
       </div>
       <div v-if="errorMessage" class="error-message">
         <p>⚠️ {{ errorMessage }}</p>
@@ -439,7 +447,7 @@
     <div v-if="entreesParTabs.includes(activeTab)" class="entrees-par-page-container">
       <div class="entrees-par-header">
         <h3 class="entrees-par-title">{{ getEntreesParTitle(activeTab) }}</h3>
-        <p class="entrees-par-subtitle">Données pour la période {{ getPeriodTitle() }} (mois en cours).</p>
+        <p class="entrees-par-subtitle">Données pour la période {{ getPeriodTitle() }} (période courante).</p>
       </div>
       <div class="entrees-par-content">
         <p v-if="entreesParError" class="entrees-par-error">⚠️ {{ entreesParError }}</p>
@@ -504,20 +512,20 @@
             <th rowspan="2" class="par-agence-col-provisions">Provisions</th>
           </tr>
           <tr>
-            <th class="par-sub-header par-0">{{ getParAgenceDateShort(selectedMonthRef, selectedYearRef) }}</th>
-            <th class="par-sub-header par-0">{{ getParAgenceDateShort(selectedMonth, selectedYear) }}</th>
+            <th class="par-sub-header par-0">{{ getParAgenceDateShort(refMonthYear.month, refMonthYear.year) }}</th>
+            <th class="par-sub-header par-0">{{ getParAgenceDateShort(snapshotMonthYear.month, snapshotMonthYear.year) }}</th>
             <th class="par-sub-header par-0">Variation</th>
-            <th class="par-sub-header par-30">{{ getParAgenceDateShort(selectedMonthRef, selectedYearRef) }}</th>
-            <th class="par-sub-header par-30">{{ getParAgenceDateShort(selectedMonth, selectedYear) }}</th>
+            <th class="par-sub-header par-30">{{ getParAgenceDateShort(refMonthYear.month, refMonthYear.year) }}</th>
+            <th class="par-sub-header par-30">{{ getParAgenceDateShort(snapshotMonthYear.month, snapshotMonthYear.year) }}</th>
             <th class="par-sub-header par-30">Variation</th>
-            <th class="par-sub-header par-90">{{ getParAgenceDateShort(selectedMonthRef, selectedYearRef) }}</th>
-            <th class="par-sub-header par-90">{{ getParAgenceDateShort(selectedMonth, selectedYear) }}</th>
+            <th class="par-sub-header par-90">{{ getParAgenceDateShort(refMonthYear.month, refMonthYear.year) }}</th>
+            <th class="par-sub-header par-90">{{ getParAgenceDateShort(snapshotMonthYear.month, snapshotMonthYear.year) }}</th>
             <th class="par-sub-header par-90">Variation</th>
-            <th class="par-sub-header par-180">{{ getParAgenceDateShort(selectedMonthRef, selectedYearRef) }}</th>
-            <th class="par-sub-header par-180">{{ getParAgenceDateShort(selectedMonth, selectedYear) }}</th>
+            <th class="par-sub-header par-180">{{ getParAgenceDateShort(refMonthYear.month, refMonthYear.year) }}</th>
+            <th class="par-sub-header par-180">{{ getParAgenceDateShort(snapshotMonthYear.month, snapshotMonthYear.year) }}</th>
             <th class="par-sub-header par-180">Variation</th>
-            <th class="par-sub-header par-360">{{ getParAgenceDateShort(selectedMonthRef, selectedYearRef) }}</th>
-            <th class="par-sub-header par-360">{{ getParAgenceDateShort(selectedMonth, selectedYear) }}</th>
+            <th class="par-sub-header par-360">{{ getParAgenceDateShort(refMonthYear.month, refMonthYear.year) }}</th>
+            <th class="par-sub-header par-360">{{ getParAgenceDateShort(snapshotMonthYear.month, snapshotMonthYear.year) }}</th>
             <th class="par-sub-header par-360">Variation</th>
           </tr>
         </thead>
@@ -581,6 +589,7 @@
           <template v-else>
             <!-- TERRITOIRE -->
             <template v-for="(territory, territoryKey) in filteredHierarchicalData.TERRITOIRE" :key="territoryKey">
+              <template v-if="territoryKey !== 'grand_compte'">
               <tr class="territory-row" @click="toggleExpand(`TERRITOIRE_${territoryKey}`)">
                 <td class="territory-cell">
                   <button class="expand-btn" @click.stop="toggleExpand(`TERRITOIRE_${territoryKey}`)">
@@ -681,111 +690,98 @@
                   </tr>
                 </template>
               </template>
+              </template>
             </template>
-            
-            <!-- POINT SERVICES -->
-            <template v-if="filteredHierarchicalData['POINT SERVICES'] && Object.keys(filteredHierarchicalData['POINT SERVICES']).length > 0">
-              <tr class="territory-row" @click="toggleExpand('POINT SERVICES')">
+
+            <!-- GRAND COMPTE -->
+            <template v-if="grandCompteParTerritory">
+              <tr class="territory-row grand-compte-par-row" @click="toggleExpand('TERRITOIRE_grand_compte')">
                 <td class="territory-cell">
-                  <button class="expand-btn" @click.stop="toggleExpand('POINT SERVICES')">
-                    {{ expandedSections['POINT SERVICES'] ? '−' : '+' }}
+                  <button class="expand-btn" @click.stop="toggleExpand('TERRITOIRE_grand_compte')">
+                    {{ expandedSections['TERRITOIRE_grand_compte'] ? '−' : '+' }}
                   </button>
-                  <strong>POINT SERVICES</strong>
+                  <strong>{{ grandCompteParTerritory.name || 'GRAND COMPTE' }}</strong>
                 </td>
                 <td class="par-agence-encours">–</td>
                 <td class="par-agence-dossiers">–</td>
-                <!-- PAR 0 -->
-                <td><strong>{{ formatPercentValue(pointServicesTotal.par0M1) }}</strong></td>
-                <td><strong>{{ formatPercentValue(pointServicesTotal.par0M) }}</strong></td>
-                <td :class="getVariationClass(calculatePercent(pointServicesTotal.par0M1, pointServicesTotal.par0M))">
-                  <strong>{{ formatVariation(calculatePercent(pointServicesTotal.par0M1, pointServicesTotal.par0M)) }}</strong>
+                <td><strong>{{ formatPercentValue(grandCompteParTerritory.totals?.par0M1 || 0) }}</strong></td>
+                <td><strong>{{ formatPercentValue(grandCompteParTerritory.totals?.par0M || 0) }}</strong></td>
+                <td :class="getVariationClass(calculatePercent(grandCompteParTerritory.totals?.par0M1 || 0, grandCompteParTerritory.totals?.par0M || 0))">
+                  <strong>{{ formatVariation(calculatePercent(grandCompteParTerritory.totals?.par0M1 || 0, grandCompteParTerritory.totals?.par0M || 0)) }}</strong>
                 </td>
-                <!-- PAR 30 -->
-                <td><strong>{{ formatPercentValue(pointServicesTotal.par30M1) }}</strong></td>
-                <td><strong>{{ formatPercentValue(pointServicesTotal.par30M) }}</strong></td>
-                <td :class="getVariationClass(calculatePercent(pointServicesTotal.par30M1, pointServicesTotal.par30M))">
-                  <strong>{{ formatVariation(calculatePercent(pointServicesTotal.par30M1, pointServicesTotal.par30M)) }}</strong>
+                <td><strong>{{ formatPercentValue(grandCompteParTerritory.totals?.par30M1 || 0) }}</strong></td>
+                <td><strong>{{ formatPercentValue(grandCompteParTerritory.totals?.par30M || 0) }}</strong></td>
+                <td :class="getVariationClass(calculatePercent(grandCompteParTerritory.totals?.par30M1 || 0, grandCompteParTerritory.totals?.par30M || 0))">
+                  <strong>{{ formatVariation(calculatePercent(grandCompteParTerritory.totals?.par30M1 || 0, grandCompteParTerritory.totals?.par30M || 0)) }}</strong>
                 </td>
-                <!-- PAR 90 -->
-                <td><strong>{{ formatPercentValue(pointServicesTotal.par90M1) }}</strong></td>
-                <td><strong>{{ formatPercentValue(pointServicesTotal.par90M) }}</strong></td>
-                <td :class="getVariationClass(calculatePercent(pointServicesTotal.par90M1, pointServicesTotal.par90M))">
-                  <strong>{{ formatVariation(calculatePercent(pointServicesTotal.par90M1, pointServicesTotal.par90M)) }}</strong>
+                <td><strong>{{ formatPercentValue(grandCompteParTerritory.totals?.par90M1 || 0) }}</strong></td>
+                <td><strong>{{ formatPercentValue(grandCompteParTerritory.totals?.par90M || 0) }}</strong></td>
+                <td :class="getVariationClass(calculatePercent(grandCompteParTerritory.totals?.par90M1 || 0, grandCompteParTerritory.totals?.par90M || 0))">
+                  <strong>{{ formatVariation(calculatePercent(grandCompteParTerritory.totals?.par90M1 || 0, grandCompteParTerritory.totals?.par90M || 0)) }}</strong>
                 </td>
-                <!-- PAR 180 -->
-                <td><strong>{{ formatPercentValue(pointServicesTotal.par180M1) }}</strong></td>
-                <td><strong>{{ formatPercentValue(pointServicesTotal.par180M) }}</strong></td>
-                <td :class="getVariationClass(calculatePercent(pointServicesTotal.par180M1, pointServicesTotal.par180M))">
-                  <strong>{{ formatVariation(calculatePercent(pointServicesTotal.par180M1, pointServicesTotal.par180M)) }}</strong>
+                <td><strong>{{ formatPercentValue(grandCompteParTerritory.totals?.par180M1 || 0) }}</strong></td>
+                <td><strong>{{ formatPercentValue(grandCompteParTerritory.totals?.par180M || 0) }}</strong></td>
+                <td :class="getVariationClass(calculatePercent(grandCompteParTerritory.totals?.par180M1 || 0, grandCompteParTerritory.totals?.par180M || 0))">
+                  <strong>{{ formatVariation(calculatePercent(grandCompteParTerritory.totals?.par180M1 || 0, grandCompteParTerritory.totals?.par180M || 0)) }}</strong>
                 </td>
-                <!-- PAR 360 -->
-                <td><strong>{{ formatPercentValue(pointServicesTotal.par360M1) }}</strong></td>
-                <td><strong>{{ formatPercentValue(pointServicesTotal.par360M) }}</strong></td>
-                <td :class="getVariationClass(calculatePercent(pointServicesTotal.par360M1, pointServicesTotal.par360M))">
-                  <strong>{{ formatVariation(calculatePercent(pointServicesTotal.par360M1, pointServicesTotal.par360M)) }}</strong>
+                <td><strong>{{ formatPercentValue(grandCompteParTerritory.totals?.par360M1 || 0) }}</strong></td>
+                <td><strong>{{ formatPercentValue(grandCompteParTerritory.totals?.par360M || 0) }}</strong></td>
+                <td :class="getVariationClass(calculatePercent(grandCompteParTerritory.totals?.par360M1 || 0, grandCompteParTerritory.totals?.par360M || 0))">
+                  <strong>{{ formatVariation(calculatePercent(grandCompteParTerritory.totals?.par360M1 || 0, grandCompteParTerritory.totals?.par360M || 0)) }}</strong>
                 </td>
                 <td class="par-agence-provisions">–</td>
               </tr>
-              <!-- Agences des points de service -->
-              <template v-if="expandedSections['POINT SERVICES']">
-                <template v-for="(servicePoint, servicePointKey) in filteredHierarchicalData['POINT SERVICES']" :key="servicePointKey">
-                  <template v-if="servicePoint.agencies && servicePoint.agencies.length > 0">
-                    <template v-for="(agency, index) in servicePoint.agencies" :key="getAgencyKey(agency, index)">
-                      <tr class="agency-row">
-                        <td class="agency-cell">
-                          {{ agency.name || agency.AGENCE || getAgencyName(agency) }}
-                        </td>
-                        <td class="par-agence-encours">
-                          <div class="par-agence-bar-wrap">
-                            <span class="par-agence-value">{{ getAgencyEncours(agency) != null ? formatCurrency(getAgencyEncours(agency)) : '–' }}</span>
-                            <div class="par-agence-bar par-agence-bar-encours" :style="{ width: getBarPercent(getAgencyEncours(agency), parAgenceMaxEncours) + '%' }"></div>
-                          </div>
-                        </td>
-                        <td class="par-agence-dossiers">
-                          <div class="par-agence-bar-wrap">
-                            <span class="par-agence-value">{{ getAgencyDossiers(agency) != null ? formatNumber(getAgencyDossiers(agency)) : '–' }}</span>
-                            <div class="par-agence-bar par-agence-bar-dossiers" :style="{ width: getBarPercent(getAgencyDossiers(agency), parAgenceMaxDossiers) + '%' }"></div>
-                          </div>
-                        </td>
-                        <!-- PAR 0 -->
-                        <td>{{ formatPercentValue(getAgencyValue(agency, 'PAR_0_M_1')) }}</td>
-                        <td>{{ formatPercentValue(getAgencyValue(agency, 'PAR_0_M')) }}</td>
-                        <td :class="getVariationClass(calculatePercent(getAgencyValue(agency, 'PAR_0_M_1'), getAgencyValue(agency, 'PAR_0_M')))">
-                          {{ formatVariation(calculatePercent(getAgencyValue(agency, 'PAR_0_M_1'), getAgencyValue(agency, 'PAR_0_M'))) }}
-                        </td>
-                        <!-- PAR 30 -->
-                        <td>{{ formatPercentValue(getAgencyValue(agency, 'PAR_30_M_1')) }}</td>
-                        <td>{{ formatPercentValue(getAgencyValue(agency, 'PAR_30_M')) }}</td>
-                        <td :class="getVariationClass(calculatePercent(getAgencyValue(agency, 'PAR_30_M_1'), getAgencyValue(agency, 'PAR_30_M')))">
-                          {{ formatVariation(calculatePercent(getAgencyValue(agency, 'PAR_30_M_1'), getAgencyValue(agency, 'PAR_30_M'))) }}
-                        </td>
-                        <!-- PAR 90 -->
-                        <td>{{ formatPercentValue(getAgencyValue(agency, 'PAR_90_M_1')) }}</td>
-                        <td>{{ formatPercentValue(getAgencyValue(agency, 'PAR_90_M')) }}</td>
-                        <td :class="getVariationClass(calculatePercent(getAgencyValue(agency, 'PAR_90_M_1'), getAgencyValue(agency, 'PAR_90_M')))">
-                          {{ formatVariation(calculatePercent(getAgencyValue(agency, 'PAR_90_M_1'), getAgencyValue(agency, 'PAR_90_M'))) }}
-                        </td>
-                        <!-- PAR 180 -->
-                        <td>{{ formatPercentValue(getAgencyValue(agency, 'PAR_180_M_1')) }}</td>
-                        <td>{{ formatPercentValue(getAgencyValue(agency, 'PAR_180_M')) }}</td>
-                        <td :class="getVariationClass(calculatePercent(getAgencyValue(agency, 'PAR_180_M_1'), getAgencyValue(agency, 'PAR_180_M')))">
-                          {{ formatVariation(calculatePercent(getAgencyValue(agency, 'PAR_180_M_1'), getAgencyValue(agency, 'PAR_180_M'))) }}
-                        </td>
-                        <!-- PAR 360 -->
-                        <td>{{ formatPercentValue(getAgencyValue(agency, 'PAR_360_M_1')) }}</td>
-                        <td>{{ formatPercentValue(getAgencyValue(agency, 'PAR_360_M')) }}</td>
-                        <td :class="getVariationClass(calculatePercent(getAgencyValue(agency, 'PAR_360_M_1'), getAgencyValue(agency, 'PAR_360_M')))">
-                          {{ formatVariation(calculatePercent(getAgencyValue(agency, 'PAR_360_M_1'), getAgencyValue(agency, 'PAR_360_M'))) }}
-                        </td>
-                        <td class="par-agence-provisions">
-                          <div class="par-agence-bar-wrap">
-                            <span class="par-agence-value">{{ getAgencyProvisions(agency) != null ? formatCurrency(getAgencyProvisions(agency)) : '–' }}</span>
-                            <div class="par-agence-bar par-agence-bar-provisions" :style="{ width: getBarPercent(getAgencyProvisions(agency), parAgenceMaxProvisions) + '%' }"></div>
-                          </div>
-                        </td>
-                      </tr>
-                    </template>
-                  </template>
+              <template v-if="expandedSections['TERRITOIRE_grand_compte']">
+                <template v-for="(agency, index) in (grandCompteParTerritory.agencies || [])" :key="'gc-' + getAgencyKey(agency, index)">
+                  <tr class="agency-row">
+                    <td class="agency-cell">
+                      {{ agency.name || agency.AGENCE || getAgencyName(agency) }}
+                    </td>
+                    <td class="par-agence-encours">
+                      <div class="par-agence-bar-wrap">
+                        <span class="par-agence-value">{{ getAgencyEncours(agency) != null ? formatCurrency(getAgencyEncours(agency)) : '–' }}</span>
+                        <div class="par-agence-bar par-agence-bar-encours" :style="{ width: getBarPercent(getAgencyEncours(agency), parAgenceMaxEncours) + '%' }"></div>
+                      </div>
+                    </td>
+                    <td class="par-agence-dossiers">
+                      <div class="par-agence-bar-wrap">
+                        <span class="par-agence-value">{{ getAgencyDossiers(agency) != null ? formatNumber(getAgencyDossiers(agency)) : '–' }}</span>
+                        <div class="par-agence-bar par-agence-bar-dossiers" :style="{ width: getBarPercent(getAgencyDossiers(agency), parAgenceMaxDossiers) + '%' }"></div>
+                      </div>
+                    </td>
+                    <td><span class="par-agence-cell-content">{{ formatPercentValue(getAgencyValue(agency, 'PAR_0_M_1')) }}</span><span :class="getRecapIndicatorClass(getAgencyValue(agency, 'PAR_0_M_1'), 'par0')"></span></td>
+                    <td><span class="par-agence-cell-content">{{ formatPercentValue(getAgencyValue(agency, 'PAR_0_M')) }}</span><span :class="getRecapIndicatorClass(getAgencyValue(agency, 'PAR_0_M'), 'par0')"></span></td>
+                    <td :class="getVariationClass(calculatePercent(getAgencyValue(agency, 'PAR_0_M_1'), getAgencyValue(agency, 'PAR_0_M')))">
+                      <span class="par-agence-cell-content">{{ formatVariation(calculatePercent(getAgencyValue(agency, 'PAR_0_M_1'), getAgencyValue(agency, 'PAR_0_M'))) }}</span>
+                      <span :class="getRecapVarIndicatorClass(calculatePercent(getAgencyValue(agency, 'PAR_0_M_1'), getAgencyValue(agency, 'PAR_0_M')))"></span>
+                    </td>
+                    <td><span class="par-agence-cell-content">{{ formatPercentValue(getAgencyValue(agency, 'PAR_30_M_1')) }}</span><span :class="getRecapIndicatorClass(getAgencyValue(agency, 'PAR_30_M_1'), 'par30')"></span></td>
+                    <td>{{ formatPercentValue(getAgencyValue(agency, 'PAR_30_M')) }}</td>
+                    <td :class="getVariationClass(calculatePercent(getAgencyValue(agency, 'PAR_30_M_1'), getAgencyValue(agency, 'PAR_30_M')))">
+                      {{ formatVariation(calculatePercent(getAgencyValue(agency, 'PAR_30_M_1'), getAgencyValue(agency, 'PAR_30_M'))) }}
+                    </td>
+                    <td>{{ formatPercentValue(getAgencyValue(agency, 'PAR_90_M_1')) }}</td>
+                    <td>{{ formatPercentValue(getAgencyValue(agency, 'PAR_90_M')) }}</td>
+                    <td :class="getVariationClass(calculatePercent(getAgencyValue(agency, 'PAR_90_M_1'), getAgencyValue(agency, 'PAR_90_M')))">
+                      {{ formatVariation(calculatePercent(getAgencyValue(agency, 'PAR_90_M_1'), getAgencyValue(agency, 'PAR_90_M'))) }}
+                    </td>
+                    <td>{{ formatPercentValue(getAgencyValue(agency, 'PAR_180_M_1')) }}</td>
+                    <td>{{ formatPercentValue(getAgencyValue(agency, 'PAR_180_M')) }}</td>
+                    <td :class="getVariationClass(calculatePercent(getAgencyValue(agency, 'PAR_180_M_1'), getAgencyValue(agency, 'PAR_180_M')))">
+                      {{ formatVariation(calculatePercent(getAgencyValue(agency, 'PAR_180_M_1'), getAgencyValue(agency, 'PAR_180_M'))) }}
+                    </td>
+                    <td>{{ formatPercentValue(getAgencyValue(agency, 'PAR_360_M_1')) }}</td>
+                    <td>{{ formatPercentValue(getAgencyValue(agency, 'PAR_360_M')) }}</td>
+                    <td :class="getVariationClass(calculatePercent(getAgencyValue(agency, 'PAR_360_M_1'), getAgencyValue(agency, 'PAR_360_M')))">
+                      {{ formatVariation(calculatePercent(getAgencyValue(agency, 'PAR_360_M_1'), getAgencyValue(agency, 'PAR_360_M'))) }}
+                    </td>
+                    <td class="par-agence-provisions">
+                      <div class="par-agence-bar-wrap">
+                        <span class="par-agence-value">{{ getAgencyProvisions(agency) != null ? formatCurrency(getAgencyProvisions(agency)) : '–' }}</span>
+                        <div class="par-agence-bar par-agence-bar-provisions" :style="{ width: getBarPercent(getAgencyProvisions(agency), parAgenceMaxProvisions) + '%' }"></div>
+                      </div>
+                    </td>
+                  </tr>
                 </template>
               </template>
             </template>
@@ -843,13 +839,14 @@ export default {
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
-    const refMonth = currentMonth === 1 ? 12 : currentMonth - 1;
-    const refYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+    const y = currentYear;
+    const m = String(currentMonth).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
     return {
+      selectedPeriod: 'month',
+      selectedDate: `${y}-${m}-${d}`,
       selectedMonth: currentMonth,
       selectedYear: currentYear,
-      selectedMonthRef: refMonth,
-      selectedYearRef: refYear,
       months: [
         'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
         'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
@@ -858,8 +855,7 @@ export default {
       cafLoading: false,
       errorMessage: null,
       hierarchicalDataFromBackend: {
-        TERRITOIRE: {},
-        'POINT SERVICES': {}
+        TERRITOIRE: {}
       },
       expandedSections: {},
       activeTab: 'par-caf',
@@ -902,6 +898,32 @@ export default {
         years.push(i);
       }
       return years;
+    },
+    /** Mois/année « snapshot » envoyés à l’API (aligné sur Production : semaine / mois / année). */
+    snapshotMonthYear() {
+      const p = this.selectedPeriod;
+      if (p === 'month') {
+        return { month: this.selectedMonth, year: this.selectedYear };
+      }
+      if (p === 'year') {
+        return { month: 12, year: this.selectedYear };
+      }
+      if (p === 'week' && this.selectedDate) {
+        const dt = new Date(`${this.selectedDate}T12:00:00`);
+        if (Number.isNaN(dt.getTime())) {
+          const n = new Date();
+          return { month: n.getMonth() + 1, year: n.getFullYear() };
+        }
+        return { month: dt.getMonth() + 1, year: dt.getFullYear() };
+      }
+      const n = new Date();
+      return { month: n.getMonth() + 1, year: n.getFullYear() };
+    },
+    /** M-1 du snapshot (libellés uniquement ; le backend déduit M-1 si refs non envoyées). */
+    refMonthYear() {
+      const { month: m, year: y } = this.snapshotMonthYear;
+      if (m === 1) return { month: 12, year: y - 1 };
+      return { month: m - 1, year: y };
     },
     filteredAgencies() {
       const list = [this.allAgenciesKey, ...this.agencies];
@@ -949,30 +971,22 @@ export default {
       });
       return max || 1;
     },
-    /** True si on a au moins un territoire ou des agences point de service (données PAR AGENCE). */
+    /** True si on a au moins un territoire (données PAR AGENCE). */
     parAgenceHasData() {
       const h = this.filteredHierarchicalData || {};
-      const territories = h.TERRITOIRE && Object.keys(h.TERRITOIRE).length > 0;
-      if (territories) return true;
-      const ps = h['POINT SERVICES'];
-      if (ps && ps.service_points && (ps.service_points.agencies || []).length > 0) return true;
-      return false;
+      return !!(h.TERRITOIRE && Object.keys(h.TERRITOIRE).length > 0);
     },
     /** Nombre de lignes vides à afficher quand pas de données (tableau toujours visible). */
     parAgenceEmptyRowCount() {
       return 25;
     },
-    /** Liste plate de toutes les agences (territoires + points de service) pour max barres. */
+    /** Liste plate de toutes les agences (territoires) pour max barres. */
     parAgenceAllAgencies() {
       const list = [];
       const h = this.filteredHierarchicalData || {};
       (h.TERRITOIRE && Object.values(h.TERRITOIRE))?.forEach(territory => {
         (territory.agencies || []).forEach(agency => list.push(agency));
       });
-      const ps = h['POINT SERVICES'];
-      if (ps && ps.service_points && ps.service_points.agencies) {
-        ps.service_points.agencies.forEach(agency => list.push(agency));
-      }
       return list;
     },
     /** Toujours 50 lignes pour le tableau PAR | CAF (données ou placeholders) */
@@ -1043,9 +1057,16 @@ export default {
     },
     filteredHierarchicalData() {
       return this.hierarchicalData || {
-        TERRITOIRE: {},
-        'POINT SERVICES': {}
+        TERRITOIRE: {}
       };
+    },
+    /** Bloc hiérarchique GRAND COMPTE (API Python), aligné sur les autres dashboards. */
+    grandCompteParTerritory() {
+      const gc = this.filteredHierarchicalData?.TERRITOIRE?.grand_compte;
+      if (!gc || !Array.isArray(gc.agencies) || gc.agencies.length === 0) {
+        return null;
+      }
+      return gc;
     },
     hierarchicalData() {
       if (this.hierarchicalDataFromBackend && typeof this.hierarchicalDataFromBackend === 'object') {
@@ -1056,97 +1077,34 @@ export default {
         }
       }
       return {
-        TERRITOIRE: {},
-        'POINT SERVICES': {}
+        TERRITOIRE: {}
       };
-    },
-    pointServicesTotal() {
-      if (!this.filteredHierarchicalData || !this.filteredHierarchicalData['POINT SERVICES']) {
-        return {
-          par0M1: 0, par0M: 0, par0Ecart: 0, par0Percent: 0,
-          par30M1: 0, par30M: 0, par30Ecart: 0, par30Percent: 0,
-          par90M1: 0, par90M: 0, par90Ecart: 0, par90Percent: 0,
-          par180M1: 0, par180M: 0, par180Ecart: 0, par180Percent: 0,
-          par360M1: 0, par360M: 0, par360Ecart: 0, par360Percent: 0
-        };
-      }
-      
-      let total = {
-        par0M1: 0, par0M: 0, par0Ecart: 0, par0Percent: 0,
-        par30M1: 0, par30M: 0, par30Ecart: 0, par30Percent: 0,
-        par90M1: 0, par90M: 0, par90Ecart: 0, par90Percent: 0,
-        par180M1: 0, par180M: 0, par180Ecart: 0, par180Percent: 0,
-        par360M1: 0, par360M: 0, par360Ecart: 0, par360Percent: 0
-      };
-      
-      Object.values(this.filteredHierarchicalData['POINT SERVICES']).forEach(servicePoint => {
-        if (servicePoint.totals) {
-          total.par0M1 += servicePoint.totals.par0M1 || 0;
-          total.par0M += servicePoint.totals.par0M || 0;
-          total.par30M1 += servicePoint.totals.par30M1 || 0;
-          total.par30M += servicePoint.totals.par30M || 0;
-          total.par90M1 += servicePoint.totals.par90M1 || 0;
-          total.par90M += servicePoint.totals.par90M || 0;
-          total.par180M1 += servicePoint.totals.par180M1 || 0;
-          total.par180M += servicePoint.totals.par180M || 0;
-          total.par360M1 += servicePoint.totals.par360M1 || 0;
-          total.par360M += servicePoint.totals.par360M || 0;
-        } else if (servicePoint.agencies) {
-          servicePoint.agencies.forEach(agency => {
-            total.par0M1 += this.getAgencyValue(agency, 'PAR_0_M_1') || 0;
-            total.par0M += this.getAgencyValue(agency, 'PAR_0_M') || 0;
-            total.par30M1 += this.getAgencyValue(agency, 'PAR_30_M_1') || 0;
-            total.par30M += this.getAgencyValue(agency, 'PAR_30_M') || 0;
-            total.par90M1 += this.getAgencyValue(agency, 'PAR_90_M_1') || 0;
-            total.par90M += this.getAgencyValue(agency, 'PAR_90_M') || 0;
-            total.par180M1 += this.getAgencyValue(agency, 'PAR_180_M_1') || 0;
-            total.par180M += this.getAgencyValue(agency, 'PAR_180_M') || 0;
-            total.par360M1 += this.getAgencyValue(agency, 'PAR_360_M_1') || 0;
-            total.par360M += this.getAgencyValue(agency, 'PAR_360_M') || 0;
-          });
-        }
-      });
-      
-      total.par0Ecart = total.par0M - total.par0M1;
-      total.par30Ecart = total.par30M - total.par30M1;
-      total.par90Ecart = total.par90M - total.par90M1;
-      total.par180Ecart = total.par180M - total.par180M1;
-      total.par360Ecart = total.par360M - total.par360M1;
-      
-      total.par0Percent = total.par0M1 !== 0 ? (total.par0Ecart / total.par0M1) * 100 : 0;
-      total.par30Percent = total.par30M1 !== 0 ? (total.par30Ecart / total.par30M1) * 100 : 0;
-      total.par90Percent = total.par90M1 !== 0 ? (total.par90Ecart / total.par90M1) * 100 : 0;
-      total.par180Percent = total.par180M1 !== 0 ? (total.par180Ecart / total.par180M1) * 100 : 0;
-      total.par360Percent = total.par360M1 !== 0 ? (total.par360Ecart / total.par360M1) * 100 : 0;
-      
-      return total;
     },
     totalGeneral() {
       const territoire = this.territoireTotal;
-      const pointServices = this.pointServicesTotal;
       
-      const par0M1 = territoire.par0M1 + pointServices.par0M1;
-      const par0M = territoire.par0M + pointServices.par0M;
+      const par0M1 = territoire.par0M1;
+      const par0M = territoire.par0M;
       const par0Ecart = par0M - par0M1;
       const par0Percent = par0M1 !== 0 ? (par0Ecart / par0M1) * 100 : 0;
       
-      const par30M1 = territoire.par30M1 + pointServices.par30M1;
-      const par30M = territoire.par30M + pointServices.par30M;
+      const par30M1 = territoire.par30M1;
+      const par30M = territoire.par30M;
       const par30Ecart = par30M - par30M1;
       const par30Percent = par30M1 !== 0 ? (par30Ecart / par30M1) * 100 : 0;
       
-      const par90M1 = territoire.par90M1 + pointServices.par90M1;
-      const par90M = territoire.par90M + pointServices.par90M;
+      const par90M1 = territoire.par90M1;
+      const par90M = territoire.par90M;
       const par90Ecart = par90M - par90M1;
       const par90Percent = par90M1 !== 0 ? (par90Ecart / par90M1) * 100 : 0;
       
-      const par180M1 = territoire.par180M1 + pointServices.par180M1;
-      const par180M = territoire.par180M + pointServices.par180M;
+      const par180M1 = territoire.par180M1;
+      const par180M = territoire.par180M;
       const par180Ecart = par180M - par180M1;
       const par180Percent = par180M1 !== 0 ? (par180Ecart / par180M1) * 100 : 0;
       
-      const par360M1 = territoire.par360M1 + pointServices.par360M1;
-      const par360M = territoire.par360M + pointServices.par360M;
+      const par360M1 = territoire.par360M1;
+      const par360M = territoire.par360M;
       const par360Ecart = par360M - par360M1;
       const par360Percent = par360M1 !== 0 ? (par360Ecart / par360M1) * 100 : 0;
       
@@ -1236,12 +1194,6 @@ export default {
       if (this.entreesParTabs.includes(newVal)) {
         this.fetchEntreesParData();
       }
-    },
-    selectedMonth() {
-      if (this.entreesParTabs.includes(this.activeTab)) this.fetchEntreesParData();
-    },
-    selectedYear() {
-      if (this.entreesParTabs.includes(this.activeTab)) this.fetchEntreesParData();
     }
   },
   mounted() {
@@ -1274,8 +1226,8 @@ export default {
       try {
         const response = await axios.get('/api/oracle/data/entrees-par', {
           params: {
-            month: this.selectedMonth,
-            year: this.selectedYear,
+            month: this.snapshotMonthYear.month,
+            year: this.snapshotMonthYear.year,
             par,
             _t: Date.now()
           }
@@ -1290,9 +1242,12 @@ export default {
         this.entreesParLoading = false;
       }
     },
-    handlePeriodChange() {
+    refreshPortefeuilleData() {
       this.fetchData();
       this.fetchCafData(this.selectedAgency);
+      if (this.entreesParTabs.includes(this.activeTab)) {
+        this.fetchEntreesParData();
+      }
     },
     async fetchData() {
       this.loading = true;
@@ -1301,10 +1256,8 @@ export default {
       try {
         const response = await axios.get('/api/oracle/data/portefeuille-risque', {
           params: {
-            month: this.selectedMonth,
-            year: this.selectedYear,
-            month_ref: this.selectedMonthRef,
-            year_ref: this.selectedYearRef,
+            month: this.snapshotMonthYear.month,
+            year: this.snapshotMonthYear.year,
             _t: Date.now()
           }
         });
@@ -1313,28 +1266,18 @@ export default {
           this.hierarchicalDataFromBackend = response.data.hierarchicalData;
         } else {
           this.hierarchicalDataFromBackend = {
-            TERRITOIRE: {},
-            'POINT SERVICES': {}
+            TERRITOIRE: {}
           };
         }
       } catch (err) {
         console.error('Erreur lors de la récupération des données PAR:', err);
         this.errorMessage = err.response?.data?.detail || err.response?.data?.error || 'Erreur lors de la récupération des données';
         this.hierarchicalDataFromBackend = {
-          TERRITOIRE: {},
-          'POINT SERVICES': {}
+          TERRITOIRE: {}
         };
       } finally {
         this.loading = false;
       }
-    },
-    handleMonthChange() {
-      this.fetchData();
-      this.fetchCafData(this.selectedAgency);
-    },
-    handleYearChange() {
-      this.fetchData();
-      this.fetchCafData(this.selectedAgency);
     },
     toggleExpand(section) {
       this.expandedSections[section] = !this.expandedSections[section];
@@ -1453,10 +1396,12 @@ export default {
       return this.getDateRefLabel();
     },
     getDateRefLabel() {
-      return `${this.months[this.selectedMonthRef - 1]} ${this.selectedYearRef}`;
+      const r = this.refMonthYear;
+      return `${this.months[r.month - 1]} ${r.year}`;
     },
     getDateMLabel() {
-      return `${this.months[this.selectedMonth - 1]} ${this.selectedYear}`;
+      const s = this.snapshotMonthYear;
+      return `${this.months[s.month - 1]} ${s.year}`;
     },
     /** Dernier jour du mois au format DD/MM/YYYY pour les en-têtes RECAP */
     getRecapDateLabel(month, year) {
@@ -1678,10 +1623,8 @@ export default {
       try {
         const params = {
           agency: agencyParam,
-          month: this.selectedMonth,
-          year: this.selectedYear,
-          month_ref: this.selectedMonthRef,
-          year_ref: this.selectedYearRef,
+          month: this.snapshotMonthYear.month,
+          year: this.snapshotMonthYear.year,
           _t: Date.now()
         };
         const response = await axios.get('/api/oracle/data/portefeuille-risque-caf', {
@@ -1756,9 +1699,35 @@ export default {
 
 .period-selector {
   display: flex;
-  gap: 24px;
-  align-items: flex-end;
+  gap: 12px;
+  align-items: center;
   flex-wrap: wrap;
+}
+
+.period-select,
+.date-select {
+  padding: 10px 14px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  background: white;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.period-select:hover,
+.date-select:hover {
+  border-color: #2d6a4f;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.period-select:focus,
+.date-select:focus {
+  outline: none;
+  border-color: #2d6a4f;
+  box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.15);
 }
 
 .period-group {

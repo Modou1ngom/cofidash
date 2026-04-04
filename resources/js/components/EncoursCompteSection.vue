@@ -117,43 +117,6 @@
               </template>
             </template>
 
-            <!-- POINT SERVICES -->
-            <tr class="level-1-row" @click="toggleExpand('POINT SERVICES')">
-              <td class="level-1">
-                <button class="expand-btn" @click.stop="toggleExpand('POINT SERVICES')">
-                  {{ expandedSections['POINT SERVICES'] ? '−' : '+' }}
-                </button>
-                <strong>POINT SERVICES</strong>
-              </td>
-              <td><strong>{{ formatNumber(pointServicesTotalVolumeDat.datM1) }}</strong></td>
-              <td><strong>{{ formatNumber(pointServicesTotalVolumeDat.datM) }}</strong></td>
-              <td><strong>{{ formatNumber(pointServicesTotalVolumeDat.variationVolumeDa) }}</strong></td>
-              <td><strong>{{ formatPercent(pointServicesTotalVolumeDat.variationDat) }}</strong></td>
-            </tr>
-            
-            <!-- Points de service individuels directement sous POINT SERVICES -->
-            <template v-if="expandedSections['POINT SERVICES']">
-              <template v-for="(servicePoint, servicePointKey) in filteredHierarchicalData['POINT SERVICES']" :key="`point-service-${servicePointKey}`">
-                <template v-if="servicePoint">
-                  <template v-if="servicePoint.agencies && Array.isArray(servicePoint.agencies) && servicePoint.agencies.length > 0">
-                    <tr 
-                      v-for="(agency, agencyIndex) in servicePoint.agencies" 
-                      :key="`agency-${servicePointKey}-${agencyIndex}-${agency.name || agency.AGENCE || agencyIndex}`"
-                      class="level-2-row service-point-row"
-                      :class="{ 'selected-agency': selectedAgency && selectedAgency.name === agency.name && selectedAgency.category === 'POINT SERVICES' }"
-                      @click="selectAgency({ name: agency.name, category: 'POINT SERVICES', zone: servicePointKey })"
-                    >
-                      <td class="level-2 service-point-cell">{{ getAgencyName(agency) }}</td>
-                      <td>{{ formatNumber(getVolumeDatValue(agency, 'DAT_M_1')) }}</td>
-                      <td>{{ formatNumber(getVolumeDatValue(agency, 'DAT_M')) }}</td>
-                      <td>{{ formatNumber(getVolumeDatValue(agency, 'VARIATION_VOLUME_DA')) }}</td>
-                      <td>{{ formatPercent(getVolumeDatValue(agency, 'VARIATION_DAT')) }}</td>
-                    </tr>
-                  </template>
-                </template>
-              </template>
-            </template>
-            
             <!-- GRAND COMPTE -->
             <tr v-if="grandCompteVolumeDat" class="level-3-row">
               <td class="level-3">GRAND COMPTE</td>
@@ -334,7 +297,6 @@ export default {
       selectedYear: now.getFullYear(),
       expandedSections: {
         TERRITOIRE: false,
-        'POINT SERVICES': false,
         'TERRITOIRE_territoire_dakar_ville': false,
         'TERRITOIRE_territoire_dakar_banlieue': false,
         'TERRITOIRE_territoire_province_centre_sud': false,
@@ -394,8 +356,7 @@ export default {
         return this.hierarchicalDataFromBackend;
       }
       return {
-        TERRITOIRE: {},
-        'POINT SERVICES': {}
+        TERRITOIRE: {}
       };
     },
     filteredHierarchicalData() {
@@ -404,8 +365,7 @@ export default {
       }
       
       const filtered = {
-        TERRITOIRE: {},
-        'POINT SERVICES': this.hierarchicalData['POINT SERVICES'] || {}
+        TERRITOIRE: {}
       };
       
       if (this.hierarchicalData.TERRITOIRE && 
@@ -431,30 +391,6 @@ export default {
         Object.entries(hierarchicalData.TERRITOIRE).forEach(([territoryKey, territory]) => {
           if (territoryKey !== 'grand_compte' && territory && territory.agencies) {
             territory.agencies.forEach(agency => {
-              total.datM1 += parseFloat(this.getVolumeDatValue(agency, 'DAT_M_1') || 0);
-              total.datM += parseFloat(this.getVolumeDatValue(agency, 'DAT_M') || 0);
-              total.variationVolumeDa += parseFloat(this.getVolumeDatValue(agency, 'VARIATION_VOLUME_DA') || 0);
-              total.variationDat += parseFloat(this.getVolumeDatValue(agency, 'VARIATION_DAT') || 0);
-            });
-          }
-        });
-      }
-      
-      return total;
-    },
-    pointServicesTotalVolumeDat() {
-      const hierarchicalData = this.filteredHierarchicalData || {};
-      let total = {
-        datM1: 0,
-        datM: 0,
-        variationVolumeDa: 0,
-        variationDat: 0
-      };
-      
-      if (hierarchicalData['POINT SERVICES']) {
-        Object.values(hierarchicalData['POINT SERVICES']).forEach(servicePoint => {
-          if (servicePoint && servicePoint.agencies) {
-            servicePoint.agencies.forEach(agency => {
               total.datM1 += parseFloat(this.getVolumeDatValue(agency, 'DAT_M_1') || 0);
               total.datM += parseFloat(this.getVolumeDatValue(agency, 'DAT_M') || 0);
               total.variationVolumeDa += parseFloat(this.getVolumeDatValue(agency, 'VARIATION_VOLUME_DA') || 0);
@@ -525,13 +461,6 @@ export default {
           name: 'TERRITOIRE'
         };
       }
-      if (this.expandedSections['POINT SERVICES']) {
-        return {
-          type: 'category',
-          category: 'POINT SERVICES',
-          name: 'POINT SERVICES'
-        };
-      }
       
       return {
         type: 'total',
@@ -573,17 +502,10 @@ export default {
           ];
         }
       } else if (level.type === 'category') {
-        if (level.category === 'TERRITOIRE') {
-          data = [
-            normalizeValue(this.territoireTotalVolumeDat.datM1),
-            normalizeValue(this.territoireTotalVolumeDat.datM)
-          ];
-        } else {
-          data = [
-            normalizeValue(this.pointServicesTotalVolumeDat.datM1),
-            normalizeValue(this.pointServicesTotalVolumeDat.datM)
-          ];
-        }
+        data = [
+          normalizeValue(this.territoireTotalVolumeDat.datM1),
+          normalizeValue(this.territoireTotalVolumeDat.datM)
+        ];
       } else {
         // Total général
         data = [
@@ -695,7 +617,6 @@ export default {
     resetToTotal() {
       this.selectedAgency = null;
       this.expandedSections.TERRITOIRE = false;
-      this.expandedSections['POINT SERVICES'] = false;
       Object.keys(this.expandedSections).forEach(key => {
         if (key.startsWith('TERRITOIRE_')) {
           this.expandedSections[key] = false;
@@ -818,7 +739,7 @@ export default {
       return total;
     },
     getGrandTotalVolumeDat(field) {
-      let total = this.territoireTotalVolumeDat[field] + this.pointServicesTotalVolumeDat[field];
+      let total = this.territoireTotalVolumeDat[field];
       if (this.grandCompteVolumeDat) {
         const fieldMap = {
           'datM1': 'DAT_M_1',
@@ -871,21 +792,16 @@ export default {
         if (data && data.hierarchicalData) {
           this.hierarchicalDataFromBackend = data.hierarchicalData;
           console.log('📊 Volume DAT - Données reçues:', {
-            hasTerritoire: !!data.hierarchicalData.TERRITOIRE,
-            hasPointServices: !!data.hierarchicalData['POINT SERVICES'],
-            pointServicesKeys: Object.keys(data.hierarchicalData['POINT SERVICES'] || {}),
-            pointServicesStructure: data.hierarchicalData['POINT SERVICES']
+            hasTerritoire: !!data.hierarchicalData.TERRITOIRE
           });
         } else {
           this.hierarchicalDataFromBackend = {
-            TERRITOIRE: {},
-            'POINT SERVICES': {}
+            TERRITOIRE: {}
           };
         }
       } catch (error) {
         this.hierarchicalDataFromBackend = {
-          TERRITOIRE: {},
-          'POINT SERVICES': {}
+          TERRITOIRE: {}
         };
         
         if (error.response && error.response.data) {
@@ -910,7 +826,6 @@ export default {
       this.hierarchicalDataFromBackend = null;
       this.expandedSections = {
         TERRITOIRE: false,
-        'POINT SERVICES': false,
         'TERRITOIRE_territoire_dakar_ville': false,
         'TERRITOIRE_territoire_dakar_banlieue': false,
         'TERRITOIRE_territoire_province_centre_sud': false,

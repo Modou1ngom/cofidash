@@ -49,20 +49,20 @@ def get_entrees_par_data(
     now = datetime.now()
     month = month or now.month
     year = year or now.year
+    month_year = f"{month:02d}/{year}"
     last_day = calendar.monthrange(year, month)[1]
-    date_obj = datetime(year, month, last_day)
-    date_str = date_obj.strftime("%d/%m/%Y")
+    date_str = datetime(year, month, last_day).strftime("%d/%m/%Y")
 
-    logger.info("📊 Entrées PAR: date=%s, par_bucket=%s", date_str, par_bucket)
+    logger.info("📊 Entrées PAR: mois=%s (fin mois %s), par_bucket=%s", month_year, date_str, par_bucket)
 
-    sql = get_query_entrees_par(date_str, par_bucket)
+    sql, binds = get_query_entrees_par(month_year, par_bucket)
     pool = get_pool()
     with pool.get_connection_context() as conn:
         cursor = conn.cursor()
         try:
             cursor.arraysize = 1000
             cursor.prefetchrows = 1000
-            cursor.execute(sql)
+            cursor.execute(sql, binds)
             columns = [desc[0] for desc in cursor.description]
             rows = cursor.fetchall()
             result = [_serialize_row(dict(zip(columns, row))) for row in rows]

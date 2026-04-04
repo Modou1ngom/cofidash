@@ -109,12 +109,10 @@ class ObjectiveController extends Controller
                 // DGA répartit l'objectif MD (filiale) entre les territoires
                 return $category === 'TERRITOIRE';
             case 'RESPONSABLE_ZONE':
-                // Responsable Zone peut créer pour les agences dans son territoire (POINT SERVICES et GRAND COMPTE)
-                return in_array($category, ['POINT SERVICES', 'GRAND COMPTE']);
+                // Agences du territoire (anciennement « point de service ») + grands comptes
+                return in_array($category, ['TERRITOIRE', 'POINT SERVICES', 'GRAND COMPTE']);
             case 'CHEF_AGENCE':
-                // Chef d'Agence peut créer pour ses CAF (Chargés d'affaires)
-                // Pour l'instant, on utilise POINT SERVICES ou GRAND COMPTE selon l'agence
-                return in_array($category, ['POINT SERVICES', 'GRAND COMPTE']);
+                return in_array($category, ['TERRITOIRE', 'POINT SERVICES', 'GRAND COMPTE']);
             case 'MD':
                 // MD crée pour la filiale (objectif global annuel)
                 return $category === 'FILIALE';
@@ -164,7 +162,7 @@ class ObjectiveController extends Controller
             'type.required' => 'Le type d\'objectif est requis.',
             'type.in' => 'Le type d\'objectif doit être CLIENT, PRODUCTION, ENCOURS_CREDIT, COLLECT, DEPOT_GARANTIE, EPARGNE_SIMPLE, EPARGNE_PROJET ou VOLUME_DAT.',
             'category.required' => 'La catégorie est requise.',
-            'category.in' => 'La catégorie doit être FILIALE, TERRITOIRE, POINT SERVICES ou GRAND COMPTE.',
+            'category.in' => 'La catégorie doit être FILIALE, TERRITOIRE, POINT SERVICES (historique) ou GRAND COMPTE.',
             'agency_code.required' => 'Le code de l\'agence est requis.',
             'value.required' => 'La valeur de l\'objectif est requise.',
             'value.integer' => 'La valeur de l\'objectif doit être un nombre entier.',
@@ -579,8 +577,8 @@ class ObjectiveController extends Controller
                           });
                     break;
                 case 'DGA':
-                    // DGA valide les objectifs créés par les Responsables Zone pour les agences
-                    $query->whereIn('category', ['POINT SERVICES', 'GRAND COMPTE'])
+                    // DGA valide les objectifs créés par les Responsables Zone pour les agences (TERRITOIRE inclut l’ex-« point de service »)
+                    $query->whereIn('category', ['TERRITOIRE', 'POINT SERVICES', 'GRAND COMPTE'])
                           ->whereHas('creator', function($q) {
                               $q->whereHas('profile', function($q2) {
                                   $q2->where('code', 'RESPONSABLE_ZONE');
@@ -662,7 +660,7 @@ class ObjectiveController extends Controller
                     break;
                 case 'DGA':
                     // DGA valide les objectifs créés par les Responsables Zone
-                    $canValidate = in_array($objective->category, ['POINT SERVICES', 'GRAND COMPTE']) &&
+                    $canValidate = in_array($objective->category, ['TERRITOIRE', 'POINT SERVICES', 'GRAND COMPTE']) &&
                                   $objective->creator &&
                                   $objective->creator->profile->code === 'RESPONSABLE_ZONE';
                     break;
@@ -763,7 +761,7 @@ class ObjectiveController extends Controller
                     break;
                 case 'DGA':
                     // DGA peut rejeter les objectifs créés par les Responsables Zone pour les agences
-                    $canReject = in_array($objective->category, ['POINT SERVICES', 'GRAND COMPTE']) &&
+                    $canReject = in_array($objective->category, ['TERRITOIRE', 'POINT SERVICES', 'GRAND COMPTE']) &&
                                 $objective->creator &&
                                 $objective->creator->profile->code === 'RESPONSABLE_ZONE';
                     break;

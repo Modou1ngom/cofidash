@@ -86,7 +86,7 @@ def get_volume_dat_data(period: str = "month", zone: Optional[str] = None,
     from services.cache_service import get_cache, set_cache, generate_cache_key
     
     # Générer une clé de cache basée sur les paramètres
-    cache_key = f"volume_dat:{generate_cache_key(period, zone, month, year, date)}"
+    cache_key = f"volume_dat:{generate_cache_key(period, zone, month, year, date)}:territoire_v2"
     
     # Vérifier le cache
     cached_result = get_cache(cache_key)
@@ -199,7 +199,6 @@ ORDER BY BR.BRANCH_NAME
                 'territoire_province_nord': []
             }
             
-            agencies_by_service_point = {}
             grand_compte = None
             
             for row in data:
@@ -220,26 +219,21 @@ ORDER BY BR.BRANCH_NAME
                     'VARIATION_DAT%': float(variation_dat_value)  # Alias pour compatibilité
                 }
                 
-                # Déterminer le territoire
                 territory = get_territory_from_branch_code(branch_code)
-                territory_key = get_territory_key(territory)
-                
-                # Vérifier si c'est le grand compte
+                if territory is None:
+                    territory = get_territory_from_agency(agency_name)
+
                 if agency_name and 'GRAND COMPTE' in agency_name.upper():
                     grand_compte = agency
                     continue
-                
-                # Vérifier si c'est un point de service
-                if territory == 'POINT SERVICES':
-                    # Utiliser le nom de l'agence comme clé pour les points de service
-                    service_point_key = agency_name or branch_code
-                    if service_point_key not in agencies_by_service_point:
-                        agencies_by_service_point[service_point_key] = []
-                    agencies_by_service_point[service_point_key].append(agency)
+
+                if territory is None or territory == 'POINT SERVICES':
+                    territory_key = 'territoire_dakar_ville'
                 else:
-                    # Ajouter à la liste du territoire approprié
-                    if territory_key in agencies_by_territory:
-                        agencies_by_territory[territory_key].append(agency)
+                    territory_key = get_territory_key(territory)
+
+                if territory_key in agencies_by_territory:
+                    agencies_by_territory[territory_key].append(agency)
             
             # Calculer les totaux pour chaque territoire
             def calculate_territory_totals(agencies_list):
@@ -301,15 +295,6 @@ ORDER BY BR.BRANCH_NAME
                             'variationVolumeDa': grand_compte.get('VARIATION_VOLUME_DA', 0),
                             'variationDat': grand_compte.get('VARIATION_DAT', 0)
                         }
-                    }
-            
-            # Ajouter les points de service
-            if agencies_by_service_point:
-                for service_point_key, agencies in agencies_by_service_point.items():
-                    response_data["hierarchicalData"]["POINT SERVICES"][service_point_key] = {
-                        "name": service_point_key,
-                        "agencies": agencies,
-                        "totals": calculate_territory_totals(agencies)
                     }
             
             # Mettre en cache le résultat (TTL de 5 minutes)

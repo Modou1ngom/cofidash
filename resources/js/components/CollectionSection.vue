@@ -99,7 +99,7 @@
           </thead>
           <tbody>
             <!-- Message si aucune donnée -->
-            <tr v-if="!loading && !errorMessage && Object.keys(filteredHierarchicalData.TERRITOIRE || {}).length === 0 && Object.keys(filteredHierarchicalData['POINT SERVICES'] || {}).length === 0" class="no-data-row">
+            <tr v-if="!loading && !errorMessage && Object.keys(filteredHierarchicalData.TERRITOIRE || {}).length === 0" class="no-data-row">
               <td colspan="12" style="text-align: center; padding: 40px; color: #666;">
                 <p>Aucune donnée de collection disponible pour la période sélectionnée.</p>
                 <p style="font-size: 12px; margin-top: 10px;">Vérifiez que l'API /api/oracle/data/collection retourne des données.</p>
@@ -215,92 +215,6 @@
               </template>
             </template>
 
-            <!-- POINT SERVICES -->
-            <tr v-if="Object.keys(filteredHierarchicalData['POINT SERVICES'] || {}).length > 0" class="level-1-row" @click="toggleExpand('POINT SERVICES')">
-              <td class="level-1">
-                <button class="expand-btn" @click.stop="toggleExpand('POINT SERVICES')">
-                  {{ expandedSections['POINT SERVICES'] ? '−' : '+' }}
-                </button>
-                <strong>POINT SERVICES</strong>
-              </td>
-              <td><strong>-</strong></td>
-              <td><strong>-</strong></td>
-              <td><strong>-</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.mtEcheance) }}</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.objectif) }}</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.collecteM) }}</strong></td>
-              <td><strong>{{ formatTroPercent(pointServicesTotal.tro) }}</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.collecteS1) }}</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.collecteS2) }}</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.collecteS3) }}</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.collecteS4) }}</strong></td>
-            </tr>
-            
-            <!-- Points de service individuels directement sous POINT SERVICES -->
-            <template v-if="expandedSections['POINT SERVICES']">
-              <template v-for="(servicePoint, servicePointKey) in filteredHierarchicalData['POINT SERVICES']" :key="servicePointKey">
-                <template v-if="servicePoint.agencies && servicePoint.agencies.length > 0">
-                  <template v-for="(agency, index) in servicePoint.agencies" :key="getAgencyKey(agency, index)">
-                    <!-- Ligne principale de l'agence avec bouton d'expansion -->
-                    <tr 
-                      class="level-2-row service-point-row"
-                      @click="toggleAgencyExpand(agency, `POINT_SERVICES_${getAgencyKey(agency, index)}`)"
-                    >
-                      <td class="level-2 service-point-cell">
-                        <button 
-                          class="expand-btn" 
-                          @click.stop="toggleAgencyExpand(agency, `POINT_SERVICES_${getAgencyKey(agency, index)}`)"
-                          v-if="hasChargeAffaireDetails(agency)"
-                        >
-                          {{ expandedSections[`POINT_SERVICES_${getAgencyKey(agency, index)}`] ? '−' : '+' }}
-                        </button>
-                        {{ agency.name || agency.AGENCE || getAgencyName(agency) }}
-                      </td>
-                      <td>{{ getCodeGestionDisplay(agency) }}</td>
-                      <td>{{ getChargeAffaireDisplay(agency) }}</td>
-                      <td>{{ formatNumber(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'exigibleM1')) }}</td>
-                      <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'mtEcheance')) }}</td>
-                      <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'objectif')) }}</td>
-                      <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'collecteM')) }}</td>
-                      <td>{{ formatTroPercent(getCollecteTroForAgencyName(agency.name || agency.AGENCE || getAgencyName(agency))) }}</td>
-                      <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'collecteS1')) }}</td>
-                      <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'collecteS2')) }}</td>
-                      <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'collecteS3')) }}</td>
-                      <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'collecteS4')) }}</td>
-                    </tr>
-                    <!-- Afficher tous les chargés d'affaire pour cette agence quand elle est expandée -->
-                    <template v-if="expandedSections[`POINT_SERVICES_${getAgencyKey(agency, index)}`]">
-                      <tr 
-                        v-for="(chargeDetail, chargeIndex) in getCachedChargeAffaireLines(`POINT_SERVICES_${getAgencyKey(agency, index)}`)" 
-                        :key="`charge-${chargeIndex}`"
-                        class="level-4-row charge-detail-row"
-                      >
-                        <td class="level-4">
-                          {{ agency.BRANCH_CODE || agency.branch_code || '-' }}
-                        </td>
-                        <td>{{ chargeDetail.codeGestion || chargeDetail.CODE_GESTION || '-' }}</td>
-                        <td>{{ chargeDetail.chargeAffaire || chargeDetail.CHARGE_AFFAIRE || '-' }}</td>
-                        <td>{{ formatNumber(chargeDetail.exigibleM1 || chargeDetail.EXIGIBLE_M1 || 0) }}</td>
-                        <td>{{ formatCurrency(chargeDetail.mtEcheance || chargeDetail.MT_ECHEANCE || 0) }}</td>
-                        <td>-</td>
-                        <td>{{ formatCurrency(chargeDetail.collecteM || chargeDetail.COLLECTE_M || 0) }}</td>
-                        <td>-</td>
-                        <td>{{ formatCurrency(chargeDetail.collecteS1 || chargeDetail.COLLECTE_S1 || 0) }}</td>
-                        <td>{{ formatCurrency(chargeDetail.collecteS2 || chargeDetail.COLLECTE_S2 || 0) }}</td>
-                        <td>{{ formatCurrency(chargeDetail.collecteS3 || chargeDetail.COLLECTE_S3 || 0) }}</td>
-                        <td>{{ formatCurrency(chargeDetail.collecteS4 || chargeDetail.COLLECTE_S4 || 0) }}</td>
-                      </tr>
-                      <tr v-if="getCachedChargeAffaireLines(`POINT_SERVICES_${getAgencyKey(agency, index)}`).length === 0" class="level-4-row">
-                        <td colspan="12" style="text-align: center; padding: 10px; color: #666;">
-                          Aucun chargé d'affaire trouvé pour cette agence
-                        </td>
-                      </tr>
-                    </template>
-                  </template>
-                </template>
-              </template>
-            </template>
-
             <!-- GRAND COMPTE -->
             <tr v-if="grandCompte" class="grand-compte-row">
               <td>{{ grandCompte.BRANCH_CODE || grandCompte.branch_code || '526' }}</td>
@@ -357,7 +271,7 @@
           </thead>
           <tbody>
             <!-- Message si aucune donnée -->
-            <tr v-if="!loading && !errorMessage && Object.keys(filteredHierarchicalData.TERRITOIRE || {}).length === 0 && Object.keys(filteredHierarchicalData['POINT SERVICES'] || {}).length === 0" class="no-data-row">
+            <tr v-if="!loading && !errorMessage && Object.keys(filteredHierarchicalData.TERRITOIRE || {}).length === 0" class="no-data-row">
               <td colspan="10" style="text-align: center; padding: 40px; color: #666;">
                 <p>Aucune donnée de solde disponible pour la période sélectionnée.</p>
               </td>
@@ -459,86 +373,6 @@
                     </template>
                   </template>
                 </template>
-                </template>
-              </template>
-            </template>
-
-            <!-- POINT SERVICES -->
-            <tr v-if="Object.keys(filteredHierarchicalData['POINT SERVICES'] || {}).length > 0" class="level-1-row" @click="toggleExpand('POINT SERVICES_SOLDE')">
-              <td class="level-1">
-                <button class="expand-btn" @click.stop="toggleExpand('POINT SERVICES_SOLDE')">
-                  {{ expandedSections['POINT SERVICES_SOLDE'] ? '−' : '+' }}
-                </button>
-                <strong>POINT SERVICES</strong>
-              </td>
-              <td><strong>-</strong></td>
-              <td><strong>-</strong></td>
-              <td><strong>-</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.mtEcheance) }}</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.sldM) }}</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.sldS1) }}</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.sldS2) }}</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.sldS3) }}</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.sldS4) }}</strong></td>
-            </tr>
-            
-            <!-- Points de service individuels directement sous POINT SERVICES -->
-            <template v-if="expandedSections['POINT SERVICES_SOLDE']">
-              <template v-for="(servicePoint, servicePointKey) in filteredHierarchicalData['POINT SERVICES']" :key="servicePointKey">
-                <template v-if="servicePoint.agencies && servicePoint.agencies.length > 0">
-                  <template v-for="(agency, index) in servicePoint.agencies" :key="getAgencyKey(agency, index)">
-                    <!-- Ligne principale de l'agence avec bouton d'expansion -->
-                    <tr 
-                      class="level-2-row service-point-row"
-                      @click="toggleAgencyExpand(agency, `POINT_SERVICES_SOLDE_${getAgencyKey(agency, index)}`)"
-                    >
-                      <td class="level-2 service-point-cell">
-                        <button 
-                          class="expand-btn" 
-                          @click.stop="toggleAgencyExpand(agency, `POINT_SERVICES_SOLDE_${getAgencyKey(agency, index)}`)"
-                          v-if="hasChargeAffaireDetails(agency)"
-                        >
-                          {{ expandedSections[`POINT_SERVICES_SOLDE_${getAgencyKey(agency, index)}`] ? '−' : '+' }}
-                        </button>
-                        {{ agency.name || agency.AGENCE || getAgencyName(agency) }}
-                      </td>
-                      <td>{{ getCodeGestionDisplay(agency) }}</td>
-                      <td>{{ getChargeAffaireDisplay(agency) }}</td>
-                      <td>{{ formatNumber(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'exigibleM1')) }}</td>
-                      <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'mtEcheance')) }}</td>
-                      <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'sldM')) }}</td>
-                      <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'sldS1')) }}</td>
-                      <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'sldS2')) }}</td>
-                      <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'sldS3')) }}</td>
-                      <td>{{ formatCurrency(getAgencyTotalByName(agency.name || agency.AGENCE || getAgencyName(agency), 'sldS4')) }}</td>
-                    </tr>
-                    <!-- Afficher tous les chargés d'affaire pour cette agence quand elle est expandée -->
-                    <template v-if="expandedSections[`POINT_SERVICES_SOLDE_${getAgencyKey(agency, index)}`]">
-                      <tr 
-                        v-for="(chargeDetail, chargeIndex) in getChargeAffaireDetailsByBranchCode(agency.BRANCH_CODE || agency.branch_code)" 
-                        :key="`charge-${chargeIndex}`"
-                        class="level-4-row charge-detail-row"
-                      >
-                        <td class="level-4">
-                          {{ agency.BRANCH_CODE || agency.branch_code || '-' }}
-                        </td>
-                        <td>{{ chargeDetail.codeGestion || chargeDetail.CODE_GESTION || '-' }}</td>
-                        <td>{{ chargeDetail.chargeAffaire || chargeDetail.CHARGE_AFFAIRE || '-' }}</td>
-                        <td>{{ formatNumber(chargeDetail.exigibleM1 || chargeDetail.EXIGIBLE_M1 || 0) }}</td>
-                        <td>{{ formatCurrency(chargeDetail.mtEcheance || chargeDetail.MT_ECHEANCE || 0) }}</td>
-                        <td>{{ formatCurrency(chargeDetail.sldM || chargeDetail.SLD_M || 0) }}</td>
-                        <td>{{ formatCurrency(chargeDetail.sldS1 || chargeDetail.SLD_S1 || 0) }}</td>
-                        <td>{{ formatCurrency(chargeDetail.sldS2 || chargeDetail.SLD_S2 || 0) }}</td>
-                        <td>{{ formatCurrency(chargeDetail.sldS3 || chargeDetail.SLD_S3 || 0) }}</td>
-                        <td>{{ formatCurrency(chargeDetail.sldS4 || chargeDetail.SLD_S4 || 0) }}</td>
-                      </tr>
-                      <tr v-if="getChargeAffaireDetailsByBranchCode(agency.BRANCH_CODE || agency.branch_code).length === 0" class="level-4-row">
-                        <td colspan="10" style="text-align: center; padding: 10px; color: #666;">
-                          Aucun chargé d'affaire trouvé pour cette agence
-                        </td>
-                      </tr>
-                    </template>
-                  </template>
                 </template>
               </template>
             </template>
@@ -847,25 +681,6 @@ export default {
               }
             });
           }
-          if (data['POINT SERVICES'] && typeof data['POINT SERVICES'] === 'object' && data['POINT SERVICES'] !== null) {
-            Object.keys(data['POINT SERVICES']).forEach(key => {
-              if (data['POINT SERVICES'][key]) {
-                const agencies = data['POINT SERVICES'][key].agencies || data['POINT SERVICES'][key].data || [];
-                const filtered = this.filterAgencies(agencies);
-                
-                // Obtenir les points de service par défaut
-                const defaultServicePoints = this.getDefaultServicePoints();
-                
-                // Fusionner avec les points de service par défaut
-                const merged = this.mergeAgenciesWithDefaults(filtered, defaultServicePoints);
-                
-                data['POINT SERVICES'][key].agencies = merged;
-                if (!data['POINT SERVICES'][key].totals) {
-                  data['POINT SERVICES'][key].totals = this.calculateZoneTotals(data['POINT SERVICES'][key].agencies);
-                }
-              }
-            });
-          }
           return data;
         } catch (e) {
           // Erreur silencieuse lors du traitement des données hiérarchiques
@@ -874,8 +689,7 @@ export default {
       
       if (!this.territories || typeof this.territories !== 'object') {
         return {
-          TERRITOIRE: {},
-          'POINT SERVICES': {}
+          TERRITOIRE: {}
         };
       }
       
@@ -891,16 +705,14 @@ export default {
       const filteredProvinceCentreSud = this.filterAgencies(provinceCentreSudData.agencies || []);
       const filteredProvinceNord = this.filterAgencies(provinceNordData.agencies || []);
       const filteredGrandCompte = this.filterAgencies((this.territories.grand_compte && this.territories.grand_compte.agencies) || []);
-      const filteredServicePoints = this.filterAgencies(this.servicePoints || []);
+      const filteredServicePoints = this.filterAgencies([]);
       
-      // Fusionner avec les agences par défaut
-      const mergedDakarVille = this.mergeAgenciesWithDefaults(filteredDakarVille, this.getDefaultAgenciesForTerritory('dakar_centre_ville'));
+      let mergedDakarVille = this.mergeAgenciesWithDefaults(filteredDakarVille, this.getDefaultAgenciesForTerritory('dakar_centre_ville'));
+      const mergedServicePoints = this.mergeAgenciesWithDefaults(filteredServicePoints, this.getDefaultServicePoints());
+      mergedDakarVille = this.mergeAgenciesWithDefaults(mergedDakarVille, mergedServicePoints);
       const mergedDakarBanlieue = this.mergeAgenciesWithDefaults(filteredDakarBanlieue, this.getDefaultAgenciesForTerritory('dakar_banlieue'));
       const mergedProvinceCentreSud = this.mergeAgenciesWithDefaults(filteredProvinceCentreSud, this.getDefaultAgenciesForTerritory('province_centre_sud'));
       const mergedProvinceNord = this.mergeAgenciesWithDefaults(filteredProvinceNord, this.getDefaultAgenciesForTerritory('province_nord'));
-      
-      // Fusionner les points de service avec les points de service par défaut
-      const mergedServicePoints = this.mergeAgenciesWithDefaults(filteredServicePoints, this.getDefaultServicePoints());
       
       const data = {
         TERRITOIRE: {
@@ -929,13 +741,6 @@ export default {
             agencies: filteredGrandCompte,
             totals: this.calculateZoneTotals(filteredGrandCompte)
           }
-        },
-        'POINT SERVICES': {
-          service_points: {
-            name: 'POINTS SERVICES',
-            agencies: mergedServicePoints,
-            totals: this.calculateZoneTotals(mergedServicePoints)
-          }
         }
       };
       
@@ -944,8 +749,7 @@ export default {
     filteredHierarchicalData() {
       if (!this.hierarchicalData || typeof this.hierarchicalData !== 'object' || this.hierarchicalData === null) {
         return {
-          TERRITOIRE: {},
-          'POINT SERVICES': {}
+          TERRITOIRE: {}
         };
       }
       
@@ -954,10 +758,7 @@ export default {
       }
       
       const filtered = {
-        TERRITOIRE: {},
-        'POINT SERVICES': (this.hierarchicalData['POINT SERVICES'] && typeof this.hierarchicalData['POINT SERVICES'] === 'object' && this.hierarchicalData['POINT SERVICES'] !== null)
-          ? this.hierarchicalData['POINT SERVICES'] 
-          : {}
+        TERRITOIRE: {}
       };
       
       if (this.hierarchicalData.TERRITOIRE && 
@@ -1004,30 +805,6 @@ export default {
         sldS3: t1.sldS3 + t2.sldS3 + t3.sldS3 + t4.sldS3,
         collecteS4: t1.collecteS4 + t2.collecteS4 + t3.collecteS4 + t4.collecteS4,
         sldS4: t1.sldS4 + t2.sldS4 + t3.sldS4 + t4.sldS4
-      };
-    },
-    pointServicesTotal() {
-      const servicePoints = this.servicePoints || [];
-      const totals = this.calculateZoneTotals(servicePoints);
-      return {
-        exigibleM1: totals.exigibleM1,
-        mtEcheance: totals.mtEcheance,
-        m: totals.m,
-        sldM: totals.sldM,
-        collecteM: totals.collecteM,
-        objectif: totals.objectif,
-        tro: totals.tro,
-        exigibleS1: totals.exigibleS1,
-        mtEcheanceS1: totals.mtEcheanceS1,
-        mS1: totals.mS1,
-        sldS1: totals.sldS1,
-        collecteS1: totals.collecteS1,
-        collecteS2: totals.collecteS2,
-        sldS2: totals.sldS2,
-        collecteS3: totals.collecteS3,
-        sldS3: totals.sldS3,
-        collecteS4: totals.collecteS4,
-        sldS4: totals.sldS4
       };
     },
     grandCompte() {
@@ -1108,13 +885,6 @@ export default {
           name: 'TERRITOIRE'
         };
       }
-      if (this.expandedSections['POINT SERVICES']) {
-        return {
-          type: 'category',
-          category: 'POINT SERVICES',
-          name: 'POINT SERVICES'
-        };
-      }
       
       return {
         type: 'total',
@@ -1180,10 +950,10 @@ export default {
           ];
         } else {
           data = [
-            normalizeValue(this.pointServicesTotal.collecteS1),
-            normalizeValue(this.pointServicesTotal.collecteS2),
-            normalizeValue(this.pointServicesTotal.collecteS3),
-            normalizeValue(this.pointServicesTotal.collecteS4)
+            normalizeValue(this.getGrandTotal('collecteS1')),
+            normalizeValue(this.getGrandTotal('collecteS2')),
+            normalizeValue(this.getGrandTotal('collecteS3')),
+            normalizeValue(this.getGrandTotal('collecteS4'))
           ];
         }
       } else {
@@ -1274,13 +1044,11 @@ export default {
       selectedYear: now.getFullYear(),
       expandedSections: {
         TERRITOIRE: false,
-        'POINT SERVICES': false,
         'TERRITOIRE_territoire_dakar_ville': false,
         'TERRITOIRE_territoire_dakar_banlieue': false,
         'TERRITOIRE_territoire_province_centre_sud': false,
         'TERRITOIRE_territoire_province_nord': false,
-        'TERRITOIRE_SOLDE': false,
-        'POINT SERVICES_SOLDE': false
+        'TERRITOIRE_SOLDE': false
       },
       hierarchicalDataFromBackend: null,
       chargeAffaireDetails: {},  // Détails par chargé d'affaire pour chaque agence
@@ -1291,7 +1059,6 @@ export default {
         solde: null
       },  // Cache des données par onglet
       cacheKey: null,  // Clé de cache basée sur les paramètres de filtrage
-      servicePoints: [],
       selectedAgency: null,
       selectedChartType: 'line',
       selectedDataType: 'collection',
@@ -1348,7 +1115,6 @@ export default {
           this.hierarchicalDataFromBackend = cachedData.hierarchicalData;
           this.chargeAffaireDetails = cachedData.chargeAffaireDetails || {};
           this.territories = cachedData.territories || {};
-          this.servicePoints = cachedData.servicePoints || [];
         } else {
           // Sinon, charger les données
           this.loadDataForPeriod();
@@ -2081,21 +1847,6 @@ export default {
         }
       }
       
-      if (hierarchicalData['POINT SERVICES'] && 
-          typeof hierarchicalData['POINT SERVICES'] === 'object' && 
-          hierarchicalData['POINT SERVICES'] !== null &&
-          !Array.isArray(hierarchicalData['POINT SERVICES'])) {
-        try {
-          Object.values(hierarchicalData['POINT SERVICES']).forEach(servicePoint => {
-            if (servicePoint && servicePoint.totals && servicePoint.totals[field] !== undefined) {
-              total += servicePoint.totals[field] || 0;
-            }
-          });
-        } catch (e) {
-          // Erreur silencieuse lors du calcul du total des points de service
-        }
-      }
-      
       return total;
     },
     toggleExpand(section) {
@@ -2147,20 +1898,6 @@ export default {
         });
       }
       
-      // Parcourir tous les points de service
-      if (hierarchicalData['POINT SERVICES']) {
-        Object.values(hierarchicalData['POINT SERVICES']).forEach(servicePoint => {
-          if (servicePoint && servicePoint.agencies && Array.isArray(servicePoint.agencies)) {
-            servicePoint.agencies.forEach(agency => {
-              const agencyBranchCode = agency.BRANCH_CODE || agency.branch_code;
-              if (agencyBranchCode === branchCode) {
-                allAgencies.push(agency);
-              }
-            });
-          }
-        });
-      }
-      
       // Si on a des détails de chargés d'affaire, les utiliser aussi
       if (this.chargeAffaireDetails && Object.keys(this.chargeAffaireDetails).length > 0) {
         Object.values(this.chargeAffaireDetails).forEach(chargeList => {
@@ -2196,20 +1933,6 @@ export default {
         Object.values(hierarchicalData.TERRITOIRE).forEach(territory => {
           if (territory && territory.agencies && Array.isArray(territory.agencies)) {
             territory.agencies.forEach(agency => {
-              const currentAgencyName = agency.name || agency.AGENCE || this.getAgencyName(agency);
-              if (currentAgencyName === agencyName) {
-                allAgencies.push(agency);
-              }
-            });
-          }
-        });
-      }
-      
-      // Parcourir tous les points de service
-      if (hierarchicalData['POINT SERVICES']) {
-        Object.values(hierarchicalData['POINT SERVICES']).forEach(servicePoint => {
-          if (servicePoint && servicePoint.agencies && Array.isArray(servicePoint.agencies)) {
-            servicePoint.agencies.forEach(agency => {
               const currentAgencyName = agency.name || agency.AGENCE || this.getAgencyName(agency);
               if (currentAgencyName === agencyName) {
                 allAgencies.push(agency);
@@ -2267,7 +1990,6 @@ export default {
     resetToTotal() {
       this.selectedAgency = null;
       this.expandedSections.TERRITOIRE = false;
-      this.expandedSections['POINT SERVICES'] = false;
       Object.keys(this.expandedSections).forEach(key => {
         if (key.startsWith('TERRITOIRE_')) {
           this.expandedSections[key] = false;
@@ -2443,8 +2165,7 @@ export default {
             
             // Convertir en format hiérarchique
             const hierarchical = {
-              TERRITOIRE: {},
-              'POINT SERVICES': {}
+              TERRITOIRE: {}
             };
             
             Object.keys(grouped).forEach(key => {
@@ -2510,11 +2231,6 @@ export default {
                   agencies: filteredGrandCompte
                 }
               };
-              }
-              
-              if (data.hierarchicalData['POINT SERVICES'] && data.hierarchicalData['POINT SERVICES'].service_points) {
-                const rawServicePoints = data.hierarchicalData['POINT SERVICES'].service_points.agencies || data.hierarchicalData['POINT SERVICES'].service_points.data || [];
-                this.servicePoints = this.filterAgencies(rawServicePoints);
               }
               
               if (data.globalResult) {
@@ -2614,19 +2330,22 @@ export default {
         };
         this.globalResult = { mois: 0, mois1: 0, evolution: 0 };
         
-        if (error.response && error.response.data) {
-          const errorData = error.response.data;
-          if (errorData.error) {
-            this.errorMessage = `Erreur: ${errorData.error}. ${errorData.message || ''}`;
-          } else if (errorData.message) {
-            this.errorMessage = errorData.message;
-          } else {
-            this.errorMessage = 'Erreur lors du chargement des données depuis Oracle. Veuillez réessayer.';
-          }
-        } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-          this.errorMessage = 'La requête a pris trop de temps. Veuillez réessayer ou vérifier la connexion au serveur Oracle.';
+        const status = error.response?.status;
+        const raw = error.response?.data;
+        const fromJson = raw && typeof raw === 'object'
+          ? (raw.message || raw.detail || raw.error || '')
+          : (typeof raw === 'string' ? raw : '');
+        if (status) {
+          const hint = (status === 502 || status === 504)
+            ? ' (souvent : timeout proxy/nginx ou PHP — la requête collection est longue)'
+            : '';
+          this.errorMessage = `Erreur HTTP ${status}${hint}. ${fromJson || error.message || 'Échec de /api/oracle/data/collection'}`;
+        } else if (error.code === 'ECONNABORTED' || (error.message && String(error.message).toLowerCase().includes('timeout'))) {
+          this.errorMessage = 'La requête a pris trop de temps (timeout). La collecte est lourde : augmentez les timeouts côté serveur (nginx, PHP-FPM) ou Python.';
+        } else if (error.message === 'Network Error' || !error.response) {
+          this.errorMessage = `Erreur réseau ou pas de réponse du serveur : ${error.message || 'inconnue'}. Vérifiez PYTHON_SERVICE_URL, le firewall et les logs Laravel/Python.`;
         } else {
-          this.errorMessage = 'Erreur de connexion. Veuillez vérifier que le service Oracle est accessible.';
+          this.errorMessage = fromJson || error.message || 'Erreur lors du chargement des données depuis Oracle.';
         }
       } finally {
         // Mettre en cache les données pour l'onglet actif
@@ -2636,8 +2355,7 @@ export default {
             cacheKey: cacheKey,
             hierarchicalData: this.hierarchicalDataFromBackend,
             chargeAffaireDetails: this.chargeAffaireDetails,
-            territories: this.territories,
-            servicePoints: this.servicePoints
+            territories: this.territories
           };
         }
         this.loading = false;
@@ -2659,14 +2377,12 @@ export default {
       // Réinitialiser les données pour forcer la mise à jour
       this.hierarchicalDataFromBackend = null;
       this.territories = {};
-      this.servicePoints = [];
       this.chargeAffaireDetails = {};
       this.chargeAffaireDetailsCache.clear(); // Vider le cache
       this.expandedAgencyLines = {}; // Vider le cache des lignes expandées
       // Réinitialiser les sections expandées
       this.expandedSections = {
         TERRITOIRE: false,
-        'POINT SERVICES': false,
         'TERRITOIRE_territoire_dakar_ville': false,
         'TERRITOIRE_territoire_dakar_banlieue': false,
         'TERRITOIRE_territoire_province_centre_sud': false,
@@ -2774,15 +2490,6 @@ export default {
         });
       }
 
-      if (h['POINT SERVICES']) {
-        Object.keys(h['POINT SERVICES']).forEach(servicePointKey => {
-          const servicePoint = h['POINT SERVICES'][servicePointKey];
-          if (servicePoint && servicePoint.agencies && Array.isArray(servicePoint.agencies)) {
-            servicePoint.agencies.forEach(applyToAgency);
-          }
-        });
-      }
-
       this.refreshZoneTotalsAfterObjectives();
       this.$nextTick(() => {
         this.$forceUpdate();
@@ -2795,14 +2502,6 @@ export default {
       if (h.TERRITOIRE) {
         Object.keys(h.TERRITOIRE).forEach(k => {
           const zone = h.TERRITOIRE[k];
-          if (zone && zone.agencies && Array.isArray(zone.agencies)) {
-            zone.totals = this.calculateZoneTotals(zone.agencies);
-          }
-        });
-      }
-      if (h['POINT SERVICES']) {
-        Object.keys(h['POINT SERVICES']).forEach(k => {
-          const zone = h['POINT SERVICES'][k];
           if (zone && zone.agencies && Array.isArray(zone.agencies)) {
             zone.totals = this.calculateZoneTotals(zone.agencies);
           }

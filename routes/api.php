@@ -31,10 +31,12 @@ Route::prefix('oracle')->group(function () {
     Route::get('/data/clients', [DataController::class, 'getClientsData']);
     Route::get('/data/production', [DataController::class, 'getProductionData']);
     Route::get('/data/production-volume', [DataController::class, 'getProductionVolumeData']);
+    Route::get('/data/encours-credit', [DataController::class, 'getEncoursCreditData']);
     Route::get('/data/encours', [DataController::class, 'getEncoursData']);
     Route::get('/data/collection', [DataController::class, 'getCollectionData']);
     Route::get('/data/volume-dat', [DataController::class, 'getVolumeDatData']);
     Route::get('/data/depot-garantie', [DataController::class, 'getDepotGarantieData']);
+    Route::get('/data/transfers', [DataController::class, 'getTransfersData']);
     Route::get('/data/prepaid-card-sales', [DataController::class, 'getPrepaidCardSalesData']);
     Route::get('/data/portefeuille-risque', [DataController::class, 'getPortefeuilleRisqueData']);
     Route::get('/data/portefeuille-risque-caf', [DataController::class, 'getPortefeuilleRisqueCafData']);

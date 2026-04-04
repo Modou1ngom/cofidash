@@ -371,6 +371,34 @@ class OracleService
     }
 
     /**
+     * Transferts d'argent (Orange Money, Wave, Ria, WU) — service Python
+     */
+    public function getTransfersData(
+        string $period = 'month',
+        ?int $month = null,
+        ?int $year = null,
+        ?string $date = null,
+        string $service = 'om'
+    ): array {
+        $params = [
+            'period' => $period,
+            'service' => $service,
+        ];
+        if ($month !== null) {
+            $params['month'] = $month;
+        }
+        if ($year !== null) {
+            $params['year'] = $year;
+        }
+        if ($date) {
+            $params['date'] = $date;
+        }
+
+        // Cache bump si logique snapshot / sources DASH changent (OM, Wave, Ria…)
+        return $this->getPythonGetCached('transfers-v4', '/api/oracle/data/transfers', $params, 'Transferts');
+    }
+
+    /**
      * Récupère les données de production depuis Oracle
      */
     public function getProductionData(string $period = 'month'): array

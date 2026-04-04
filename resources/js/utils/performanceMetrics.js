@@ -135,11 +135,6 @@ export function extractAgencies(data, dataType, collectionTab, getAgencyName) {
     Object.values(hierarchicalData.TERRITOIRE).forEach(extractFromTerritory);
   }
   
-  // Extraire les agences des points de service
-  if (hierarchicalData['POINT SERVICES']) {
-    Object.values(hierarchicalData['POINT SERVICES']).forEach(extractFromTerritory);
-  }
-  
   // Si pas de données hiérarchiques, essayer d'autres formats
   if (agencies.length === 0 && data.territories) {
     Object.values(data.territories).forEach(extractFromTerritory);

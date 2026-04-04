@@ -17,7 +17,7 @@
             📊 Performance
           </a>
         </div>
-        <div class="nav-section-header" @click.stop="toggleDepot" :class="{ active: activeSection === 'domiciliation-flux' || activeSection === 'encours-dat' || activeSection === 'encours-epargne' || activeSection === 'depot-garantie' }">
+        <div class="nav-section-header" @click.stop="toggleDepot" :class="{ active: activeSection === 'collection' || activeSection === 'performance-collection' || activeSection === 'domiciliation-flux' || activeSection === 'encours-dat' || activeSection === 'encours-epargne' || activeSection === 'depot-garantie' }">
           <span class="nav-title">
             <span class="nav-icon">💰</span>
             <span class="nav-label">DEPOT</span>
@@ -250,7 +250,7 @@ export default {
         this.clientExpanded = true;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
-      } else if (newVal === 'domiciliation-flux' || newVal === 'encours-dat' || newVal === 'encours-epargne' || newVal === 'depot-garantie') {
+      } else if (newVal === 'collection' || newVal === 'performance-collection' || newVal === 'domiciliation-flux' || newVal === 'encours-dat' || newVal === 'encours-epargne' || newVal === 'depot-garantie') {
         this.depotExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;
@@ -331,7 +331,7 @@ export default {
       this.clientExpanded = true;
       this.objectivesExpanded = false;
       this.managementExpanded = false;
-    } else if (this.activeSection === 'domiciliation-flux' || this.activeSection === 'encours-dat' || this.activeSection === 'encours-epargne' || this.activeSection === 'depot-garantie') {
+    } else if (this.activeSection === 'collection' || this.activeSection === 'performance-collection' || this.activeSection === 'domiciliation-flux' || this.activeSection === 'encours-dat' || this.activeSection === 'encours-epargne' || this.activeSection === 'depot-garantie') {
       this.depotExpanded = true;
       this.clientExpanded = false;
       this.objectivesExpanded = false;
@@ -411,26 +411,82 @@ export default {
     }
   },
   methods: {
+    /** Ferme toutes les sections du menu sauf celle indiquée (comportement accordéon). */
+    closeAllNavSectionsExcept(except) {
+      const keep = {
+        client: 'clientExpanded',
+        depot: 'depotExpanded',
+        credit: 'creditExpanded',
+        prepaidCards: 'prepaidCardsExpanded',
+        moneyTransfers: 'moneyTransfersExpanded',
+        eps: 'epsExpanded',
+        divers: 'diversExpanded',
+        objectives: 'objectivesExpanded',
+        reportingFinancier: 'reportingFinancierExpanded',
+        management: 'managementExpanded'
+      };
+      const keepProp = keep[except];
+      Object.values(keep).forEach((prop) => {
+        if (prop !== keepProp) {
+          this[prop] = false;
+        }
+      });
+      this.performanceExpanded = false;
+      if (except !== 'credit') {
+        this.portefeuilleRisqueExpanded = false;
+      }
+    },
     toggleClient() {
-      this.clientExpanded = !this.clientExpanded;
+      const next = !this.clientExpanded;
+      if (next) {
+        this.closeAllNavSectionsExcept('client');
+      }
+      this.clientExpanded = next;
     },
     toggleDepot() {
-      this.depotExpanded = !this.depotExpanded;
+      const next = !this.depotExpanded;
+      if (next) {
+        this.closeAllNavSectionsExcept('depot');
+      }
+      this.depotExpanded = next;
     },
     toggleCredit() {
-      this.creditExpanded = !this.creditExpanded;
+      const next = !this.creditExpanded;
+      if (next) {
+        this.closeAllNavSectionsExcept('credit');
+      }
+      this.creditExpanded = next;
+      if (!next) {
+        this.portefeuilleRisqueExpanded = false;
+      }
     },
     togglePrepaidCards() {
-      this.prepaidCardsExpanded = !this.prepaidCardsExpanded;
+      const next = !this.prepaidCardsExpanded;
+      if (next) {
+        this.closeAllNavSectionsExcept('prepaidCards');
+      }
+      this.prepaidCardsExpanded = next;
     },
     toggleMoneyTransfers() {
-      this.moneyTransfersExpanded = !this.moneyTransfersExpanded;
+      const next = !this.moneyTransfersExpanded;
+      if (next) {
+        this.closeAllNavSectionsExcept('moneyTransfers');
+      }
+      this.moneyTransfersExpanded = next;
     },
     toggleEps() {
-      this.epsExpanded = !this.epsExpanded;
+      const next = !this.epsExpanded;
+      if (next) {
+        this.closeAllNavSectionsExcept('eps');
+      }
+      this.epsExpanded = next;
     },
     toggleDivers() {
-      this.diversExpanded = !this.diversExpanded;
+      const next = !this.diversExpanded;
+      if (next) {
+        this.closeAllNavSectionsExcept('divers');
+      }
+      this.diversExpanded = next;
     },
     togglePortefeuilleRisque() {
       this.portefeuilleRisqueExpanded = !this.portefeuilleRisqueExpanded;
@@ -442,7 +498,11 @@ export default {
       });
     },
     toggleObjectives() {
-      this.objectivesExpanded = !this.objectivesExpanded;
+      const next = !this.objectivesExpanded;
+      if (next) {
+        this.closeAllNavSectionsExcept('objectives');
+      }
+      this.objectivesExpanded = next;
       // Toujours sélectionner la section objectives quand on clique sur le header
       this.$emit('section-selected', 'objectives');
     },
@@ -455,7 +515,11 @@ export default {
       }, 0);
     },
     toggleReportingFinancier() {
-      this.reportingFinancierExpanded = !this.reportingFinancierExpanded;
+      const next = !this.reportingFinancierExpanded;
+      if (next) {
+        this.closeAllNavSectionsExcept('reportingFinancier');
+      }
+      this.reportingFinancierExpanded = next;
       if (this.reportingFinancierExpanded) {
         this.$emit('section-selected', 'reporting-financier');
       }
@@ -467,7 +531,11 @@ export default {
       });
     },
     toggleManagement() {
-      this.managementExpanded = !this.managementExpanded;
+      const next = !this.managementExpanded;
+      if (next) {
+        this.closeAllNavSectionsExcept('management');
+      }
+      this.managementExpanded = next;
     },
     handlePrepaidCardSection(subSection) {
       this.$emit('section-selected', 'prepaid-cards');
@@ -481,7 +549,7 @@ export default {
         this.clientExpanded = true;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
-      } else if (section === 'domiciliation-flux' || section === 'encours-dat' || section === 'encours-epargne' || section === 'depot-garantie') {
+      } else if (section === 'collection' || section === 'performance-collection' || section === 'domiciliation-flux' || section === 'encours-dat' || section === 'encours-epargne' || section === 'depot-garantie') {
         this.depotExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;
@@ -645,7 +713,7 @@ export default {
 .nav-section-header.active {
   background-color: #1A4D3A !important;
   color: #ffffff !important;
-  box-shadow: inset 4px 0 0 #f97316;
+  box-shadow: inset 4px 0 0 #34d399;
 }
 
 .toggle-icon {

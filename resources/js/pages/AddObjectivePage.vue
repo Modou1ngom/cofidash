@@ -33,8 +33,7 @@
               @change="onCategoryChange"
             >
               <option value="">Sélectionner une catégorie</option>
-              <option value="TERRITOIRE">Territoire</option>
-              <option value="POINT SERVICES">Point Services</option>
+              <option value="TERRITOIRE">Territoire (inclut les agences ex-point service sous Dakar Ville)</option>
               <option value="GRAND COMPTE">Grand Compte</option>
             </select>
           </div>
@@ -56,8 +55,8 @@
             </select>
           </div>
 
-          <div class="form-group" v-if="form.category === 'POINT SERVICES' || form.category === 'GRAND COMPTE' || (form.category === 'TERRITOIRE' && form.territory)">
-            <label for="agency">Agence / Point de Service *</label>
+          <div class="form-group" v-if="form.category === 'GRAND COMPTE' || (form.category === 'TERRITOIRE' && form.territory)">
+            <label for="agency">Agence *</label>
             <select 
               id="agency" 
               v-model="form.agency" 
@@ -246,18 +245,6 @@ export default {
             });
           }
           
-          this.agencies = Array.from(agenciesSet).map(item => JSON.parse(item));
-        } else if (this.form.category === 'POINT SERVICES') {
-          // Charger les points de service
-          const response = await axios.get(`/api/oracle/data/clients`);
-          const agenciesSet = new Set();
-          if (response.data && response.data.servicePoints) {
-            response.data.servicePoints.forEach(point => {
-              if (point.name) {
-                agenciesSet.add(JSON.stringify({ code: point.code || point.name, name: point.name }));
-              }
-            });
-          }
           this.agencies = Array.from(agenciesSet).map(item => JSON.parse(item));
         } else if (this.form.category === 'GRAND COMPTE') {
           // Pour les grands comptes, on peut avoir une liste spécifique

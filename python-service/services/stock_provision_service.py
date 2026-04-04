@@ -291,8 +291,6 @@ def organize_stock_data_by_territory(data: List[Dict]) -> Dict:
         'territoire_province_nord': []
     }
     
-    # Pour les points de service et grand compte
-    service_points_agencies = []
     grand_compte_agency = None
     
     for row in data:
@@ -331,7 +329,7 @@ def organize_stock_data_by_territory(data: List[Dict]) -> Dict:
                 break
         
         if is_service_point:
-            service_points_agencies.append(agency_data)
+            agencies_by_territory['territoire_dakar_ville'].append(agency_data)
             continue
         
         # Trouver le territoire correspondant
@@ -384,25 +382,12 @@ def organize_stock_data_by_territory(data: List[Dict]) -> Dict:
             }
         }
     
-    # Ajouter les points de service
-    if service_points_agencies:
-        total_stock_provision_sp = sum(ag.get('STOCK_PROVISION', 0) for ag in service_points_agencies)
-        total_provision_comptabilisee_sp = sum(ag.get('PROVISION_COMPTABILISEE', 0) for ag in service_points_agencies)
-        
-        hierarchical["POINT SERVICES"]["service_points"] = {
-            "name": "POINT SERVICES",
-            "agencies": service_points_agencies,
-            "totals": {
-                "stockProvision": total_stock_provision_sp,
-                "provisionComptabilisee": total_provision_comptabilisee_sp
-            }
-        }
-    
+    hierarchical["POINT SERVICES"] = {}
+
     logger.info(f"📊 Structure hiérarchique créée: {len(agencies_by_territory['territoire_dakar_ville'])} agences DAKAR VILLE, "
                f"{len(agencies_by_territory['territoire_dakar_banlieue'])} DAKAR BANLIEUE, "
                f"{len(agencies_by_territory['territoire_province_centre_sud'])} PROVINCE CENTRE-SUD, "
                f"{len(agencies_by_territory['territoire_province_nord'])} PROVINCE NORD, "
-               f"{len(service_points_agencies)} points de service, "
                f"{'1' if grand_compte_agency else '0'} grand compte")
     
     return hierarchical

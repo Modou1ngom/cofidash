@@ -165,8 +165,8 @@
                         </button>
                         {{ agency.AGENCE || agency.name }}
                       </td>
-                      <td>{{ getCodeGestionDisplay(agency) }}</td>
-                      <td>{{ getChargeAffaireDisplay(agency) }}</td>
+                      <td :class="{ 'caf-all-label': isCafSummaryAll(agency) }">{{ getCodeGestionDisplay(agency) }}</td>
+                      <td :class="{ 'caf-all-label': isCafSummaryAll(agency) }">{{ getChargeAffaireDisplay(agency) }}</td>
                       <td>{{ formatNumber(agency.OBJECTIF_PRODUCTION || agency.objectif || 0) }}</td>
                     <td>{{ formatCurrency(agency.VOLUME_CREDIT_DECAISSE_M_1 || agency.volumeM1 || 0) }}</td>
                     <td>{{ formatCurrency(agency.VOLUME_CREDIT_DECAISSE_M || agency.volumeM || 0) }}</td>
@@ -228,124 +228,8 @@
               </template>
             </template>
 
-            <!-- POINT SERVICES -->
-            <tr v-if="Object.keys(filteredHierarchicalData['POINT SERVICES'] || {}).length > 0" class="level-1-row" @click="toggleExpand('POINT SERVICES')">
-              <td class="level-1">
-                <button class="expand-btn" @click.stop="toggleExpand('POINT SERVICES')">
-                  {{ expandedSections['POINT SERVICES'] ? '−' : '+' }}
-                </button>
-                <strong>POINT SERVICES</strong>
-              </td>
-              <td><strong>-</strong></td>
-              <td><strong>-</strong></td>
-              <td><strong>{{ formatNumber(pointServicesTotal.objectif) }}</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.volumeM1) }}</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.volumeM) }}</strong></td>
-              <td :class="getVariationClass(pointServicesTotal.variationVolume)">
-                <strong>{{ formatVariationCurrency(pointServicesTotal.variationVolume) }}</strong>
-              </td>
-              <td :class="getVariationClass(pointServicesTotal.variationPourcent)">
-                <strong>{{ formatVariationPercent(pointServicesTotal.variationPourcent) }}</strong>
-              </td>
-              <td :class="getAchievementClass(pointServicesTotal.atteinte)">
-                <strong>{{ formatPercent(pointServicesTotal.atteinte) }}</strong>
-              </td>
-              <td :class="getContributionClass(pointServicesTotal.contribution)">
-                <strong>{{ formatPercent(pointServicesTotal.contribution) }}</strong>
-              </td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.fraisM1) }}</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.fraisM) }}</strong></td>
-              <td :class="getVariationClass(pointServicesTotal.ecartFrais)">
-                <strong>{{ formatVariationCurrency(pointServicesTotal.ecartFrais) }}</strong>
-              </td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.variationFrais) }}</strong></td>
-            </tr>
-            
-            <!-- Points de service individuels directement sous POINT SERVICES -->
-            <template v-if="expandedSections['POINT SERVICES']">
-              <template v-for="(servicePoint, servicePointKey) in filteredHierarchicalData['POINT SERVICES']" :key="servicePointKey">
-                <!-- Afficher directement les points de service individuels (SCAT URBAM, NIARRY TALLY) -->
-                <template v-if="servicePoint.data && servicePoint.data.length > 0">
-                  <template v-for="(agency, agencyIndex) in servicePoint.data" :key="agency.CODE_AGENCE || agency.AGENCE || agency.name || agencyIndex">
-                    <tr 
-                      class="level-2-row service-point-row"
-                      @click="toggleAgencyExpand(agency, `POINT_SERVICES_${getAgencyKey(agency, agencyIndex)}`)"
-                    >
-                      <td class="level-2 service-point-cell">
-                        <button 
-                          class="expand-btn" 
-                          @click.stop="toggleAgencyExpand(agency, `POINT_SERVICES_${getAgencyKey(agency, agencyIndex)}`)"
-                          v-if="hasChargeAffaireDetails(agency)"
-                        >
-                          {{ expandedSections[`POINT_SERVICES_${getAgencyKey(agency, agencyIndex)}`] ? '−' : '+' }}
-                        </button>
-                        {{ agency.AGENCE || agency.name }}
-                      </td>
-                      <td>{{ getCodeGestionDisplay(agency) }}</td>
-                      <td>{{ getChargeAffaireDisplay(agency) }}</td>
-                      <td>{{ formatNumber(agency.OBJECTIF_PRODUCTION || agency.objectif || 0) }}</td>
-                    <td>{{ formatCurrency(agency.VOLUME_CREDIT_DECAISSE_M_1 || agency.volumeM1 || 0) }}</td>
-                    <td>{{ formatCurrency(agency.VOLUME_CREDIT_DECAISSE_M || agency.volumeM || 0) }}</td>
-                    <td :class="getVariationClass(agency.VARIATION_VOLUME || agency.variationVolume || 0)">
-                      {{ formatVariationCurrency(agency.VARIATION_VOLUME || agency.variationVolume || 0) }}
-                    </td>
-                    <td :class="getVariationClass(agency.VARIATION_POURCENT || agency.variationPourcent || 0)">
-                      {{ formatVariationPercent(agency.VARIATION_POURCENT || agency.variationPourcent || 0) }}
-                    </td>
-                    <td :class="getAchievementClass(agency.TAUX_REALISATION || agency.atteinte || 0)">
-                      {{ formatPercent(agency.TAUX_REALISATION || agency.atteinte || 0) }}
-                    </td>
-                    <td :class="getContributionClass(agency.contribution || 0)">
-                      {{ formatPercent(agency.contribution || 0) }}
-                    </td>
-                    <td>{{ formatCurrency(agency.FRAIS_DOSSIER_M_1 || agency.fraisM1 || 0) }}</td>
-                    <td>{{ formatCurrency(agency.FRAIS_DOSSIER_M || agency.fraisM || 0) }}</td>
-                    <td :class="getVariationClass(agency.ECART_FRAIS || agency.ecartFrais || 0)">
-                      {{ formatVariationCurrency(agency.ECART_FRAIS || agency.ecartFrais || 0) }}
-                    </td>
-                    <td>{{ formatCurrency(agency.VARIATION_FRAIS || agency.variationFrais || 0) }}</td>
-                    </tr>
-                    <!-- Afficher tous les chargés d'affaire pour cette agence quand elle est expandée -->
-                    <template v-if="expandedSections[`POINT_SERVICES_${getAgencyKey(agency, agencyIndex)}`]">
-                      <tr 
-                        v-for="(chargeDetail, chargeIndex) in getChargeAffaireDetailsByBranchCode(agency.CODE_AGENCE || agency.BRANCH_CODE)" 
-                        :key="`charge-${chargeIndex}`"
-                        class="level-4-row charge-detail-row"
-                      >
-                        <td class="level-4">
-                          {{ agency.CODE_AGENCE || agency.BRANCH_CODE || '-' }}
-                        </td>
-                        <td>{{ chargeDetail.codeGestion || chargeDetail.CODE_GESTION || '-' }}</td>
-                        <td>{{ chargeDetail.chargeAffaire || chargeDetail.CHARGE_AFFAIRE || '-' }}</td>
-                        <td>-</td>
-                        <td>{{ formatCurrency(chargeDetail.volumeDebloqueM1 || chargeDetail.VOLUME_DEBLOQUE_M_1 || 0) }}</td>
-                        <td>{{ formatCurrency(chargeDetail.volumeDebloqueM || chargeDetail.VOLUME_DEBLOQUE_M || 0) }}</td>
-                        <td :class="getVariationClass(chargeDetail.variationVolume || chargeDetail.VARIATION_VOLUME || 0)">
-                          {{ formatVariationCurrency(chargeDetail.variationVolume || chargeDetail.VARIATION_VOLUME || 0) }}
-                        </td>
-                        <td :class="getVariationClass(chargeDetail.variationPct || chargeDetail.VARIATION_PCT || 0)">
-                          {{ formatVariationPercent(chargeDetail.variationPct || chargeDetail.VARIATION_PCT || 0) }}
-                        </td>
-                        <td>-</td>
-                        <td>-</td>
-                        <td>-</td>
-                        <td>-</td>
-                        <td>-</td>
-                        <td>-</td>
-                      </tr>
-                      <tr v-if="getChargeAffaireDetailsByBranchCode(agency.CODE_AGENCE || agency.BRANCH_CODE).length === 0" class="level-4-row">
-                        <td colspan="14" style="text-align: center; padding: 10px; color: #666;">
-                          Aucun chargé d'affaire trouvé pour cette agence
-                        </td>
-                      </tr>
-                    </template>
-                  </template>
-                </template>
-              </template>
-            </template>
-            
             <!-- GRAND COMPTE -->
-            <tr v-if="grandCompte && grandCompte.volumeM > 0" class="level-3-row">
+            <tr v-if="grandCompte" class="level-3-row">
               <td class="level-3">GRAND COMPTE</td>
               <td>-</td>
               <td>-</td>
@@ -389,7 +273,9 @@
               <td :class="getAchievementClass(total.atteinte)">
                 <strong>{{ formatPercent(total.atteinte) }}</strong>
               </td>
-              <td></td>
+              <td :class="getContributionClass(total.contribution)">
+                <strong>{{ formatPercent(total.contribution) }}</strong>
+              </td>
               <td><strong>{{ formatCurrency(total.fraisM1) }}</strong></td>
               <td><strong>{{ formatCurrency(total.fraisM) }}</strong></td>
               <td :class="getVariationClass(total.ecartFrais)">
@@ -437,15 +323,12 @@ export default {
       selectedYear: now.getFullYear(),
       expandedSections: {
         TERRITOIRE: false,
-        'POINT SERVICES': false,
         'TERRITOIRE_territoire_dakar_ville': false,
         'TERRITOIRE_territoire_dakar_banlieue': false,
         'TERRITOIRE_territoire_province_centre_sud': false,
-        'TERRITOIRE_territoire_province_nord': false,
-        'POINT SERVICES_service_points': false
+        'TERRITOIRE_territoire_province_nord': false
       },
       hierarchicalDataFromBackend: null,
-      servicePoints: [],
       chargeAffaireDetails: {}, // Détails par charge d'affaire
       chargeAffaireDetailsCache: new Map(), // Cache pour les détails par CAF
       months: [
@@ -507,15 +390,16 @@ export default {
               if (territory && territory.total && territoireTotalM > 0) {
                 territory.total.contribution = ((territory.total.volumeM || territory.total.volume || 0) / territoireTotalM) * 100;
               }
-            });
-          }
-          
-          if (data['POINT SERVICES'] && typeof data['POINT SERVICES'] === 'object' && data['POINT SERVICES'] !== null) {
-            Object.keys(data['POINT SERVICES']).forEach(key => {
-              const servicePoint = data['POINT SERVICES'][key];
-              if (servicePoint && !servicePoint.total) {
-                const agencies = servicePoint.data || [];
-                servicePoint.total = this.calculateZoneTotalsFromData(agencies);
+              const territoryRow = data.TERRITOIRE[key];
+              if (territoryRow && Array.isArray(territoryRow.data)) {
+                const sumZone = territoryRow.data.reduce(
+                  (s, a) => s + (a.VOLUME_CREDIT_DECAISSE_M || a.volumeM || 0),
+                  0
+                );
+                territoryRow.data.forEach(a => {
+                  const vm = a.VOLUME_CREDIT_DECAISSE_M || a.volumeM || 0;
+                  a.contribution = sumZone > 0 ? (vm / sumZone) * 100 : 0;
+                });
               }
             });
           }
@@ -534,8 +418,7 @@ export default {
       if (!this.territories || typeof this.territories !== 'object') {
         console.warn('⚠️ hierarchicalData - territories est aussi vide');
         return {
-          TERRITOIRE: {},
-          'POINT SERVICES': {}
+          TERRITOIRE: {}
         };
       }
       
@@ -561,13 +444,6 @@ export default {
             data: (this.territories.territoire_province_nord && this.territories.territoire_province_nord.agencies) || [],
             total: this.calculateZoneTotalsFromData((this.territories.territoire_province_nord && this.territories.territoire_province_nord.agencies) || [])
           }
-        },
-        'POINT SERVICES': {
-          service_points: {
-            name: 'POINTS SERVICES',
-            data: this.servicePoints || [],
-            total: this.calculateZoneTotalsFromData(this.servicePoints || [])
-          }
         }
       };
       
@@ -583,6 +459,19 @@ export default {
           }
         });
       }
+      Object.keys(data.TERRITOIRE).forEach(key => {
+        const territoryRow = data.TERRITOIRE[key];
+        if (territoryRow && Array.isArray(territoryRow.data)) {
+          const sumZone = territoryRow.data.reduce(
+            (s, a) => s + (a.VOLUME_CREDIT_DECAISSE_M || a.volumeM || 0),
+            0
+          );
+          territoryRow.data.forEach(a => {
+            const vm = a.VOLUME_CREDIT_DECAISSE_M || a.volumeM || 0;
+            a.contribution = sumZone > 0 ? (vm / sumZone) * 100 : 0;
+          });
+        }
+      });
       
       return data;
     },
@@ -594,8 +483,7 @@ export default {
       if (!this.hierarchicalData || typeof this.hierarchicalData !== 'object' || this.hierarchicalData === null) {
         console.warn('⚠️ filteredHierarchicalData - hierarchicalData est vide ou invalide');
         return {
-          TERRITOIRE: {},
-          'POINT SERVICES': {}
+          TERRITOIRE: {}
         };
       }
       
@@ -605,10 +493,7 @@ export default {
       }
       
       const filtered = {
-        TERRITOIRE: {},
-        'POINT SERVICES': (this.hierarchicalData['POINT SERVICES'] && typeof this.hierarchicalData['POINT SERVICES'] === 'object' && this.hierarchicalData['POINT SERVICES'] !== null)
-          ? this.hierarchicalData['POINT SERVICES']
-          : {}
+        TERRITOIRE: {}
       };
       
       if (this.hierarchicalData.TERRITOIRE && 
@@ -657,67 +542,7 @@ export default {
       const ecartFrais = totalFraisM - totalFraisM1;
       const variationFrais = totalFraisM;
       
-      let pointServicesM = 0;
-      if (this.hierarchicalData && this.hierarchicalData['POINT SERVICES']) {
-        Object.values(this.hierarchicalData['POINT SERVICES']).forEach(servicePoint => {
-          if (servicePoint && servicePoint.total) {
-            pointServicesM += servicePoint.total.volumeM || servicePoint.total.volume || 0;
-          }
-        });
-      }
-      const totalGlobalM = totalVolumeM + pointServicesM;
-      const contribution = totalGlobalM > 0 ? (totalVolumeM / totalGlobalM) * 100 : 0;
-      
-      return {
-        objectif: totalObjectif,
-        volumeM1: totalVolumeM1,
-        volumeM: totalVolumeM,
-        variationVolume: variationVolume,
-        variationPourcent: variationPourcent,
-        atteinte: atteinte,
-        contribution: contribution,
-        fraisM1: totalFraisM1,
-        fraisM: totalFraisM,
-        ecartFrais: ecartFrais,
-        variationFrais: variationFrais
-      };
-    },
-    pointServicesTotal() {
-      if (!this.hierarchicalData || !this.hierarchicalData['POINT SERVICES']) {
-        return { objectif: 0, volumeM1: 0, volumeM: 0, variationVolume: 0, variationPourcent: 0, atteinte: 0, contribution: 0, fraisM1: 0, fraisM: 0, ecartFrais: 0, variationFrais: 0 };
-      }
-      
-      let totalObjectif = 0;
-      let totalVolumeM1 = 0;
-      let totalVolumeM = 0;
-      let totalFraisM1 = 0;
-      let totalFraisM = 0;
-      
-      Object.values(this.hierarchicalData['POINT SERVICES']).forEach(servicePoint => {
-        if (servicePoint && servicePoint.total) {
-          totalObjectif += servicePoint.total.objectif || 0;
-          totalVolumeM1 += servicePoint.total.volumeM1 || 0;
-          totalVolumeM += servicePoint.total.volumeM || 0;
-          totalFraisM1 += servicePoint.total.fraisM1 || 0;
-          totalFraisM += servicePoint.total.fraisM || 0;
-        }
-      });
-      
-      const variationVolume = totalVolumeM - totalVolumeM1;
-      const variationPourcent = totalVolumeM1 > 0 ? ((totalVolumeM - totalVolumeM1) / totalVolumeM1) * 100 : 0;
-      const atteinte = totalObjectif > 0 ? (totalVolumeM / totalObjectif) * 100 : 0;
-      const ecartFrais = totalFraisM - totalFraisM1;
-      const variationFrais = totalFraisM;
-      
-      let territoireM = 0;
-      if (this.hierarchicalData && this.hierarchicalData.TERRITOIRE) {
-        Object.values(this.hierarchicalData.TERRITOIRE).forEach(territory => {
-          if (territory && territory.total) {
-            territoireM += territory.total.volumeM || territory.total.volume || 0;
-          }
-        });
-      }
-      const totalGlobalM = totalVolumeM + territoireM;
+      const totalGlobalM = totalVolumeM;
       const contribution = totalGlobalM > 0 ? (totalVolumeM / totalGlobalM) * 100 : 0;
       
       return {
@@ -745,7 +570,6 @@ export default {
         const ecartFrais = (data.fraisM || 0) - (data.fraisM1 || 0);
         
         let territoireM = 0;
-        let pointServicesM = 0;
         
         if (this.hierarchicalData && this.hierarchicalData.TERRITOIRE) {
           Object.values(this.hierarchicalData.TERRITOIRE).forEach(territory => {
@@ -755,15 +579,7 @@ export default {
           });
         }
         
-        if (this.hierarchicalData && this.hierarchicalData['POINT SERVICES']) {
-          Object.values(this.hierarchicalData['POINT SERVICES']).forEach(servicePoint => {
-            if (servicePoint && servicePoint.total) {
-              pointServicesM += servicePoint.total.volumeM || servicePoint.total.volume || 0;
-            }
-          });
-        }
-        
-        const totalGlobal = territoireM + pointServicesM + grandCompteM;
+        const totalGlobal = territoireM + grandCompteM;
         const contribution = totalGlobal > 0 ? (grandCompteM / totalGlobal) * 100 : 0;
         
         return {
@@ -797,14 +613,13 @@ export default {
     },
     total() {
       const territoire = this.territoireTotal;
-      const pointServices = this.pointServicesTotal;
       const grandCompte = this.grandCompte;
       
-      const totalObjectif = territoire.objectif + pointServices.objectif + grandCompte.objectif;
-      const totalVolumeM1 = territoire.volumeM1 + pointServices.volumeM1 + grandCompte.volumeM1;
-      const totalVolumeM = territoire.volumeM + pointServices.volumeM + grandCompte.volumeM;
-      const totalFraisM1 = territoire.fraisM1 + pointServices.fraisM1 + grandCompte.fraisM1;
-      const totalFraisM = territoire.fraisM + pointServices.fraisM + grandCompte.fraisM;
+      const totalObjectif = territoire.objectif + grandCompte.objectif;
+      const totalVolumeM1 = territoire.volumeM1 + grandCompte.volumeM1;
+      const totalVolumeM = territoire.volumeM + grandCompte.volumeM;
+      const totalFraisM1 = territoire.fraisM1 + grandCompte.fraisM1;
+      const totalFraisM = territoire.fraisM + grandCompte.fraisM;
       
       return {
         objectif: totalObjectif,
@@ -813,6 +628,7 @@ export default {
         variationVolume: totalVolumeM - totalVolumeM1,
         variationPourcent: totalVolumeM1 > 0 ? ((totalVolumeM - totalVolumeM1) / totalVolumeM1) * 100 : 0,
         atteinte: totalObjectif > 0 ? (totalVolumeM / totalObjectif) * 100 : 0,
+        contribution: totalVolumeM > 0 ? 100 : 0,
         fraisM1: totalFraisM1,
         fraisM: totalFraisM,
         ecartFrais: totalFraisM - totalFraisM1,
@@ -889,22 +705,39 @@ export default {
       
       return totals;
     },
+    /** Objectifs : API en FCFA, affichage en millions (cohérent avec volumes / frais). */
     formatNumber(num) {
       if (num === null || num === undefined) return '-';
-      return new Intl.NumberFormat('fr-FR').format(num);
-    },
-    formatCurrency(num) {
-      if (num === null || num === undefined || num === 0) return '-';
-      return new Intl.NumberFormat('fr-FR', { 
-        style: 'currency', 
-        currency: 'XOF',
+      const millions = Number(num) / 1_000_000;
+      return new Intl.NumberFormat('fr-FR', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
-      }).format(num).replace('XOF', '').trim();
+      }).format(millions) + ' M';
+    },
+    /** Volumes et frais : API en FCFA, affichage en millions de FCFA. */
+    formatCurrency(num) {
+      if (num === null || num === undefined) return '-';
+      const millions = Number(num) / 1_000_000;
+      return new Intl.NumberFormat('fr-FR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(millions) + ' M F CFA';
+    },
+    /** Montant en millions (variations / écarts), même unité que formatCurrency. */
+    formatCurrencyAmount(num) {
+      if (num === null || num === undefined) return '-';
+      const millions = Number(num) / 1_000_000;
+      return new Intl.NumberFormat('fr-FR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(millions);
     },
     formatVariationCurrency(num) {
-      if (num === null || num === undefined || num === 0) return '-';
-      const formatted = this.formatCurrency(Math.abs(num));
+      if (num === null || num === undefined) return '-';
+      if (num === 0) {
+        return this.formatCurrencyAmount(0);
+      }
+      const formatted = this.formatCurrencyAmount(Math.abs(num));
       return num > 0 ? `+${formatted}` : `-${formatted}`;
     },
     formatVariationPercent(num) {
@@ -938,12 +771,19 @@ export default {
       try {
         const apiUrl = '/api/oracle/data/production-volume';
         
-        const params = {};
+        const params = { period: this.selectedPeriod };
         if (this.selectedPeriod === 'month') {
           params.month = this.selectedMonth;
           params.year = this.selectedYear;
         } else if (this.selectedPeriod === 'week') {
-          params.month = this.selectedMonth;
+          if (this.selectedDate) {
+            let dateToSend = this.selectedDate;
+            if (dateToSend.includes('/')) {
+              const parts = dateToSend.split('/');
+              dateToSend = `${parts[2]}-${parts[1]}-${parts[0]}`;
+            }
+            params.date = dateToSend;
+          }
           params.year = this.selectedYear;
         } else if (this.selectedPeriod === 'year') {
           params.year = this.selectedYear;
@@ -1004,13 +844,7 @@ export default {
             };
           }
           
-          if (dataToUse.hierarchicalData['POINT SERVICES'] && dataToUse.hierarchicalData['POINT SERVICES'].service_points) {
-            this.servicePoints = dataToUse.hierarchicalData['POINT SERVICES'].service_points.data || [];
-          }
-          
-          if (dataToUse.grandCompte) {
-            this.grandCompteData = dataToUse.grandCompte;
-          }
+          this.grandCompteData = dataToUse.grandCompte || null;
         } else {
           this.territories = {
             territoire_dakar_ville: { name: 'TERRITOIRE DAKAR VILLE', agencies: [] },
@@ -1128,15 +962,33 @@ export default {
       
       return false;
     },
+    /** Ligne agence : plusieurs CAF → libellé « Tous » en gris clair */
+    isCafSummaryAll(agency) {
+      if (!agency) return false;
+      const bc = String(agency.CODE_AGENCE || agency.BRANCH_CODE || '').trim();
+      const details = bc ? this.getChargeAffaireDetailsByBranchCode(bc) : [];
+      return details.length > 1;
+    },
     getCodeGestionDisplay(agency) {
       if (!agency) return '-';
-      // Si l'agence a plusieurs codes gestion, afficher le premier ou un indicateur
+      const bc = String(agency.CODE_AGENCE || agency.BRANCH_CODE || '').trim();
+      const details = bc ? this.getChargeAffaireDetailsByBranchCode(bc) : [];
+      if (details.length > 1) return 'Tous';
+      if (details.length === 1) {
+        const g = details[0].codeGestion || details[0].CODE_GESTION;
+        return g || '-';
+      }
       const codeGestion = agency.CODE_GESTION || agency.codeGestion || agency.CODE_GESTION_PRET || agency.codeGestionPret;
       return codeGestion || '-';
     },
     getChargeAffaireDisplay(agency) {
       if (!agency) return '-';
-      // Si l'agence a plusieurs chargés d'affaire, afficher le premier ou un indicateur
+      const bc = String(agency.CODE_AGENCE || agency.BRANCH_CODE || '').trim();
+      const details = bc ? this.getChargeAffaireDetailsByBranchCode(bc) : [];
+      if (details.length > 1) return 'Tous';
+      if (details.length === 1) {
+        return details[0].chargeAffaire || details[0].CHARGE_AFFAIRE || '-';
+      }
       const chargeAffaire = agency.CHARGE_AFFAIRE || agency.chargeAffaire;
       return chargeAffaire || '-';
     },
@@ -1310,6 +1162,11 @@ export default {
 
 .level-3-row:hover {
   background: #f5f5f5;
+}
+
+.agencies-table td.caf-all-label {
+  color: #b0b8c4;
+  font-weight: 500;
 }
 
 .level-4-row {

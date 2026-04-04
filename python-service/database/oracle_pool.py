@@ -7,7 +7,6 @@ from queue import Queue, Empty
 from typing import Optional
 from contextlib import contextmanager
 from database.oracle import get_oracle_connection
-from config.settings import ORACLE_CONFIG
 
 logger = logging.getLogger(__name__)
 

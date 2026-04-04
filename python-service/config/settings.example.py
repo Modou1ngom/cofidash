@@ -2,19 +2,17 @@
 Configuration du service Python pour COFIdash Dashboard
 """
 import os
+from pathlib import Path
 
-# Configuration de la connexion Oracle
-# Toutes les valeurs sont définies via des variables d'environnement
-# Variables d'environnement requises:
-#   - ORACLE_HOST: Adresse IP ou hostname du serveur Oracle
-#   - ORACLE_PORT: Port du serveur Oracle (par défaut: 1521)
-#   - ORACLE_SERVICE_NAME: Nom du service Oracle
-#   - ORACLE_USERNAME: Nom d'utilisateur Oracle
-#   - ORACLE_PASSWORD: Mot de passe Oracle
-ORACLE_CONFIG = {
-    'host': os.getenv('ORACLE_HOST', 'localhost'),
-    'port': os.getenv('ORACLE_PORT', '1521'),
-    'service_name': os.getenv('ORACLE_SERVICE_NAME', 'ORCL'),
-    'username': os.getenv('ORACLE_USERNAME', ''),
-    'password': os.getenv('ORACLE_PASSWORD', '')
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / '.env')
+
+# Oracle Cofina (REPORT_GROUPE) — variables ORACLE_COFINA_* dans .env
+ORACLE_COFINA_CONFIG = {
+    'host': os.getenv('ORACLE_COFINA_HOST', ''),
+    'port': os.getenv('ORACLE_COFINA_PORT', ''),
+    'service_name': os.getenv('ORACLE_COFINA_SERVICE_NAME', ''),
+    'username': os.getenv('ORACLE_COFINA_USERNAME', ''),
+    'password': os.getenv('ORACLE_COFINA_PASSWORD', ''),
 }

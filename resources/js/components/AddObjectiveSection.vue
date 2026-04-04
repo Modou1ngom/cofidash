@@ -84,7 +84,7 @@
           </div>
         </div>
 
-        <div class="form-row" v-if="(shouldShowTypeField && profileCode !== 'CHEF_AGENCE') || (determinedCategory === 'TERRITOIRE' || (isResponsableZone && (determinedCategory === 'POINT SERVICES' || determinedCategory === 'GRAND COMPTE')))">
+        <div class="form-row" v-if="(shouldShowTypeField && profileCode !== 'CHEF_AGENCE') || (determinedCategory === 'TERRITOIRE' || (isResponsableZone && determinedCategory === 'GRAND COMPTE'))">
           <div class="form-group" v-if="shouldShowTypeField && profileCode !== 'CHEF_AGENCE'">
             <label for="type">Type d'objectif *</label>
             <select 
@@ -108,7 +108,7 @@
           </div>
 
           <!-- Pour Responsable Zone, afficher le sélecteur de territoire -->
-          <div class="form-group" v-if="determinedCategory === 'TERRITOIRE' || (isResponsableZone && (determinedCategory === 'POINT SERVICES' || determinedCategory === 'GRAND COMPTE'))">
+          <div class="form-group" v-if="determinedCategory === 'TERRITOIRE' || (isResponsableZone && determinedCategory === 'GRAND COMPTE')">
             <label for="territory">Territoire *</label>
             <select 
               id="territory" 
@@ -623,14 +623,14 @@ export default {
         return 'TERRITOIRE';
       }
       
-      // Responsable Zone peut créer pour les agences dans son territoire (POINT SERVICES par défaut)
+      // Responsable Zone : objectifs par territoire (anciennes agences « point service » sous Dakar Ville)
       if (profileCode === 'RESPONSABLE_ZONE') {
-        return 'POINT SERVICES';
+        return 'TERRITOIRE';
       }
       
-      // Chef d'Agence peut créer pour ses CAF (POINT SERVICES par défaut)
+      // Chef d'Agence : objectifs par agence / CAF (même modèle de données territoire)
       if (profileCode === 'CHEF_AGENCE') {
-        return 'POINT SERVICES';
+        return 'TERRITOIRE';
       }
       
       // MD crée pour la filiale (objectif global annuel)
@@ -643,8 +643,7 @@ export default {
         return 'TERRITOIRE';
       }
       
-      // Par défaut, retourner POINT SERVICES
-      return 'POINT SERVICES';
+      return 'TERRITOIRE';
     },
     determinedType() {
       // Pour tous les profils, utiliser le type sélectionné dans le formulaire
@@ -672,15 +671,12 @@ export default {
       }
       
       // Pour les autres profils, afficher le champ agence selon la catégorie
-      if (this.determinedCategory === 'POINT SERVICES' || this.determinedCategory === 'GRAND COMPTE') {
+      if (this.determinedCategory === 'GRAND COMPTE') {
         return true;
       }
-      
-      // Pour TERRITOIRE, afficher seulement si ce n'est pas le DGA et qu'un territoire est sélectionné
       if (this.determinedCategory === 'TERRITOIRE' && this.form.territory) {
         return profileCode !== 'DGA';
       }
-      
       return false;
     },
     shouldShowValueFields() {
@@ -1021,156 +1017,75 @@ export default {
             console.warn('⚠️ Aucune agence trouvée pour le territoire:', territoryKey);
             console.log('Structure des données:', hierarchicalData?.TERRITOIRE);
           }
-        } else if (this.determinedCategory === 'POINT SERVICES') {
-          // Pour Responsable Zone, charger les agences du territoire sélectionné
-          if (this.isResponsableZone && this.form.territory) {
-            const territoryMap = {
-              'DAKAR_VILLE': 'territoire_dakar_ville',
-              'DAKAR_BANLIEUE': 'territoire_dakar_banlieue',
-              'PROVINCE_CENTRE_SUD': 'territoire_province_centre_sud',
-              'PROVINCE_NORD': 'territoire_province_nord'
-            };
-            
-            const territoryKey = territoryMap[this.form.territory];
-            if (!territoryKey) {
-              console.warn('Territoire non reconnu:', this.form.territory);
-              return;
+        } else if (this.profileCode === 'CHEF_AGENCE') {
+          const response = await axios.get(`/api/oracle/data/clients`, {
+            params: {
+              period: 'month',
+              month: new Date().getMonth() + 1,
+              year: new Date().getFullYear()
             }
-            
-            const response = await axios.get(`/api/oracle/data/clients`, {
-              params: {
-                period: 'month',
-                month: new Date().getMonth() + 1,
-                year: new Date().getFullYear()
+          });
+          let data = response.data?.data || response.data;
+          const hierarchicalData = data?.hierarchicalData || data;
+          const agenciesSet = new Set();
+          if (hierarchicalData?.TERRITOIRE) {
+            Object.keys(hierarchicalData.TERRITOIRE).forEach(territoryKey => {
+              const territory = hierarchicalData.TERRITOIRE[territoryKey];
+              if (territory.agencies && Array.isArray(territory.agencies)) {
+                territory.agencies.forEach(agency => {
+                  const name = agency.name || agency.AGENCE || agency.NOM_AGENCE || agency.NOM;
+                  const code = agency.code || agency.CODE_AGENCE || agency.CODE || agency.AGENCE || name;
+                  if (name && name.trim() && name.toUpperCase() !== 'INCONNU' && name.toUpperCase() !== 'UNKNOWN') {
+                    agenciesSet.add(JSON.stringify({ code: code, name: name.trim() }));
+                  }
+                });
+              }
+              if (territory.data && Array.isArray(territory.data)) {
+                territory.data.forEach(agency => {
+                  const name = agency.name || agency.AGENCE || agency.NOM_AGENCE || agency.NOM;
+                  const code = agency.code || agency.CODE_AGENCE || agency.CODE || agency.AGENCE || name;
+                  if (name && name.trim() && name.toUpperCase() !== 'INCONNU' && name.toUpperCase() !== 'UNKNOWN') {
+                    agenciesSet.add(JSON.stringify({ code: code, name: name.trim() }));
+                  }
+                });
               }
             });
-            
-            let data = response.data?.data || response.data;
-            const hierarchicalData = data?.hierarchicalData || data;
-            
-            // Charger les agences du territoire sélectionné
-            const agenciesSet = new Set();
-            
-            // 1. Charger les agences directement du territoire
-            if (hierarchicalData?.TERRITOIRE?.[territoryKey]?.agencies) {
-              const agenciesList = hierarchicalData.TERRITOIRE[territoryKey].agencies;
-              
-              agenciesList.forEach(agency => {
-                const name = agency.name || agency.AGENCE || agency.NOM_AGENCE || agency.NOM;
-                const code = agency.code || agency.CODE_AGENCE || agency.CODE || agency.AGENCE || name;
-                if (name && name.trim() && name.toUpperCase() !== 'INCONNU' && name.toUpperCase() !== 'UNKNOWN') {
-                  agenciesSet.add(JSON.stringify({ code: code, name: name.trim() }));
-                }
-              });
+          }
+          this.agencies = Array.from(agenciesSet).map(item => JSON.parse(item));
+          console.log(`✅ ${this.agencies.length} agence(s) chargée(s) pour le chef d'agence`);
+          if (this.agencies.length === 0) {
+            console.warn('⚠️ Aucune agence trouvée');
+            console.log('Structure des données TERRITOIRE:', hierarchicalData?.TERRITOIRE);
+          }
+        } else if (this.determinedCategory === 'TERRITOIRE' && !this.form.territory) {
+          const response = await axios.get(`/api/oracle/data/clients`, {
+            params: {
+              period: 'month',
+              month: new Date().getMonth() + 1,
+              year: new Date().getFullYear()
             }
-            
-            // 2. Charger aussi les agences des POINT SERVICES dans ce territoire
-            if (hierarchicalData?.['POINT SERVICES']) {
-              Object.keys(hierarchicalData['POINT SERVICES']).forEach(servicePointKey => {
-                const servicePoint = hierarchicalData['POINT SERVICES'][servicePointKey];
-                // Vérifier si ce point de service appartient au territoire
-                if (servicePoint.agencies && Array.isArray(servicePoint.agencies)) {
-                  servicePoint.agencies.forEach(agency => {
-                    const name = agency.name || agency.AGENCE || agency.NOM_AGENCE || agency.NOM;
-                    const code = agency.code || agency.CODE_AGENCE || agency.CODE || agency.AGENCE || name;
-                    if (name && name.trim() && name.toUpperCase() !== 'INCONNU' && name.toUpperCase() !== 'UNKNOWN') {
-                      agenciesSet.add(JSON.stringify({ code: code, name: name.trim() }));
-                    }
-                  });
-                }
-              });
-            }
-              
-              this.agencies = Array.from(agenciesSet).map(item => JSON.parse(item));
-            console.log(`✅ ${this.agencies.length} agences chargées pour ${territoryKey}`, this.agencies);
-            
-            if (this.agencies.length === 0) {
-              console.warn('⚠️ Aucune agence trouvée pour le territoire:', territoryKey);
-              console.log('Structure des données TERRITOIRE:', hierarchicalData?.TERRITOIRE);
-              console.log('Structure des données POINT SERVICES:', hierarchicalData?.['POINT SERVICES']);
-            }
-          } else if (this.profileCode === 'CHEF_AGENCE') {
-            // Pour CHEF_AGENCE, charger toutes les agences disponibles depuis TERRITOIRE
-            const response = await axios.get(`/api/oracle/data/clients`, {
-              params: {
-                period: 'month',
-                month: new Date().getMonth() + 1,
-                year: new Date().getFullYear()
+          });
+          let data = response.data?.data || response.data;
+          const hierarchicalData = data?.hierarchicalData || data;
+          const agenciesSet = new Set();
+          if (hierarchicalData?.TERRITOIRE) {
+            Object.keys(hierarchicalData.TERRITOIRE).forEach(tk => {
+              const territory = hierarchicalData.TERRITOIRE[tk];
+              if (territory.agencies && Array.isArray(territory.agencies)) {
+                territory.agencies.forEach(agency => {
+                  const name = agency.name || agency.AGENCE || agency.NOM_AGENCE || agency.NOM;
+                  const code = agency.code || agency.CODE_AGENCE || agency.CODE || agency.AGENCE || name;
+                  if (name && name.trim() && name.toUpperCase() !== 'INCONNU' && name.toUpperCase() !== 'UNKNOWN') {
+                    agenciesSet.add(JSON.stringify({ code: code, name: name.trim() }));
+                  }
+                });
               }
             });
-            
-            // Extraire les données depuis la structure hiérarchique
-            let data = response.data?.data || response.data;
-            const hierarchicalData = data?.hierarchicalData || data;
-            
-            // Charger toutes les agences depuis TERRITOIRE
-            const agenciesSet = new Set();
-            
-            // Charger les agences de tous les territoires
-            if (hierarchicalData?.TERRITOIRE) {
-              Object.keys(hierarchicalData.TERRITOIRE).forEach(territoryKey => {
-                const territory = hierarchicalData.TERRITOIRE[territoryKey];
-                if (territory.agencies && Array.isArray(territory.agencies)) {
-                  territory.agencies.forEach(agency => {
-                    const name = agency.name || agency.AGENCE || agency.NOM_AGENCE || agency.NOM;
-                    const code = agency.code || agency.CODE_AGENCE || agency.CODE || agency.AGENCE || name;
-                    if (name && name.trim() && name.toUpperCase() !== 'INCONNU' && name.toUpperCase() !== 'UNKNOWN') {
-                      agenciesSet.add(JSON.stringify({ code: code, name: name.trim() }));
-                    }
-                  });
-                }
-                // Aussi charger depuis territory.data si disponible
-                if (territory.data && Array.isArray(territory.data)) {
-                  territory.data.forEach(agency => {
-                    const name = agency.name || agency.AGENCE || agency.NOM_AGENCE || agency.NOM;
-                    const code = agency.code || agency.CODE_AGENCE || agency.CODE || agency.AGENCE || name;
-                    if (name && name.trim() && name.toUpperCase() !== 'INCONNU' && name.toUpperCase() !== 'UNKNOWN') {
-                      agenciesSet.add(JSON.stringify({ code: code, name: name.trim() }));
-                    }
-                  });
-                }
-              });
-            }
-            
-            this.agencies = Array.from(agenciesSet).map(item => JSON.parse(item));
-            console.log(`✅ ${this.agencies.length} agence(s) chargée(s) pour le chef d'agence`);
-            
-            if (this.agencies.length === 0) {
-              console.warn('⚠️ Aucune agence trouvée');
-              console.log('Structure des données TERRITOIRE:', hierarchicalData?.TERRITOIRE);
-            }
-          } else {
-            // Pour les autres profils, charger tous les points de service
-            const response = await axios.get(`/api/oracle/data/clients`, {
-              params: {
-                period: 'month',
-                month: new Date().getMonth() + 1,
-                year: new Date().getFullYear()
-              }
-            });
-            
-            // Extraire les données depuis la structure hiérarchique
-            let data = response.data?.data || response.data;
-            const hierarchicalData = data?.hierarchicalData || data;
-            
-            if (hierarchicalData?.['POINT SERVICES']?.service_points?.agencies) {
-              const agenciesList = hierarchicalData['POINT SERVICES'].service_points.agencies;
-              const agenciesSet = new Set();
-              
-              agenciesList.forEach(agency => {
-                const name = agency.name || agency.AGENCE || agency.NOM_AGENCE;
-                const code = agency.code || agency.CODE_AGENCE || agency.AGENCE || name;
-                if (name) {
-                  agenciesSet.add(JSON.stringify({ code: code, name: name }));
-                }
-              });
-              
-              this.agencies = Array.from(agenciesSet).map(item => JSON.parse(item));
-              console.log(`✅ ${this.agencies.length} points de service chargés`);
-            } else {
-              console.warn('⚠️ Aucun point de service trouvé');
-              console.log('Structure des données:', hierarchicalData?.['POINT SERVICES']);
-            }
+          }
+          this.agencies = Array.from(agenciesSet).map(item => JSON.parse(item));
+          console.log(`✅ ${this.agencies.length} agence(s) chargée(s) (TERRITOIRE)`);
+          if (this.agencies.length === 0) {
+            console.warn('⚠️ Aucune agence trouvée dans hierarchicalData.TERRITOIRE');
           }
         } else if (this.determinedCategory === 'GRAND COMPTE') {
           // Pour Responsable Zone, charger les agences du territoire sélectionné
@@ -1214,23 +1129,6 @@ export default {
                 }
               });
             }
-            
-            // 2. Charger aussi les agences des POINT SERVICES dans ce territoire
-            if (hierarchicalData?.['POINT SERVICES']) {
-              Object.keys(hierarchicalData['POINT SERVICES']).forEach(servicePointKey => {
-                const servicePoint = hierarchicalData['POINT SERVICES'][servicePointKey];
-                // Vérifier si ce point de service appartient au territoire
-                if (servicePoint.agencies && Array.isArray(servicePoint.agencies)) {
-                  servicePoint.agencies.forEach(agency => {
-                    const name = agency.name || agency.AGENCE || agency.NOM_AGENCE || agency.NOM;
-                    const code = agency.code || agency.CODE_AGENCE || agency.CODE || agency.AGENCE || name;
-                    if (name && name.trim() && name.toUpperCase() !== 'INCONNU' && name.toUpperCase() !== 'UNKNOWN') {
-                      agenciesSet.add(JSON.stringify({ code: code, name: name.trim() }));
-                    }
-                  });
-                }
-              });
-            }
               
               this.agencies = Array.from(agenciesSet).map(item => JSON.parse(item));
             console.log(`✅ ${this.agencies.length} agences chargées pour ${territoryKey}`, this.agencies);
@@ -1238,7 +1136,6 @@ export default {
             if (this.agencies.length === 0) {
               console.warn('⚠️ Aucune agence trouvée pour le territoire:', territoryKey);
               console.log('Structure des données TERRITOIRE:', hierarchicalData?.TERRITOIRE);
-              console.log('Structure des données POINT SERVICES:', hierarchicalData?.['POINT SERVICES']);
             }
           } else {
             // Pour les autres profils, utiliser une liste statique pour GRAND COMPTE
@@ -1545,7 +1442,7 @@ export default {
         // Fallback si l'agence n'est pas disponible
         agencyCode = String(this.form.caf);
         agencyName = selectedCAF ? selectedCAF.name : 'CAF';
-        category = 'POINT SERVICES';
+        category = 'TERRITOIRE';
       }
       
       // Vérification de sécurité : s'assurer qu'on a bien un code d'agence

@@ -141,55 +141,6 @@
               </template>
             </template>
 
-            <!-- POINT SERVICES -->
-            <tr class="level-1-row" @click="toggleExpand('POINT SERVICES')">
-              <td class="level-1">
-                <button class="expand-btn" @click.stop="toggleExpand('POINT SERVICES')">
-                  {{ expandedSections['POINT SERVICES'] ? '−' : '+' }}
-                </button>
-                <strong>POINT SERVICES</strong>
-              </td>
-              <td><strong>{{ formatNumber(getObjectiveForLevel('pointServices')) }}</strong></td>
-              <td v-if="isCombinedView"><strong>{{ formatNumber(getCombinedEpargneM('pointServices')) }}</strong></td>
-              <td v-if="isCombinedView"><strong>{{ formatNumber(getCombinedEpargneM1('pointServices')) }}</strong></td>
-              <td v-if="!isCombinedView && showColumn('mEnoursProjet')"><strong>{{ formatNumber((pointServicesTotal.mEnoursProjet || 0)) }}</strong></td>
-              <td v-if="!isCombinedView && showColumn('mEnours')"><strong>{{ formatNumber(pointServicesTotal.mEnours) }}</strong></td>
-              <td v-if="!isCombinedView && showColumn('m1Enours')"><strong>{{ formatNumber(pointServicesTotal.m1Enours) }}</strong></td>
-              <td v-if="!isCombinedView && showColumn('m1EnoursProjet')"><strong>{{ formatNumber((pointServicesTotal.m1EnoursProjet || 0)) }}</strong></td>
-              <td><strong>{{ formatPercent(getTROForLevel('pointServices')) }}</strong></td>
-              <td :class="getVariationClass(getVariationForLevel('pointServices'))"><strong>{{ formatVariation(getVariationForLevel('pointServices')) }}</strong></td>
-              <td><strong>{{ formatNumber(isCombinedView ? getCombinedTotal('pointServices', 'detteRattachee') : getPointServicesTotal('detteRattachee')) }}</strong></td>
-            </tr>
-            
-            <!-- Points de service individuels directement sous POINT SERVICES -->
-            <template v-if="expandedSections['POINT SERVICES']">
-              <template v-for="(servicePoint, servicePointKey) in filteredHierarchicalData['POINT SERVICES']" :key="`point-service-${servicePointKey}`">
-                <template v-if="servicePoint && hasServicePointData(servicePoint)">
-                  <template v-if="servicePoint.agencies && Array.isArray(servicePoint.agencies) && servicePoint.agencies.length > 0">
-                    <tr 
-                      v-for="(agency, agencyIndex) in servicePoint.agencies.filter(a => hasAgencyData(a))" 
-                      :key="`agency-${servicePointKey}-${agencyIndex}-${agency.name || agency.AGENCE || agencyIndex}`"
-                      class="level-2-row service-point-row"
-                      :class="{ 'selected-agency': selectedAgency && selectedAgency.name === agency.name && selectedAgency.category === 'POINT SERVICES' }"
-                      @click="selectAgency({ name: agency.name, category: 'POINT SERVICES', zone: servicePointKey })"
-                    >
-                      <td class="level-2 service-point-cell">{{ getAgencyName(agency) }}</td>
-                      <td>{{ formatNumber(getObjectiveForAgency(agency)) }}</td>
-                      <td v-if="isCombinedView">{{ formatNumber(getCombinedEpargneMForAgency(agency)) }}</td>
-                      <td v-if="isCombinedView">{{ formatNumber(getCombinedEpargneM1ForAgency(agency)) }}</td>
-                      <td v-if="!isCombinedView && showColumn('mEnoursProjet')">{{ formatNumber(getEncoursValue(agency, 'M_ENCOURS_COMPTE_EPARGNE_PROJET')) }}</td>
-                      <td v-if="!isCombinedView && showColumn('mEnours')">{{ formatNumber(getEncoursValue(agency, 'M_ENCOURS_COMPTE_EPARGNE')) }}</td>
-                      <td v-if="!isCombinedView && showColumn('m1Enours')">{{ formatNumber(getEncoursValue(agency, 'M1_ENCOURS_COMPTE_EPARGNE')) }}</td>
-                      <td v-if="!isCombinedView && showColumn('m1EnoursProjet')">{{ formatNumber(getEncoursValue(agency, 'M1_ENCOURS_COMPTE_EPARGNE_PROJET')) }}</td>
-                      <td>{{ formatPercent(getTROForAgency(agency)) }}</td>
-                      <td :class="getVariationClass(getVariationForAgency(agency))">{{ formatVariation(getVariationForAgency(agency)) }}</td>
-                      <td>{{ formatNumber(isCombinedView ? getCombinedDetteRattacheeForAgency(agency) : (getEncoursValue(agency, 'DETTE_RATTACHEE') || agency.detteRattachee || 0)) }}</td>
-                    </tr>
-                  </template>
-                </template>
-              </template>
-            </template>
-            
             <!-- GRAND COMPTE -->
             <tr v-if="grandCompte" class="level-3-row">
               <td class="level-3">GRAND COMPTE</td>
@@ -374,7 +325,6 @@ export default {
       selectedYear: now.getFullYear(),
       expandedSections: {
         TERRITOIRE: false,
-        'POINT SERVICES': false,
         'TERRITOIRE_territoire_dakar_ville': false,
         'TERRITOIRE_territoire_dakar_banlieue': false,
         'TERRITOIRE_territoire_province_centre_sud': false,
@@ -404,7 +354,6 @@ export default {
       this.selectedAgency = null;
       this.expandedSections = {
         TERRITOIRE: false,
-        'POINT SERVICES': false,
         'TERRITOIRE_territoire_dakar_ville': false,
         'TERRITOIRE_territoire_dakar_banlieue': false,
         'TERRITOIRE_territoire_province_centre_sud': false,
@@ -446,8 +395,7 @@ export default {
         return this.hierarchicalDataFromBackend;
       }
       return {
-        TERRITOIRE: {},
-        'POINT SERVICES': {}
+        TERRITOIRE: {}
       };
     },
     filteredHierarchicalData() {
@@ -456,8 +404,7 @@ export default {
       }
       
       const filtered = {
-        TERRITOIRE: {},
-        'POINT SERVICES': this.hierarchicalData['POINT SERVICES'] || {}
+        TERRITOIRE: {}
       };
       
       if (this.hierarchicalData.TERRITOIRE && 
@@ -489,34 +436,6 @@ export default {
         Object.entries(hierarchicalData.TERRITOIRE).forEach(([territoryKey, territory]) => {
           if (territoryKey !== 'grand_compte' && territory && territory.agencies) {
             territory.agencies.forEach(agency => {
-              total.mEnoursProjet += parseFloat(this.getEncoursValue(agency, 'M_ENCOURS_COMPTE_EPARGNE_PROJET') || 0);
-              total.mEnours += parseFloat(this.getEncoursValue(agency, 'M_ENCOURS_COMPTE_EPARGNE') || 0);
-              total.m1Enours += parseFloat(this.getEncoursValue(agency, 'M1_ENCOURS_COMPTE_EPARGNE') || 0);
-              total.m1EnoursProjet += parseFloat(this.getEncoursValue(agency, 'M1_ENCOURS_COMPTE_EPARGNE_PROJET') || 0);
-              total.encoursTotalM += parseFloat(this.getEncoursValue(agency, 'ENCOURS_TOTAL_M') || 0);
-              total.encoursTotalM1 += parseFloat(this.getEncoursValue(agency, 'ENCOURS_TOTAL_M_1') || 0);
-            });
-          }
-        });
-      }
-      
-      return total;
-    },
-    pointServicesTotal() {
-      const hierarchicalData = this.filteredHierarchicalData || {};
-      let total = {
-        mEnoursProjet: 0,
-        mEnours: 0,
-        m1Enours: 0,
-        m1EnoursProjet: 0,
-        encoursTotalM: 0,
-        encoursTotalM1: 0
-      };
-      
-      if (hierarchicalData['POINT SERVICES']) {
-        Object.values(hierarchicalData['POINT SERVICES']).forEach(servicePoint => {
-          if (servicePoint && servicePoint.agencies) {
-            servicePoint.agencies.forEach(agency => {
               total.mEnoursProjet += parseFloat(this.getEncoursValue(agency, 'M_ENCOURS_COMPTE_EPARGNE_PROJET') || 0);
               total.mEnours += parseFloat(this.getEncoursValue(agency, 'M_ENCOURS_COMPTE_EPARGNE') || 0);
               total.m1Enours += parseFloat(this.getEncoursValue(agency, 'M1_ENCOURS_COMPTE_EPARGNE') || 0);
@@ -589,13 +508,6 @@ export default {
           type: 'category',
           category: 'TERRITOIRE',
           name: 'TERRITOIRE'
-        };
-      }
-      if (this.expandedSections['POINT SERVICES']) {
-        return {
-          type: 'category',
-          category: 'POINT SERVICES',
-          name: 'POINT SERVICES'
         };
       }
       
@@ -683,20 +595,15 @@ export default {
         if (agency) {
           data = getValuesFromAgency(agency);
         } else {
-          // Si l'agence n'est pas trouvée, chercher dans POINT SERVICES
-          const pointServicesData = this.hierarchicalData['POINT SERVICES'];
-          if (pointServicesData) {
-            for (const servicePointKey in pointServicesData) {
-              const servicePoint = pointServicesData[servicePointKey];
-              if (servicePoint && servicePoint.agencies) {
-                const foundAgency = servicePoint.agencies.find(a => {
-                  const agencyName = this.getAgencyName(a);
-                  return agencyName === level.name;
-                });
-                if (foundAgency) {
-                  data = getValuesFromAgency(foundAgency);
-                  break;
-                }
+          const terr = this.hierarchicalData.TERRITOIRE;
+          if (terr) {
+            for (const tk of Object.keys(terr)) {
+              if (tk === 'grand_compte') continue;
+              const z = terr[tk];
+              const foundAgency = z?.agencies?.find(a => this.getAgencyName(a) === level.name);
+              if (foundAgency) {
+                data = getValuesFromAgency(foundAgency);
+                break;
               }
             }
           }
@@ -737,7 +644,6 @@ export default {
           data = new Array(expectedLength).fill(0);
         }
       } else if (level.type === 'category') {
-        // Niveau Catégorie : total de TERRITOIRE ou POINT SERVICES
         if (level.category === 'TERRITOIRE') {
           if (this.filterType === 'epargne-simple') {
             data = [
@@ -758,28 +664,6 @@ export default {
               normalizeValue(this.territoireTotal.m1Enours),
               normalizeValue(this.territoireTotal.m1EnoursProjet || 0),
               normalizeValue(this.territoireTotal.encoursTotalM)
-            ];
-          }
-        } else if (level.category === 'POINT SERVICES') {
-          if (this.filterType === 'epargne-simple') {
-            data = [
-              normalizeValue(this.pointServicesTotal.m1Enours),
-              normalizeValue(this.pointServicesTotal.mEnours),
-              normalizeValue(this.pointServicesTotal.encoursTotalM)
-            ];
-          } else if (this.filterType === 'epargne-projet') {
-            data = [
-              normalizeValue(this.pointServicesTotal.mEnoursProjet || 0),
-              normalizeValue(this.pointServicesTotal.m1EnoursProjet || 0),
-              normalizeValue(this.pointServicesTotal.encoursTotalM)
-            ];
-          } else {
-            data = [
-              normalizeValue(this.pointServicesTotal.mEnoursProjet || 0),
-              normalizeValue(this.pointServicesTotal.mEnours),
-              normalizeValue(this.pointServicesTotal.m1Enours),
-              normalizeValue(this.pointServicesTotal.m1EnoursProjet || 0),
-              normalizeValue(this.pointServicesTotal.encoursTotalM)
             ];
           }
         } else {
@@ -903,32 +787,24 @@ export default {
       return total;
     },
     getCombinedEpargneM(level) {
-      // level peut être 'territoire', 'pointServices', ou 'total'
       if (level === 'territoire') {
         return (this.territoireTotal.mEnoursProjet || 0) + (this.territoireTotal.mEnours || 0);
-      } else if (level === 'pointServices') {
-        return (this.pointServicesTotal.mEnoursProjet || 0) + (this.pointServicesTotal.mEnours || 0);
       } else if (level === 'total') {
         const territoireM = (this.territoireTotal.mEnoursProjet || 0) + (this.territoireTotal.mEnours || 0);
-        const pointServicesM = (this.pointServicesTotal.mEnoursProjet || 0) + (this.pointServicesTotal.mEnours || 0);
-        const grandCompteM = this.grandCompte ? 
+        const grandCompteM = this.grandCompte ?
           ((this.grandCompte.M_ENCOURS_COMPTE_EPARGNE_PROJET || 0) + (this.grandCompte.M_ENCOURS_COMPTE_EPARGNE || 0)) : 0;
-        return territoireM + pointServicesM + grandCompteM;
+        return territoireM + grandCompteM;
       }
       return 0;
     },
     getCombinedEpargneM1(level) {
-      // level peut être 'territoire', 'pointServices', ou 'total'
       if (level === 'territoire') {
         return (this.territoireTotal.m1EnoursProjet || 0) + (this.territoireTotal.m1Enours || 0);
-      } else if (level === 'pointServices') {
-        return (this.pointServicesTotal.m1EnoursProjet || 0) + (this.pointServicesTotal.m1Enours || 0);
       } else if (level === 'total') {
         const territoireM1 = (this.territoireTotal.m1EnoursProjet || 0) + (this.territoireTotal.m1Enours || 0);
-        const pointServicesM1 = (this.pointServicesTotal.m1EnoursProjet || 0) + (this.pointServicesTotal.m1Enours || 0);
-        const grandCompteM1 = this.grandCompte ? 
+        const grandCompteM1 = this.grandCompte ?
           ((this.grandCompte.M1_ENCOURS_COMPTE_EPARGNE_PROJET || 0) + (this.grandCompte.M1_ENCOURS_COMPTE_EPARGNE || 0)) : 0;
-        return territoireM1 + pointServicesM1 + grandCompteM1;
+        return territoireM1 + grandCompteM1;
       }
       return 0;
     },
@@ -961,21 +837,10 @@ export default {
           }
         });
         return total;
-      } else if (level === 'pointServices') {
-        let total = 0;
-        Object.values(this.filteredHierarchicalData['POINT SERVICES'] || {}).forEach(servicePoint => {
-          if (servicePoint && servicePoint.agencies) {
-            servicePoint.agencies.forEach(agency => {
-              total += this.getObjectiveForAgency(agency);
-            });
-          }
-        });
-        return total;
       } else if (level === 'total') {
         const territoire = this.getObjectiveForLevel('territoire');
-        const pointServices = this.getObjectiveForLevel('pointServices');
         const grandCompte = this.getObjectiveForGrandCompte();
-        return territoire + pointServices + grandCompte;
+        return territoire + grandCompte;
       }
       return 0;
     },
@@ -1048,12 +913,6 @@ export default {
           epargneM = this.territoireTotal.mEnours || 0;
         } else if (this.filterType === 'epargne-projet') {
           epargneM = this.territoireTotal.mEnoursProjet || 0;
-        }
-      } else if (level === 'pointServices') {
-        if (this.filterType === 'epargne-simple') {
-          epargneM = this.pointServicesTotal.mEnours || 0;
-        } else if (this.filterType === 'epargne-projet') {
-          epargneM = this.pointServicesTotal.mEnoursProjet || 0;
         }
       } else if (level === 'total') {
         if (this.filterType === 'epargne-simple') {
@@ -1152,14 +1011,6 @@ export default {
         } else if (this.filterType === 'epargne-projet') {
           epargneM = this.territoireTotal.mEnoursProjet || 0;
           epargneM1 = this.territoireTotal.m1EnoursProjet || 0;
-        }
-      } else if (level === 'pointServices') {
-        if (this.filterType === 'epargne-simple') {
-          epargneM = this.pointServicesTotal.mEnours || 0;
-          epargneM1 = this.pointServicesTotal.m1Enours || 0;
-        } else if (this.filterType === 'epargne-projet') {
-          epargneM = this.pointServicesTotal.mEnoursProjet || 0;
-          epargneM1 = this.pointServicesTotal.m1EnoursProjet || 0;
         }
       } else if (level === 'total') {
         if (this.filterType === 'epargne-simple') {
@@ -1271,19 +1122,13 @@ export default {
       return 0;
     },
     getCombinedTotal(level, field) {
-      // level peut être 'territoire', 'pointServices', ou 'total'
-      // Les méthodes getTerritoireTotal et getPointServicesTotal additionnent déjà les objectifs combinés
-      // car chaque agence a agency.objectif qui contient la somme EPARGNE_SIMPLE + EPARGNE_PROJET
       if (level === 'territoire') {
         return this.getTerritoireTotal(field);
-      } else if (level === 'pointServices') {
-        return this.getPointServicesTotal(field);
       } else if (level === 'total') {
         const territoire = this.getTerritoireTotal(field);
-        const pointServices = this.getPointServicesTotal(field);
-        const grandCompte = field === 'objectif' ? this.getCombinedObjectiveForGrandCompte() : 
+        const grandCompte = field === 'objectif' ? this.getCombinedObjectiveForGrandCompte() :
                            field === 'detteRattachee' ? this.getCombinedDetteRattacheeForGrandCompte() : 0;
-        return territoire + pointServices + grandCompte;
+        return territoire + grandCompte;
       }
       return 0;
     },
@@ -1291,15 +1136,6 @@ export default {
       if (level === 'territoire') {
         const objectif = this.getCombinedTotal('territoire', 'objectif');
         const epargneM = this.getCombinedEpargneM('territoire');
-        if (objectif > 0) {
-          // L'objectif est en millions de FCFA, convertir en FCFA
-          const objectifEnFCFA = objectif * 1000000;
-          return (epargneM / objectifEnFCFA) * 100;
-        }
-        return 0;
-      } else if (level === 'pointServices') {
-        const objectif = this.getCombinedTotal('pointServices', 'objectif');
-        const epargneM = this.getCombinedEpargneM('pointServices');
         if (objectif > 0) {
           // L'objectif est en millions de FCFA, convertir en FCFA
           const objectifEnFCFA = objectif * 1000000;
@@ -1322,13 +1158,6 @@ export default {
       if (level === 'territoire') {
         const epargneM = this.getCombinedEpargneM('territoire');
         const epargneM1 = this.getCombinedEpargneM1('territoire');
-        if (epargneM1 > 0) {
-          return ((epargneM - epargneM1) / epargneM1) * 100;
-        }
-        return 0;
-      } else if (level === 'pointServices') {
-        const epargneM = this.getCombinedEpargneM('pointServices');
-        const epargneM1 = this.getCombinedEpargneM1('pointServices');
         if (epargneM1 > 0) {
           return ((epargneM - epargneM1) / epargneM1) * 100;
         }
@@ -1428,7 +1257,6 @@ export default {
     resetToTotal() {
       this.selectedAgency = null;
       this.expandedSections.TERRITOIRE = false;
-      this.expandedSections['POINT SERVICES'] = false;
       Object.keys(this.expandedSections).forEach(key => {
         if (key.startsWith('TERRITOIRE_')) {
           this.expandedSections[key] = false;
@@ -1574,38 +1402,8 @@ export default {
       });
       return total;
     },
-    getPointServicesTotal(field) {
-      let total = 0;
-      Object.values(this.filteredHierarchicalData['POINT SERVICES'] || {}).forEach(servicePoint => {
-        if (servicePoint && servicePoint.agencies) {
-          servicePoint.agencies.forEach(agency => {
-            const fieldMap = {
-              'mEnoursProjet': 'M_ENCOURS_COMPTE_EPARGNE_PROJET',
-              'mEnours': 'M_ENCOURS_COMPTE_EPARGNE',
-              'm1Enours': 'M1_ENCOURS_COMPTE_EPARGNE',
-              'm1EnoursProjet': 'M1_ENCOURS_COMPTE_EPARGNE_PROJET',
-              'encoursTotalM': 'ENCOURS_TOTAL_M',
-              'encoursTotalM1': 'ENCOURS_TOTAL_M_1',
-              'objectif': 'OBJECTIF',
-              'tro': 'TRO',
-              'variation': 'VARIATION',
-              'detteRattachee': 'DETTE_RATTACHEE'
-            };
-            const mappedField = fieldMap[field] || field;
-            if (field === 'objectif' || field === 'detteRattachee') {
-              total += parseFloat(this.getEncoursValue(agency, mappedField) || agency[mappedField.toLowerCase()] || 0);
-            } else if (field === 'tro' || field === 'variation') {
-              total += parseFloat(agency[mappedField] || agency[mappedField.toLowerCase()] || 0);
-            } else {
-              total += parseFloat(this.getEncoursValue(agency, mappedField) || 0);
-            }
-          });
-        }
-      });
-      return total;
-    },
     getGrandTotal(field) {
-      let total = this.getTerritoireTotal(field) + this.getPointServicesTotal(field);
+      let total = this.getTerritoireTotal(field);
       if (this.grandCompte) {
         const fieldMap = {
           'mEnoursProjet': 'M_ENCOURS_COMPTE_EPARGNE_PROJET',
@@ -1731,18 +1529,15 @@ export default {
         if (data && data.hierarchicalData) {
           this.hierarchicalDataFromBackend = data.hierarchicalData;
           console.log('Données hiérarchiques assignées:', this.hierarchicalDataFromBackend);
-        } else if (data && (data.TERRITOIRE || data['POINT SERVICES'])) {
-          // Si les données sont directement dans data sans wrapper hierarchicalData
+        } else if (data && data.TERRITOIRE) {
           this.hierarchicalDataFromBackend = {
-            TERRITOIRE: data.TERRITOIRE || {},
-            'POINT SERVICES': data['POINT SERVICES'] || {}
+            TERRITOIRE: data.TERRITOIRE || {}
           };
           console.log('Données hiérarchiques assignées (format direct):', this.hierarchicalDataFromBackend);
         } else {
           console.warn('Aucune donnée hiérarchique trouvée dans la réponse');
           this.hierarchicalDataFromBackend = {
-            TERRITOIRE: {},
-            'POINT SERVICES': {}
+            TERRITOIRE: {}
           };
         }
         
@@ -1750,8 +1545,7 @@ export default {
         await this.loadObjectives();
       } catch (error) {
         this.hierarchicalDataFromBackend = {
-          TERRITOIRE: {},
-          'POINT SERVICES': {}
+          TERRITOIRE: {}
         };
         
         if (error.response && error.response.data) {
@@ -1887,41 +1681,6 @@ export default {
         });
       }
       
-      // Fusionner avec les points de service
-      if (this.hierarchicalDataFromBackend && this.hierarchicalDataFromBackend['POINT SERVICES']) {
-        Object.keys(this.hierarchicalDataFromBackend['POINT SERVICES']).forEach(servicePointKey => {
-          const servicePoint = this.hierarchicalDataFromBackend['POINT SERVICES'][servicePointKey];
-          if (servicePoint && servicePoint.agencies && Array.isArray(servicePoint.agencies)) {
-            servicePoint.agencies.forEach(agency => {
-              const agencyCode = (agency.CODE_AGENCE || agency.code_agence || agency.code || agency.CODE || '').toString().trim();
-              const agencyName = (agency.name || agency.AGENCE || agency.NOM_AGENCE || '').toString().trim();
-              
-              let objectives = null;
-              if (agencyCode && allObjectives[agencyCode]) {
-                objectives = allObjectives[agencyCode];
-              } else if (agencyName) {
-                const normalizedName = agencyName.toUpperCase().trim();
-                if (allObjectives[normalizedName]) {
-                  objectives = allObjectives[normalizedName];
-                }
-              }
-              
-              if (objectives) {
-                // Stocker les objectifs individuels
-                agency.objectif_epargne_simple = objectives.EPARGNE_SIMPLE || 0;
-                agency.objectif_epargne_projet = objectives.EPARGNE_PROJET || 0;
-                agency.OBJECTIF_EPARGNE_SIMPLE = objectives.EPARGNE_SIMPLE || 0;
-                agency.OBJECTIF_EPARGNE_PROJET = objectives.EPARGNE_PROJET || 0;
-                // Somme des objectifs EPARGNE_SIMPLE et EPARGNE_PROJET
-                const totalObjective = (objectives.EPARGNE_SIMPLE || 0) + (objectives.EPARGNE_PROJET || 0);
-                agency.objectif = totalObjective;
-                agency.OBJECTIF = totalObjective;
-              }
-            });
-          }
-        });
-      }
-      
       // Fusionner avec le grand compte (dans la structure hiérarchique)
       if (this.hierarchicalDataFromBackend && this.hierarchicalDataFromBackend.TERRITOIRE && this.hierarchicalDataFromBackend.TERRITOIRE.grand_compte) {
         const grandCompte = this.hierarchicalDataFromBackend.TERRITOIRE.grand_compte;
@@ -1976,7 +1735,6 @@ export default {
       this.hierarchicalDataFromBackend = null;
       this.expandedSections = {
         TERRITOIRE: false,
-        'POINT SERVICES': false,
         'TERRITOIRE_territoire_dakar_ville': false,
         'TERRITOIRE_territoire_dakar_banlieue': false,
         'TERRITOIRE_territoire_province_centre_sud': false,

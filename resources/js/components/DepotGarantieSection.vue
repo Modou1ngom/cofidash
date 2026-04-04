@@ -113,41 +113,6 @@
               </template>
             </template>
 
-            <!-- POINT SERVICES -->
-            <tr class="level-1-row" @click="toggleExpand('POINT SERVICES')">
-              <td class="level-1">
-                <button class="expand-btn" @click.stop="toggleExpand('POINT SERVICES')">
-                  {{ expandedSections['POINT SERVICES'] ? '−' : '+' }}
-                </button>
-                <strong>POINT SERVICES</strong>
-              </td>
-              <td><strong>{{ formatNumber(pointServicesTotalDepotGarantie.m1EncoursDepotGarantie) }}</strong></td>
-              <td><strong>{{ formatNumber(pointServicesTotalDepotGarantie.mEncoursDepotGarantie) }}</strong></td>
-              <td :class="getVariationClass(pointServicesTotalDepotGarantie.variation)"><strong>{{ formatVariation(pointServicesTotalDepotGarantie.variation) }}</strong></td>
-            </tr>
-            
-            <!-- Points de service individuels directement sous POINT SERVICES -->
-            <template v-if="expandedSections['POINT SERVICES']">
-              <template v-for="(servicePoint, servicePointKey) in filteredHierarchicalData['POINT SERVICES']" :key="`point-service-${servicePointKey}`">
-                <template v-if="servicePoint">
-                  <template v-if="servicePoint.agencies && Array.isArray(servicePoint.agencies) && servicePoint.agencies.length > 0">
-                    <tr 
-                      v-for="(agency, agencyIndex) in servicePoint.agencies" 
-                      :key="`agency-${servicePointKey}-${agencyIndex}-${agency.name || agency.AGENCE || agencyIndex}`"
-                      class="level-2-row service-point-row"
-                      :class="{ 'selected-agency': selectedAgency && selectedAgency.name === agency.name && selectedAgency.category === 'POINT SERVICES' }"
-                      @click="selectAgency({ name: agency.name, category: 'POINT SERVICES', zone: servicePointKey })"
-                    >
-                      <td class="level-2 service-point-cell">{{ getAgencyName(agency) }}</td>
-                      <td>{{ formatNumber(getDepotGarantieValue(agency, 'M1_ENCOURS_DEPOT_GARANTIE')) }}</td>
-                      <td>{{ formatNumber(getDepotGarantieValue(agency, 'M_ENCOURS_DEPOT_GARANTIE')) }}</td>
-                      <td :class="getVariationClass(getVariationForAgency(agency))">{{ formatVariation(getVariationForAgency(agency)) }}</td>
-                    </tr>
-                  </template>
-                </template>
-              </template>
-            </template>
-            
             <!-- GRAND COMPTE -->
             <tr v-if="grandCompteDepotGarantie" class="level-3-row">
               <td class="level-3">GRAND COMPTE</td>
@@ -326,7 +291,6 @@ export default {
       selectedYear: now.getFullYear(),
       expandedSections: {
         TERRITOIRE: false,
-        'POINT SERVICES': false,
         'TERRITOIRE_territoire_dakar_ville': false,
         'TERRITOIRE_territoire_dakar_banlieue': false,
         'TERRITOIRE_territoire_province_centre_sud': false,
@@ -386,8 +350,7 @@ export default {
         return this.hierarchicalDataFromBackend;
       }
       return {
-        TERRITOIRE: {},
-        'POINT SERVICES': {}
+        TERRITOIRE: {}
       };
     },
     filteredHierarchicalData() {
@@ -396,8 +359,7 @@ export default {
       }
       
       const filtered = {
-        TERRITOIRE: {},
-        'POINT SERVICES': this.hierarchicalData['POINT SERVICES'] || {}
+        TERRITOIRE: {}
       };
       
       if (this.hierarchicalData.TERRITOIRE && 
@@ -424,36 +386,6 @@ export default {
         Object.entries(hierarchicalData.TERRITOIRE).forEach(([territoryKey, territory]) => {
           if (territoryKey !== 'grand_compte' && territory && territory.agencies) {
             territory.agencies.forEach(agency => {
-              total.objectif += parseFloat(this.getDepotGarantieValue(agency, 'OBJECTIF') || agency.objectif || 0);
-              total.m1EncoursDepotGarantie += parseFloat(this.getDepotGarantieValue(agency, 'M1_ENCOURS_DEPOT_GARANTIE') || 0);
-              total.mEncoursDepotGarantie += parseFloat(this.getDepotGarantieValue(agency, 'M_ENCOURS_DEPOT_GARANTIE') || 0);
-              total.tro += parseFloat(this.getDepotGarantieValue(agency, 'TRO') || agency.tro || 0);
-            });
-          }
-        });
-      }
-      
-      // Calculer la variation à partir des totaux M et M1
-      if (total.m1EncoursDepotGarantie > 0) {
-        total.variation = ((total.mEncoursDepotGarantie - total.m1EncoursDepotGarantie) / total.m1EncoursDepotGarantie) * 100;
-      }
-      
-      return total;
-    },
-    pointServicesTotalDepotGarantie() {
-      const hierarchicalData = this.filteredHierarchicalData || {};
-      let total = {
-        objectif: 0,
-        m1EncoursDepotGarantie: 0,
-        mEncoursDepotGarantie: 0,
-        tro: 0,
-        variation: 0
-      };
-      
-      if (hierarchicalData['POINT SERVICES']) {
-        Object.values(hierarchicalData['POINT SERVICES']).forEach(servicePoint => {
-          if (servicePoint && servicePoint.agencies) {
-            servicePoint.agencies.forEach(agency => {
               total.objectif += parseFloat(this.getDepotGarantieValue(agency, 'OBJECTIF') || agency.objectif || 0);
               total.m1EncoursDepotGarantie += parseFloat(this.getDepotGarantieValue(agency, 'M1_ENCOURS_DEPOT_GARANTIE') || 0);
               total.mEncoursDepotGarantie += parseFloat(this.getDepotGarantieValue(agency, 'M_ENCOURS_DEPOT_GARANTIE') || 0);
@@ -540,13 +472,6 @@ export default {
           name: 'TERRITOIRE'
         };
       }
-      if (this.expandedSections['POINT SERVICES']) {
-        return {
-          type: 'category',
-          category: 'POINT SERVICES',
-          name: 'POINT SERVICES'
-        };
-      }
       
       return {
         type: 'total',
@@ -588,17 +513,10 @@ export default {
           ];
         }
       } else if (level.type === 'category') {
-        if (level.category === 'TERRITOIRE') {
-          data = [
-            normalizeValue(this.territoireTotalDepotGarantie.m1EncoursDepotGarantie),
-            normalizeValue(this.territoireTotalDepotGarantie.mEncoursDepotGarantie)
-          ];
-        } else {
-          data = [
-            normalizeValue(this.pointServicesTotalDepotGarantie.m1EncoursDepotGarantie),
-            normalizeValue(this.pointServicesTotalDepotGarantie.mEncoursDepotGarantie)
-          ];
-        }
+        data = [
+          normalizeValue(this.territoireTotalDepotGarantie.m1EncoursDepotGarantie),
+          normalizeValue(this.territoireTotalDepotGarantie.mEncoursDepotGarantie)
+        ];
       } else {
         // Total général
         data = [
@@ -710,7 +628,6 @@ export default {
     resetToTotal() {
       this.selectedAgency = null;
       this.expandedSections.TERRITOIRE = false;
-      this.expandedSections['POINT SERVICES'] = false;
       Object.keys(this.expandedSections).forEach(key => {
         if (key.startsWith('TERRITOIRE_')) {
           this.expandedSections[key] = false;
@@ -861,11 +778,9 @@ export default {
     getGrandTotalDepotGarantie(field) {
       if (field === 'variation') {
         // Calculer la variation à partir des totaux M et M1
-        const m1Total = this.territoireTotalDepotGarantie.m1EncoursDepotGarantie + 
-                       this.pointServicesTotalDepotGarantie.m1EncoursDepotGarantie +
+        const m1Total = this.territoireTotalDepotGarantie.m1EncoursDepotGarantie +
                        (this.grandCompteDepotGarantie ? (this.grandCompteDepotGarantie.M1_ENCOURS_DEPOT_GARANTIE || 0) : 0);
-        const mTotal = this.territoireTotalDepotGarantie.mEncoursDepotGarantie + 
-                      this.pointServicesTotalDepotGarantie.mEncoursDepotGarantie +
+        const mTotal = this.territoireTotalDepotGarantie.mEncoursDepotGarantie +
                       (this.grandCompteDepotGarantie ? (this.grandCompteDepotGarantie.M_ENCOURS_DEPOT_GARANTIE || 0) : 0);
         
         if (m1Total > 0) {
@@ -874,7 +789,7 @@ export default {
         return 0;
       }
       
-      let total = this.territoireTotalDepotGarantie[field] + this.pointServicesTotalDepotGarantie[field];
+      let total = this.territoireTotalDepotGarantie[field];
       if (this.grandCompteDepotGarantie) {
         const fieldMap = {
           'm1EncoursDepotGarantie': 'M1_ENCOURS_DEPOT_GARANTIE',
@@ -945,15 +860,11 @@ export default {
         if (data && data.hierarchicalData) {
           this.hierarchicalDataFromBackend = data.hierarchicalData;
           console.log('📊 Dépôt de Garantie - Données reçues:', {
-            hasTerritoire: !!data.hierarchicalData.TERRITOIRE,
-            hasPointServices: !!data.hierarchicalData['POINT SERVICES'],
-            pointServicesKeys: Object.keys(data.hierarchicalData['POINT SERVICES'] || {}),
-            pointServicesStructure: data.hierarchicalData['POINT SERVICES']
+            hasTerritoire: !!data.hierarchicalData.TERRITOIRE
           });
         } else {
           this.hierarchicalDataFromBackend = {
-            TERRITOIRE: {},
-            'POINT SERVICES': {}
+            TERRITOIRE: {}
           };
         }
         
@@ -961,8 +872,7 @@ export default {
         await this.loadObjectives();
       } catch (error) {
         this.hierarchicalDataFromBackend = {
-          TERRITOIRE: {},
-          'POINT SERVICES': {}
+          TERRITOIRE: {}
         };
         
         if (error.response && error.response.data) {
@@ -1096,36 +1006,6 @@ export default {
         });
       }
       
-      // Fusionner avec les points de service
-      if (this.hierarchicalDataFromBackend && this.hierarchicalDataFromBackend['POINT SERVICES']) {
-        Object.keys(this.hierarchicalDataFromBackend['POINT SERVICES']).forEach(servicePointKey => {
-          const servicePoint = this.hierarchicalDataFromBackend['POINT SERVICES'][servicePointKey];
-          if (servicePoint && servicePoint.agencies && Array.isArray(servicePoint.agencies)) {
-            servicePoint.agencies.forEach(agency => {
-              const agencyCode = (agency.CODE_AGENCE || agency.code_agence || agency.code || agency.CODE || '').toString().trim();
-              const agencyName = (agency.name || agency.AGENCE || agency.NOM_AGENCE || '').toString().trim();
-              
-              let objectiveValue = null;
-              if (agencyCode && objectivesMapByCode[agencyCode]) {
-                objectiveValue = objectivesMapByCode[agencyCode];
-              } else if (agencyName) {
-                const normalizedName = agencyName.toUpperCase().trim();
-                if (objectivesMapByName[normalizedName]) {
-                  objectiveValue = objectivesMapByName[normalizedName];
-                }
-              }
-              
-              if (objectiveValue !== null) {
-                // Utiliser Vue.set pour forcer la réactivité
-                this.$set(agency, 'objectif', objectiveValue);
-                this.$set(agency, 'OBJECTIF', objectiveValue);
-                this.$set(agency, 'OBJECTIF_DEPOT_GARANTIE', objectiveValue);
-              }
-            });
-          }
-        });
-      }
-      
       // Fusionner avec le grand compte
       if (this.hierarchicalDataFromBackend && this.hierarchicalDataFromBackend.TERRITOIRE && this.hierarchicalDataFromBackend.TERRITOIRE.grand_compte) {
         const grandCompte = this.hierarchicalDataFromBackend.TERRITOIRE.grand_compte;
@@ -1165,7 +1045,6 @@ export default {
       this.hierarchicalDataFromBackend = null;
       this.expandedSections = {
         TERRITOIRE: false,
-        'POINT SERVICES': false,
         'TERRITOIRE_territoire_dakar_ville': false,
         'TERRITOIRE_territoire_dakar_banlieue': false,
         'TERRITOIRE_territoire_province_centre_sud': false,

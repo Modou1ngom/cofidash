@@ -168,65 +168,6 @@
                 </template>
               </template>
 
-              <!-- POINT SERVICES -->
-              <tr v-if="Object.keys(filteredHierarchicalData['POINT SERVICES'] || {}).length > 0" 
-                  class="level-1-row" 
-                  @click="toggleExpand('POINT SERVICES')">
-                <td class="level-1">
-                  <button class="expand-btn" @click.stop="toggleExpand('POINT SERVICES')">
-                    {{ expandedSections['POINT SERVICES'] ? '−' : '+' }}
-                  </button>
-                  <strong>POINT SERVICES</strong>
-                </td>
-                <td><strong>{{ formatNumber(pointServicesTotal.objectif) }}</strong></td>
-                <td><strong>{{ formatNumber(pointServicesTotal.volume_m1) }}</strong></td>
-                <td><strong>{{ formatNumber(pointServicesTotal.volume_m) }}</strong></td>
-                <td :class="getVariationClass(pointServicesTotal.variation_volume)">
-                  <strong>{{ formatVariation(pointServicesTotal.variation_volume) }}</strong>
-                </td>
-                <td :class="getVariationClass(pointServicesTotal.variation_pct)">
-                  <strong>{{ formatVariationPercent(pointServicesTotal.variation_pct) }}</strong>
-                </td>
-                <td :class="getTROClass(pointServicesTotal.tro)">
-                  <strong>{{ formatTRO(pointServicesTotal.tro) }}</strong>
-                </td>
-                <td :class="getContributionClass(pointServicesTotal.contribution)">
-                  <strong>{{ formatPercent(pointServicesTotal.contribution) }}</strong>
-                </td>
-                <td><strong>{{ formatNumber(pointServicesTotal.commission || 0, 2) }}</strong></td>
-              </tr>
-              
-              <!-- Points de service individuels directement sous POINT SERVICES -->
-              <template v-if="expandedSections['POINT SERVICES']">
-                <template v-for="(servicePoint, servicePointKey) in filteredHierarchicalData['POINT SERVICES']" :key="servicePointKey">
-                  <template v-if="servicePoint.data && servicePoint.data.length > 0">
-                    <tr 
-                      v-for="entity in servicePoint.data" 
-                      :key="entity.agence || entity.name" 
-                      class="level-2-row service-point-row"
-                    >
-                      <td class="level-2 service-point-cell">{{ entity.agence || entity.name }}</td>
-                      <td>{{ formatNumber(entity.objectif || 0) }}</td>
-                      <td>{{ formatNumber(entity.volume_m1 || 0) }}</td>
-                      <td>{{ formatNumber(entity.volume_m || 0) }}</td>
-                      <td :class="getVariationClass(entity.variation_volume || 0)">
-                        {{ formatVariation(entity.variation_volume || 0) }}
-                      </td>
-                      <td :class="getVariationClass(entity.variation_pct || 0)">
-                        {{ formatVariationPercent(entity.variation_pct || 0) }}
-                      </td>
-                      <td :class="getTROClass(entity.tro || 0)">
-                        {{ formatTRO(entity.tro || 0) }}
-                      </td>
-                      <td :class="getContributionClass(entity.contribution || 0)">
-                        {{ formatPercent(entity.contribution || 0) }}
-                      </td>
-                      <td>{{ formatNumber(entity.commission || 0, 2) }}</td>
-                    </tr>
-                  </template>
-                </template>
-              </template>
-              
               <!-- GRAND COMPTE -->
               <tr v-if="grandCompte" class="level-3-row">
                 <td class="level-3">GRAND COMPTE</td>
@@ -308,12 +249,10 @@ export default {
             data: [],
             total: { objectif: 0, volume_m1: 0, volume_m: 0, variation_volume: 0, variation_pct: 0, tro: 0, contribution: 0, commission: 0 }
           }
-        },
-        'POINT SERVICES': {}
+        }
       },
       expandedSections: {
         TERRITOIRE: false,
-        'POINT SERVICES': false,
         'TERRITOIRE_territoire_dakar_ville': false,
         'TERRITOIRE_territoire_dakar_banlieue': false,
         'TERRITOIRE_territoire_province_centre_sud': false,
@@ -371,38 +310,6 @@ export default {
       total.tro = total.objectif > 0 ? (total.volume_m / total.objectif) * 100 : 0;
       
       return total;
-    },
-    pointServicesTotal() {
-      const servicePoints = this.hierarchicalData['POINT SERVICES'] || {};
-      let total = {
-        objectif: 0,
-        volume_m1: 0,
-        volume_m: 0,
-        variation_volume: 0,
-        variation_pct: 0,
-        tro: 0,
-        contribution: 0,
-        commission: 0
-      };
-      
-      Object.values(servicePoints).forEach(servicePoint => {
-        if (servicePoint.data) {
-          servicePoint.data.forEach(agency => {
-            total.objectif += agency.objectif || 0;
-            total.volume_m1 += agency.volume_m1 || 0;
-            total.volume_m += agency.volume_m || 0;
-            total.commission += agency.commission || 0;
-          });
-        }
-      });
-      
-      total.variation_volume = total.volume_m - total.volume_m1;
-      total.variation_pct = total.volume_m1 > 0 
-        ? ((total.variation_volume / total.volume_m1) * 100) 
-        : 0;
-      total.tro = total.objectif > 0 ? (total.volume_m / total.objectif) * 100 : 0;
-      
-      return total;
     }
   },
   mounted() {
@@ -414,39 +321,27 @@ export default {
       this.errorMessage = null;
       
       try {
-        let url = `http://localhost:8001/api/oracle/data/transfers`;
-        const params = new URLSearchParams();
-        
-        params.append('period', this.selectedPeriod);
-        params.append('service', this.selectedService);
-        
+        const params = {
+          period: this.selectedPeriod,
+          service: this.selectedService,
+          _t: Date.now()
+        };
         if (this.selectedPeriod === 'month') {
-          params.append('month', this.selectedMonth);
-          params.append('year', this.selectedYear);
+          params.month = this.selectedMonth;
+          params.year = this.selectedYear;
         } else if (this.selectedPeriod === 'year') {
-          params.append('year', this.selectedYear);
+          params.year = this.selectedYear;
         } else if (this.selectedPeriod === 'week') {
-          params.append('date', this.selectedDate);
+          params.date = this.selectedDate;
         }
-        
-        // Ajouter un timestamp pour éviter le cache
-        params.append('_t', Date.now().toString());
-        
-        if (params.toString()) {
-          url += '?' + params.toString();
+
+        const axios = window.axios;
+        if (!axios) {
+          throw new Error('axios non disponible');
         }
-        
-        console.log('🔍 Requête API avec URL:', url);
-        console.log('📅 Paramètres envoyés:', { month: this.selectedMonth, year: this.selectedYear, service: this.selectedService });
-        
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-          throw new Error(`Erreur HTTP: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        
+
+        const { data: result } = await axios.get('/api/oracle/data/transfers', { params });
+
         if (result.data) {
           this.agencies = result.data.agencies || [];
           this.services = result.data.services || [];
@@ -456,7 +351,10 @@ export default {
         }
       } catch (error) {
         console.error('Erreur lors de la récupération des données de transferts:', error);
-        this.errorMessage = `Erreur: ${error.message}`;
+        const msg = (error.response && error.response.data && error.response.data.message)
+          || error.message
+          || 'Erreur réseau';
+        this.errorMessage = `Erreur: ${msg}`;
       } finally {
         this.loading = false;
       }
@@ -496,8 +394,7 @@ export default {
             data: [],
             total: { objectif: 0, volume_m1: 0, volume_m: 0, variation_volume: 0, variation_pct: 0, tro: 0, contribution: 0, commission: 0 }
           }
-        },
-        'POINT SERVICES': {}
+        }
       };
       this.grandCompte = null;
       
@@ -539,10 +436,9 @@ export default {
         territoire_province_centre_sud: [],
         territoire_province_nord: []
       };
-      const servicePoints = [];
       
       this.agencies.forEach(agency => {
-        const agenceUpper = agency.agence.toUpperCase();
+        const agenceUpper = String(agency.agence || '').toUpperCase();
         
         // GRAND COMPTE
         if (agenceUpper.includes('GRAND COMPTE')) {
@@ -568,7 +464,7 @@ export default {
         const isServicePoint = servicePointNames.some(sp => agenceUpper.includes(sp));
         
         if (isServicePoint) {
-          servicePoints.push(agency);
+          entitiesByTerritory['territoire_dakar_ville'].push(agency);
         } else {
           // Trouver le territoire correspondant
           let territoryKey = null;
@@ -596,14 +492,6 @@ export default {
           this.hierarchicalData.TERRITOIRE[key].total = this.calculateTerritoryTotal(entities);
         }
       });
-      
-      // Ajouter les points de service
-      if (servicePoints.length > 0) {
-        this.hierarchicalData['POINT SERVICES']['points'] = {
-          name: 'POINT SERVICES',
-          data: servicePoints
-        };
-      }
       
       // Calculer les contributions pour chaque entité
       this.calculateContributions();
@@ -645,15 +533,6 @@ export default {
           entity.contribution = totalM > 0 ? ((entity.volume_m || 0) / totalM) * 100 : 0;
         });
       });
-      
-      // Calculer les contributions pour POINT SERVICES
-      const pointServices = this.hierarchicalData['POINT SERVICES']['points'];
-      if (pointServices && pointServices.data) {
-        const totalM = pointServices.data.reduce((sum, entity) => sum + (entity.volume_m || 0), 0);
-        pointServices.data.forEach(entity => {
-          entity.contribution = totalM > 0 ? ((entity.volume_m || 0) / totalM) * 100 : 0;
-        });
-      }
     },
     toggleExpand(section) {
       if (!this.expandedSections.hasOwnProperty(section)) {
@@ -744,9 +623,8 @@ export default {
     },
     getGrandTotal(field) {
       const territoire = this.territoireTotal[field] || 0;
-      const pointServices = this.pointServicesTotal[field] || 0;
       const grandCompte = this.grandCompte ? (this.grandCompte[field] || 0) : 0;
-      return territoire + pointServices + grandCompte;
+      return territoire + grandCompte;
     }
   }
 }

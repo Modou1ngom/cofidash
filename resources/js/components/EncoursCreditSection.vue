@@ -133,64 +133,6 @@
               </template>
             </template>
 
-            <!-- POINT SERVICES -->
-            <tr v-if="filteredHierarchicalData && filteredHierarchicalData['POINT SERVICES'] && Object.keys(filteredHierarchicalData['POINT SERVICES']).length > 0" class="level-1-row" @click="toggleExpand('POINT SERVICES')">
-              <td class="level-1">
-                <button class="expand-btn" @click.stop="toggleExpand('POINT SERVICES')">
-                  {{ expandedSections['POINT SERVICES'] ? '−' : '+' }}
-                </button>
-                <strong>POINT SERVICES</strong>
-              </td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.PTF_M1 || 0) }}</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.PTF_M || 0) }}</strong></td>
-              <td :class="getVariationClass(pointServicesTotal.VARIATION_PTF || 0)">
-                <strong>{{ formatVariationCurrency(pointServicesTotal.VARIATION_PTF || 0) }}</strong>
-              </td>
-              <td :class="getGrowthRateClass(pointServicesTotal.TAUX_CROISSANCE_PTF || 0)">
-                <strong>{{ formatVariationPercent(pointServicesTotal.TAUX_CROISSANCE_PTF || 0) }}</strong>
-              </td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.PRODUIT_INT_M1 || 0) }}</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.PRODUIT_INT_M || 0) }}</strong></td>
-              <td :class="getVariationClass(pointServicesTotal.VARIATION_PRODUIT_INT || 0)">
-                <strong>{{ formatVariationCurrency(pointServicesTotal.VARIATION_PRODUIT_INT || 0) }}</strong>
-              </td>
-              <td :class="getGrowthRateClass(pointServicesTotal.TAUX_CROISSANCE_PRODUIT_INT || 0)">
-                <strong>{{ formatVariationPercent(pointServicesTotal.TAUX_CROISSANCE_PRODUIT_INT || 0) }}</strong>
-              </td>
-            </tr>
-            
-            <!-- Points de service individuels directement sous POINT SERVICES -->
-            <template v-if="expandedSections['POINT SERVICES']">
-              <template v-for="(servicePoint, servicePointKey) in filteredHierarchicalData['POINT SERVICES']" :key="servicePointKey">
-                <!-- Afficher directement les points de service individuels (SCAT URBAM, NIARRY TALLY) -->
-                <template v-if="servicePoint.data && servicePoint.data.length > 0">
-                  <tr 
-                    v-for="agency in servicePoint.data" 
-                    :key="agency.CODE_AGENCE || agency.AGENCE || agency.name" 
-                    class="level-2-row service-point-row"
-                  >
-                    <td class="level-2 service-point-cell">{{ agency.AGENCE || agency.name }}</td>
-                    <td>{{ formatCurrency(agency.PTF_M1 || 0) }}</td>
-                    <td>{{ formatCurrency(agency.PTF_M || 0) }}</td>
-                    <td :class="getVariationClass(agency.VARIATION_PTF || 0)">
-                      {{ formatVariationCurrency(agency.VARIATION_PTF || 0) }}
-                    </td>
-                    <td :class="getGrowthRateClass(agency.TAUX_CROISSANCE_PTF || 0)">
-                      {{ formatVariationPercent(agency.TAUX_CROISSANCE_PTF || 0) }}
-                    </td>
-                    <td>{{ formatCurrency(agency.PRODUIT_INT_M1 || 0) }}</td>
-                    <td>{{ formatCurrency(agency.PRODUIT_INT_M || 0) }}</td>
-                    <td :class="getVariationClass(agency.VARIATION_PRODUIT_INT || 0)">
-                      {{ formatVariationCurrency(agency.VARIATION_PRODUIT_INT || 0) }}
-                    </td>
-                    <td :class="getGrowthRateClass(agency.TAUX_CROISSANCE_PRODUIT_INT || 0)">
-                      {{ formatVariationPercent(agency.TAUX_CROISSANCE_PRODUIT_INT || 0) }}
-                    </td>
-                  </tr>
-                </template>
-              </template>
-            </template>
-
             <!-- TOTAL -->
             <tr class="total-row">
               <td><strong>TOTAL</strong></td>
@@ -237,7 +179,6 @@ export default {
       hierarchicalDataFromBackend: null,
       expandedSections: {
         TERRITOIRE: false,
-        'POINT SERVICES': false,
         'TERRITOIRE_territoire_dakar_ville': false,
         'TERRITOIRE_territoire_dakar_banlieue': false,
         'TERRITOIRE_territoire_province_centre_sud': false,
@@ -288,12 +229,13 @@ export default {
       let totalPROD_INT_M1 = 0;
       let totalPROD_INT_M = 0;
       
+      // Les totaux territoire viennent de l’API déjà en millions de FCFA (comme les lignes agence)
       Object.values(this.filteredHierarchicalData.TERRITOIRE).forEach(territory => {
         if (territory.total) {
-          totalPTF_M1 += (territory.total.PTF_M1 || 0) * 1000000;
-          totalPTF_M += (territory.total.PTF_M || 0) * 1000000;
-          totalPROD_INT_M1 += (territory.total.PRODUIT_INT_M1 || 0) * 1000000;
-          totalPROD_INT_M += (territory.total.PRODUIT_INT_M || 0) * 1000000;
+          totalPTF_M1 += territory.total.PTF_M1 || 0;
+          totalPTF_M += territory.total.PTF_M || 0;
+          totalPROD_INT_M1 += territory.total.PRODUIT_INT_M1 || 0;
+          totalPROD_INT_M += territory.total.PRODUIT_INT_M || 0;
         }
       });
       
@@ -314,42 +256,17 @@ export default {
         TAUX_CROISSANCE_PRODUIT_INT: tauxCroissanceProdInt
       };
     },
-    pointServicesTotal() {
-      if (!this.filteredHierarchicalData || !this.filteredHierarchicalData['POINT SERVICES']) {
-        return { PTF_M1: 0, PTF_M: 0, VARIATION_PTF: 0, TAUX_CROISSANCE_PTF: 0, PRODUIT_INT_M1: 0, PRODUIT_INT_M: 0, VARIATION_PRODUIT_INT: 0, TAUX_CROISSANCE_PRODUIT_INT: 0 };
-      }
-      
-      const pointServices = this.filteredHierarchicalData['POINT SERVICES'];
-      const servicePointsKey = Object.keys(pointServices)[0];
-      if (servicePointsKey && pointServices[servicePointsKey].total) {
-        const total = pointServices[servicePointsKey].total;
-        return {
-          PTF_M1: (total.PTF_M1 || 0) * 1000000,
-          PTF_M: (total.PTF_M || 0) * 1000000,
-          VARIATION_PTF: (total.VARIATION_PTF || 0) * 1000000,
-          TAUX_CROISSANCE_PTF: total.TAUX_CROISSANCE_PTF || 0,
-          PRODUIT_INT_M1: (total.PRODUIT_INT_M1 || 0) * 1000000,
-          PRODUIT_INT_M: (total.PRODUIT_INT_M || 0) * 1000000,
-          VARIATION_PRODUIT_INT: (total.VARIATION_PRODUIT_INT || 0) * 1000000,
-          TAUX_CROISSANCE_PRODUIT_INT: total.TAUX_CROISSANCE_PRODUIT_INT || 0
-        };
-      }
-      
-      return { PTF_M1: 0, PTF_M: 0, VARIATION_PTF: 0, TAUX_CROISSANCE_PTF: 0, PRODUIT_INT_M1: 0, PRODUIT_INT_M: 0, VARIATION_PRODUIT_INT: 0, TAUX_CROISSANCE_PRODUIT_INT: 0 };
-    },
     totalData() {
       if (!this.filteredHierarchicalData || !this.filteredHierarchicalData.TERRITOIRE) {
         return { PTF_M1: 0, PTF_M: 0, VARIATION_PTF: 0, TAUX_CROISSANCE_PTF: 0, PRODUIT_INT_M1: 0, PRODUIT_INT_M: 0, VARIATION_PRODUIT_INT: 0, TAUX_CROISSANCE_PRODUIT_INT: 0 };
       }
       
-      // Calculer le total en combinant territoire et point services
       const territoire = this.territoireTotal;
-      const pointServices = this.pointServicesTotal;
       
-      const totalPTF_M1 = territoire.PTF_M1 + pointServices.PTF_M1;
-      const totalPTF_M = territoire.PTF_M + pointServices.PTF_M;
-      const totalPROD_INT_M1 = territoire.PRODUIT_INT_M1 + pointServices.PRODUIT_INT_M1;
-      const totalPROD_INT_M = territoire.PRODUIT_INT_M + pointServices.PRODUIT_INT_M;
+      const totalPTF_M1 = territoire.PTF_M1;
+      const totalPTF_M = territoire.PTF_M;
+      const totalPROD_INT_M1 = territoire.PRODUIT_INT_M1;
+      const totalPROD_INT_M = territoire.PRODUIT_INT_M;
       
       const variationPTF = totalPTF_M - totalPTF_M1;
       const tauxCroissancePTF = totalPTF_M1 > 0 ? (variationPTF / totalPTF_M1) * 100 : 0;
@@ -433,22 +350,20 @@ export default {
       this.expandedSections[section] = !this.expandedSections[section];
     },
     formatCurrency(value) {
-      if (value === null || value === undefined || isNaN(value)) return '0,00 F CFA';
-      // Si la valeur est déjà en millions, multiplier par 1000000 pour avoir la valeur complète
-      const fullValue = value * 1000000;
+      if (value === null || value === undefined || isNaN(value)) return '0,00 M F CFA';
+      // Valeurs API déjà en millions de FCFA
       return new Intl.NumberFormat('fr-FR', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
-      }).format(fullValue) + ' F CFA';
+      }).format(value) + ' M F CFA';
     },
     formatVariationCurrency(value) {
       if (value === null || value === undefined || isNaN(value)) return '-';
-      const fullValue = value * 1000000;
       const formatted = new Intl.NumberFormat('fr-FR', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
-      }).format(Math.abs(fullValue));
-      return fullValue >= 0 ? `+${formatted}` : `-${formatted}`;
+      }).format(Math.abs(value));
+      return value >= 0 ? `+${formatted}` : `-${formatted}`;
     },
     formatVariationPercent(value) {
       if (value === null || value === undefined || isNaN(value)) return '0%';

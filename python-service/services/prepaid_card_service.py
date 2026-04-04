@@ -250,8 +250,6 @@ ORDER BY AA.CODE_AGENCE
                 'territoire_province_centre_sud': [],
                 'territoire_province_nord': []
             }
-            service_points_data = []
-            
             # Calculer le total global pour la contribution
             total_global_m = sum(int(row.get('NOMBRE_COFICARTE_VENDU_M') or 0) for row in raw_data)
             
@@ -313,24 +311,22 @@ ORDER BY AA.CODE_AGENCE
                         if (service_point_normalized == agency_name_normalized or
                             service_point_normalized in agency_name_normalized or
                             agency_name_normalized in service_point_normalized):
-                            service_points_data.append(agency_obj)
                             is_service_point = True
                             logger.debug(f"✅ Point de service identifié: {agency_name}")
                             break
                 
-                if not is_service_point:
-                    if territory:
-                        territory_key = get_territory_key(territory)
-                        if territory_key in agencies_by_territory:
-                            agencies_by_territory[territory_key].append(agency_obj)
-                        else:
-                            # Par défaut, mettre dans DAKAR VILLE
-                            agencies_by_territory['territoire_dakar_ville'].append(agency_obj)
-                            logger.warning(f"⚠️ Territoire non reconnu pour {agency_name}, assigné à DAKAR VILLE")
+                if is_service_point:
+                    agencies_by_territory['territoire_dakar_ville'].append(agency_obj)
+                elif territory:
+                    territory_key = get_territory_key(territory)
+                    if territory_key in agencies_by_territory:
+                        agencies_by_territory[territory_key].append(agency_obj)
                     else:
-                        # Si aucun territoire trouvé, mettre dans DAKAR VILLE par défaut
                         agencies_by_territory['territoire_dakar_ville'].append(agency_obj)
-                        logger.warning(f"⚠️ Aucun territoire trouvé pour {agency_name}, assigné à DAKAR VILLE")
+                        logger.warning(f"⚠️ Territoire non reconnu pour {agency_name}, assigné à DAKAR VILLE")
+                else:
+                    agencies_by_territory['territoire_dakar_ville'].append(agency_obj)
+                    logger.warning(f"⚠️ Aucun territoire trouvé pour {agency_name}, assigné à DAKAR VILLE")
             
             # Obtenir la structure complète des territoires
             try:
@@ -369,10 +365,7 @@ ORDER BY AA.CODE_AGENCE
                 return totals
             
             # Construire la structure hiérarchique
-            hierarchical_data = {
-                'TERRITOIRE': {},
-                'POINT SERVICES': {}
-            }
+            hierarchical_data = {'TERRITOIRE': {}, 'POINT SERVICES': {}}
             
             # Ajouter les territoires avec leurs totaux
             for territory_key in ['territoire_dakar_ville', 'territoire_dakar_banlieue', 
@@ -386,16 +379,6 @@ ORDER BY AA.CODE_AGENCE
                     'total': totals
                 }
             
-            # Ajouter les points de service
-            service_points_totals = calculate_territory_totals(service_points_data)
-            hierarchical_data['POINT SERVICES'] = {
-                'service_points': {
-                    'name': 'POINT SERVICES',
-                    'data': service_points_data,
-                    'total': service_points_totals
-                }
-            }
-            
             # Construire la réponse finale
             response_data = {
                 'hierarchicalData': hierarchical_data
@@ -404,8 +387,7 @@ ORDER BY AA.CODE_AGENCE
             logger.info(f"📊 Structure hiérarchique créée: {len(agencies_by_territory['territoire_dakar_ville'])} agences DAKAR VILLE, "
                        f"{len(agencies_by_territory['territoire_dakar_banlieue'])} DAKAR BANLIEUE, "
                        f"{len(agencies_by_territory['territoire_province_centre_sud'])} PROVINCE CENTRE-SUD, "
-                       f"{len(agencies_by_territory['territoire_province_nord'])} PROVINCE NORD, "
-                       f"{len(service_points_data)} points de service")
+                       f"{len(agencies_by_territory['territoire_province_nord'])} PROVINCE NORD")
             
             # Mettre en cache le résultat
             set_cache(cache_key, response_data, ttl=300)  # Cache de 5 minutes

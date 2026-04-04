@@ -3,32 +3,38 @@
     <div class="section-header">
       <h2 class="section-title">Evolution du Portefeuille à risque % - {{ getPeriodTitle() }}</h2>
       <div class="period-selector">
-        <div class="period-group">
-          <label class="period-label">Mois de référence</label>
-          <select v-model="selectedMonthRef" class="month-select" @change="handlePeriodChange">
-            <option v-for="(month, index) in months" :key="'ref-m-' + index" :value="index + 1">
+        <select v-model="selectedPeriod" class="period-select" @change="refreshPortefeuilleData">
+          <option value="week">Semaine</option>
+          <option value="month">Mois</option>
+          <option value="year">Année</option>
+        </select>
+        <template v-if="selectedPeriod === 'week'">
+          <input
+            type="date"
+            v-model="selectedDate"
+            class="date-select"
+            @change="refreshPortefeuilleData"
+          />
+        </template>
+        <template v-if="selectedPeriod === 'month'">
+          <select v-model="selectedMonth" class="month-select" @change="refreshPortefeuilleData">
+            <option v-for="(month, index) in months" :key="'m-' + index" :value="index + 1">
               {{ month }}
             </option>
           </select>
-          <select v-model="selectedYearRef" class="year-select" @change="handlePeriodChange">
-            <option v-for="year in years" :key="'ref-y-' + year" :value="year">
+          <select v-model="selectedYear" class="year-select" @change="refreshPortefeuilleData">
+            <option v-for="year in years" :key="'y-' + year" :value="year">
               {{ year }}
             </option>
           </select>
-        </div>
-        <div class="period-group">
-          <label class="period-label">Mois en cours</label>
-          <select v-model="selectedMonth" class="month-select" @change="handleMonthChange">
-            <option v-for="(month, index) in months" :key="index" :value="index + 1">
-              {{ month }}
-            </option>
-          </select>
-          <select v-model="selectedYear" class="year-select" @change="handleYearChange">
-            <option v-for="year in years" :key="year" :value="year">
+        </template>
+        <template v-if="selectedPeriod === 'year'">
+          <select v-model="selectedYear" class="year-select" @change="refreshPortefeuilleData">
+            <option v-for="year in years" :key="'ya-' + year" :value="year">
               {{ year }}
             </option>
           </select>
-        </div>
+        </template>
       </div>
     </div>
     
@@ -94,14 +100,6 @@
                 <td style="text-align: right;"><strong>{{ formatRawValue(0) }}</strong></td>
                 <td style="text-align: right;"><strong>{{ formatRawValue(0) }}</strong></td>
               </tr>
-              <tr class="level-1-row">
-                <td class="level-1">
-                  <button class="expand-btn">+</button>
-                  <strong>POINT SERVICES</strong>
-                </td>
-                <td style="text-align: right;"><strong>{{ formatRawValue(0) }}</strong></td>
-                <td style="text-align: right;"><strong>{{ formatRawValue(0) }}</strong></td>
-              </tr>
               <tr class="total-row">
                 <td style="text-align: left;"><strong>TOTAL</strong></td>
                 <td style="text-align: right;"><strong>{{ formatRawValue(0) }}</strong></td>
@@ -110,7 +108,7 @@
             </template>
             <template v-else>
               <!-- Structure hiérarchique par territoire -->
-              <template v-if="stockData && ((stockData.TERRITOIRE && Object.keys(stockData.TERRITOIRE).length > 0) || (stockData['POINT SERVICES'] && stockData['POINT SERVICES'].service_points))">
+              <template v-if="stockData && stockData.TERRITOIRE && Object.keys(stockData.TERRITOIRE).length > 0">
                 <!-- TERRITOIRE -->
                 <tr class="level-1-row" @click="toggleExpand('TERRITOIRE')">
                   <td class="level-1">
@@ -145,27 +143,6 @@
                     </template>
                   </template>
                 </template>
-                <!-- POINT SERVICES -->
-                <template v-if="stockData['POINT SERVICES'] && stockData['POINT SERVICES'].service_points">
-                  <tr class="level-1-row" @click="toggleExpand('POINT SERVICES')">
-                    <td class="level-1">
-                      <button class="expand-btn" @click.stop="toggleExpand('POINT SERVICES')">
-                        {{ expandedSections['POINT SERVICES'] ? '−' : '+' }}
-                      </button>
-                      <strong>POINT SERVICES</strong>
-                    </td>
-                    <td style="text-align: right;"><strong>{{ formatRawValue(stockData['POINT SERVICES'].service_points.totals.stockProvision || 0) }}</strong></td>
-                    <td style="text-align: right;"><strong>{{ formatRawValue(stockData['POINT SERVICES'].service_points.totals.provisionComptabilisee || 0) }}</strong></td>
-                  </tr>
-                  <!-- Agences des points de service -->
-                  <template v-if="expandedSections['POINT SERVICES']">
-                    <tr v-for="(agency, index) in stockData['POINT SERVICES'].service_points.agencies" :key="`sp-${index}`" class="level-3-row">
-                      <td style="text-align: left;">{{ agency.BRANCH_NAME || agency.branch_name || '-' }}</td>
-                      <td style="text-align: right;">{{ formatRawValue(agency.STOCK_PROVISION || agency.stock_provision || 0) }}</td>
-                      <td style="text-align: right;">{{ formatRawValue(agency.PROVISION_COMPTABILISEE || agency.provision_comptabilisee || 0) }}</td>
-                    </tr>
-                  </template>
-                </template>
               </template>
               <!-- Fallback: Structure plate -->
               <template v-else-if="stockDataFlat && stockDataFlat.length > 0">
@@ -184,17 +161,6 @@
                       {{ expandedSections.TERRITOIRE ? '−' : '+' }}
                     </button>
                     <strong>TERRITOIRE</strong>
-                  </td>
-                  <td style="text-align: right;"><strong>{{ formatRawValue(0) }}</strong></td>
-                  <td style="text-align: right;"><strong>{{ formatRawValue(0) }}</strong></td>
-                </tr>
-                <!-- POINT SERVICES -->
-                <tr class="level-1-row" @click="toggleExpand('POINT SERVICES')">
-                  <td class="level-1">
-                    <button class="expand-btn" @click.stop="toggleExpand('POINT SERVICES')">
-                      {{ expandedSections['POINT SERVICES'] ? '−' : '+' }}
-                    </button>
-                    <strong>POINT SERVICES</strong>
                   </td>
                   <td style="text-align: right;"><strong>{{ formatRawValue(0) }}</strong></td>
                   <td style="text-align: right;"><strong>{{ formatRawValue(0) }}</strong></td>
@@ -424,7 +390,7 @@
             </template>
 
             <!-- Message si aucune donnée dans les territoires -->
-            <template v-if="!loading && !errorMessage && Object.keys(filteredHierarchicalData.TERRITOIRE || {}).length === 0 && Object.keys(filteredHierarchicalData['POINT SERVICES'] || {}).length === 0">
+            <template v-if="!loading && !errorMessage && Object.keys(filteredHierarchicalData.TERRITOIRE || {}).length === 0">
               <tr class="no-data-row">
                 <td colspan="13" style="text-align: center; padding: 40px; color: #666;">
                   <p>Aucune donnée de portefeuille à risque disponible pour la période sélectionnée.</p>
@@ -432,219 +398,6 @@
               </tr>
             </template>
 
-            <!-- POINT SERVICES -->
-            <tr class="level-1-row" @click="toggleExpand('POINT SERVICES')">
-              <td class="level-1">
-                <button class="expand-btn" @click.stop="toggleExpand('POINT SERVICES')">
-                  {{ expandedSections['POINT SERVICES'] ? '−' : '+' }}
-                </button>
-                <strong>POINT SERVICES</strong>
-              </td>
-              <!-- Vue PAR 0-30 -->
-              <template v-if="selectedParView === '0-30'">
-                <!-- PAR 0 -->
-                <td><strong>{{ formatValue(pointServicesTotal.par0M1) }}</strong></td>
-                <td><strong>{{ formatValue(pointServicesTotal.par0M) }}</strong></td>
-                <td :class="getEcartClass(pointServicesTotal.par0Ecart)">
-                  <strong>{{ formatEcart(pointServicesTotal.par0Ecart) }}</strong>
-                </td>
-                <td class="percent-red"><strong>{{ formatPercent(pointServicesTotal.par0Percent) }}</strong></td>
-                <!-- PAR 30 -->
-                <td><strong>{{ formatValue(pointServicesTotal.par30M1) }}</strong></td>
-                <td><strong>{{ formatValue(pointServicesTotal.par30M) }}</strong></td>
-                <td :class="getEcartClass(pointServicesTotal.par30Ecart)">
-                  <strong>{{ formatEcart(pointServicesTotal.par30Ecart) }}</strong>
-                </td>
-                <td class="percent-red"><strong>{{ formatPercent(pointServicesTotal.par30Percent) }}</strong></td>
-              </template>
-              <!-- Vue PAR 90-360 -->
-              <template v-else>
-                <!-- PAR 90 -->
-                <td><strong>{{ formatValue(pointServicesTotal.par90M1) }}</strong></td>
-                <td><strong>{{ formatValue(pointServicesTotal.par90M) }}</strong></td>
-                <td :class="getEcartClass(pointServicesTotal.par90Ecart)">
-                  <strong>{{ formatEcart(pointServicesTotal.par90Ecart) }}</strong>
-                </td>
-                <td class="percent-red"><strong>{{ formatPercent(pointServicesTotal.par90Percent) }}</strong></td>
-                <!-- PAR 180 -->
-                <td><strong>{{ formatValue(pointServicesTotal.par180M1) }}</strong></td>
-                <td><strong>{{ formatValue(pointServicesTotal.par180M) }}</strong></td>
-                <td :class="getEcartClass(pointServicesTotal.par180Ecart)">
-                  <strong>{{ formatEcart(pointServicesTotal.par180Ecart) }}</strong>
-                </td>
-                <td class="percent-red"><strong>{{ formatPercent(pointServicesTotal.par180Percent) }}</strong></td>
-                <!-- PAR 360 -->
-                <td><strong>{{ formatValue(pointServicesTotal.par360M1) }}</strong></td>
-                <td><strong>{{ formatValue(pointServicesTotal.par360M) }}</strong></td>
-                <td :class="getEcartClass(pointServicesTotal.par360Ecart)">
-                  <strong>{{ formatEcart(pointServicesTotal.par360Ecart) }}</strong>
-                </td>
-                <td class="percent-red"><strong>{{ formatPercent(pointServicesTotal.par360Percent) }}</strong></td>
-              </template>
-            </tr>
-            
-            <!-- Points de service individuels directement sous POINT SERVICES -->
-            <template v-if="expandedSections['POINT SERVICES']">
-              <template v-for="(servicePoint, servicePointKey) in filteredHierarchicalData['POINT SERVICES']" :key="servicePointKey">
-                <template v-if="servicePoint.agencies && servicePoint.agencies.length > 0">
-                  <!-- Afficher d'abord le total du point de service s'il existe -->
-                  <template v-if="servicePoint.totals && servicePointKey !== 'service_points'">
-                    <tr class="level-2-row" @click="toggleExpand(`POINT_SERVICES_${servicePointKey}`)">
-                      <td class="level-2">
-                        <button class="expand-btn" @click.stop="toggleExpand(`POINT_SERVICES_${servicePointKey}`)">
-                          {{ expandedSections[`POINT_SERVICES_${servicePointKey}`] ? '−' : '+' }}
-                        </button>
-                        <strong>{{ servicePoint.name || servicePointKey }}</strong>
-                      </td>
-                      <!-- Vue PAR 0-30 -->
-                      <template v-if="selectedParView === '0-30'">
-                        <!-- PAR 0 -->
-                        <td><strong>{{ formatValue(servicePoint.totals.par0M1 || 0) }}</strong></td>
-                        <td><strong>{{ formatValue(servicePoint.totals.par0M || 0) }}</strong></td>
-                        <td :class="getEcartClass(servicePoint.totals.par0Ecart || 0)">
-                          <strong>{{ formatEcart(servicePoint.totals.par0Ecart || 0) }}</strong>
-                        </td>
-                        <td class="percent-red"><strong>{{ formatPercent(servicePoint.totals.par0Percent || 0) }}</strong></td>
-                        <!-- PAR 30 -->
-                        <td><strong>{{ formatValue(servicePoint.totals.par30M1 || 0) }}</strong></td>
-                        <td><strong>{{ formatValue(servicePoint.totals.par30M || 0) }}</strong></td>
-                        <td :class="getEcartClass(servicePoint.totals.par30Ecart || 0)">
-                          <strong>{{ formatEcart(servicePoint.totals.par30Ecart || 0) }}</strong>
-                        </td>
-                        <td class="percent-red"><strong>{{ formatPercent(servicePoint.totals.par30Percent || 0) }}</strong></td>
-                      </template>
-                      <!-- Vue PAR 90-360 -->
-                      <template v-else>
-                        <!-- PAR 90 -->
-                        <td><strong>{{ formatValue(servicePoint.totals.par90M1 || 0) }}</strong></td>
-                        <td><strong>{{ formatValue(servicePoint.totals.par90M || 0) }}</strong></td>
-                        <td :class="getEcartClass(servicePoint.totals.par90Ecart || 0)">
-                          <strong>{{ formatEcart(servicePoint.totals.par90Ecart || 0) }}</strong>
-                        </td>
-                        <td class="percent-red"><strong>{{ formatPercent(servicePoint.totals.par90Percent || 0) }}</strong></td>
-                        <!-- PAR 180 -->
-                        <td><strong>{{ formatValue(servicePoint.totals.par180M1 || 0) }}</strong></td>
-                        <td><strong>{{ formatValue(servicePoint.totals.par180M || 0) }}</strong></td>
-                        <td :class="getEcartClass(servicePoint.totals.par180Ecart || 0)">
-                          <strong>{{ formatEcart(servicePoint.totals.par180Ecart || 0) }}</strong>
-                        </td>
-                        <td class="percent-red"><strong>{{ formatPercent(servicePoint.totals.par180Percent || 0) }}</strong></td>
-                        <!-- PAR 360 -->
-                        <td><strong>{{ formatValue(servicePoint.totals.par360M1 || 0) }}</strong></td>
-                        <td><strong>{{ formatValue(servicePoint.totals.par360M || 0) }}</strong></td>
-                        <td :class="getEcartClass(servicePoint.totals.par360Ecart || 0)">
-                          <strong>{{ formatEcart(servicePoint.totals.par360Ecart || 0) }}</strong>
-                        </td>
-                        <td class="percent-red"><strong>{{ formatPercent(servicePoint.totals.par360Percent || 0) }}</strong></td>
-                      </template>
-                    </tr>
-                    <!-- Agences du point de service -->
-                    <template v-if="expandedSections[`POINT_SERVICES_${servicePointKey}`]">
-                      <template v-for="(agency, index) in servicePoint.agencies" :key="getAgencyKey(agency, index)">
-                        <tr class="level-3-row service-point-row">
-                          <td class="level-3 service-point-cell">
-                            {{ agency.name || agency.AGENCE || getAgencyName(agency) }}
-                          </td>
-                          <!-- Vue PAR 0-30 -->
-                          <template v-if="selectedParView === '0-30'">
-                            <!-- PAR 0 -->
-                            <td>{{ formatValue(getAgencyValue(agency, 'PAR_0_M_1')) }}</td>
-                            <td>{{ formatValue(getAgencyValue(agency, 'PAR_0_M')) }}</td>
-                            <td :class="getEcartClass(getAgencyValue(agency, 'Variation_PAR_0'))">
-                              {{ formatEcart(getAgencyValue(agency, 'Variation_PAR_0')) }}
-                            </td>
-                            <td class="percent-red">{{ formatPercent(calculatePercent(getAgencyValue(agency, 'PAR_0_M_1'), getAgencyValue(agency, 'PAR_0_M'))) }}</td>
-                            <!-- PAR 30 -->
-                            <td>{{ formatValue(getAgencyValue(agency, 'PAR_30_M_1')) }}</td>
-                            <td>{{ formatValue(getAgencyValue(agency, 'PAR_30_M')) }}</td>
-                            <td :class="getEcartClass(getAgencyValue(agency, 'Variation_PAR_30'))">
-                              {{ formatEcart(getAgencyValue(agency, 'Variation_PAR_30')) }}
-                            </td>
-                            <td class="percent-red">{{ formatPercent(calculatePercent(getAgencyValue(agency, 'PAR_30_M_1'), getAgencyValue(agency, 'PAR_30_M'))) }}</td>
-                          </template>
-                          <!-- Vue PAR 90-360 -->
-                          <template v-else>
-                            <!-- PAR 90 -->
-                            <td>{{ formatValue(getAgencyValue(agency, 'PAR_90_M_1')) }}</td>
-                            <td>{{ formatValue(getAgencyValue(agency, 'PAR_90_M')) }}</td>
-                            <td :class="getEcartClass(getAgencyValue(agency, 'Variation_PAR_90'))">
-                              {{ formatEcart(getAgencyValue(agency, 'Variation_PAR_90')) }}
-                            </td>
-                            <td class="percent-red">{{ formatPercent(calculatePercent(getAgencyValue(agency, 'PAR_90_M_1'), getAgencyValue(agency, 'PAR_90_M'))) }}</td>
-                            <!-- PAR 180 -->
-                            <td>{{ formatValue(getAgencyValue(agency, 'PAR_180_M_1')) }}</td>
-                            <td>{{ formatValue(getAgencyValue(agency, 'PAR_180_M')) }}</td>
-                            <td :class="getEcartClass(getAgencyValue(agency, 'Variation_PAR_180'))">
-                              {{ formatEcart(getAgencyValue(agency, 'Variation_PAR_180')) }}
-                            </td>
-                            <td class="percent-red">{{ formatPercent(calculatePercent(getAgencyValue(agency, 'PAR_180_M_1'), getAgencyValue(agency, 'PAR_180_M'))) }}</td>
-                            <!-- PAR 360 -->
-                            <td>{{ formatValue(getAgencyValue(agency, 'PAR_360_M_1')) }}</td>
-                            <td>{{ formatValue(getAgencyValue(agency, 'PAR_360_M')) }}</td>
-                            <td :class="getEcartClass(getAgencyValue(agency, 'Variation_PAR_360'))">
-                              {{ formatEcart(getAgencyValue(agency, 'Variation_PAR_360')) }}
-                            </td>
-                            <td class="percent-red">{{ formatPercent(calculatePercent(getAgencyValue(agency, 'PAR_360_M_1'), getAgencyValue(agency, 'PAR_360_M'))) }}</td>
-                          </template>
-                        </tr>
-                      </template>
-                    </template>
-                  </template>
-                  <!-- Si c'est service_points, afficher directement les agences -->
-                  <template v-else>
-                    <template v-for="(agency, index) in servicePoint.agencies" :key="getAgencyKey(agency, index)">
-                      <tr class="level-2-row service-point-row">
-                        <td class="level-2 service-point-cell">
-                          {{ agency.name || agency.AGENCE || getAgencyName(agency) }}
-                        </td>
-                        <!-- Vue PAR 0-30 -->
-                        <template v-if="selectedParView === '0-30'">
-                          <!-- PAR 0 -->
-                          <td>{{ formatValue(getAgencyValue(agency, 'PAR_0_M_1')) }}</td>
-                          <td>{{ formatValue(getAgencyValue(agency, 'PAR_0_M')) }}</td>
-                          <td :class="getEcartClass(getAgencyValue(agency, 'Variation_PAR_0'))">
-                            {{ formatEcart(getAgencyValue(agency, 'Variation_PAR_0')) }}
-                          </td>
-                          <td class="percent-red">{{ formatPercent(calculatePercent(getAgencyValue(agency, 'PAR_0_M_1'), getAgencyValue(agency, 'PAR_0_M'))) }}</td>
-                          <!-- PAR 30 -->
-                          <td>{{ formatValue(getAgencyValue(agency, 'PAR_30_M_1')) }}</td>
-                          <td>{{ formatValue(getAgencyValue(agency, 'PAR_30_M')) }}</td>
-                          <td :class="getEcartClass(getAgencyValue(agency, 'Variation_PAR_30'))">
-                            {{ formatEcart(getAgencyValue(agency, 'Variation_PAR_30')) }}
-                          </td>
-                          <td class="percent-red">{{ formatPercent(calculatePercent(getAgencyValue(agency, 'PAR_30_M_1'), getAgencyValue(agency, 'PAR_30_M'))) }}</td>
-                        </template>
-                        <!-- Vue PAR 90-360 -->
-                        <template v-else>
-                          <!-- PAR 90 -->
-                          <td>{{ formatValue(getAgencyValue(agency, 'PAR_90_M_1')) }}</td>
-                          <td>{{ formatValue(getAgencyValue(agency, 'PAR_90_M')) }}</td>
-                          <td :class="getEcartClass(getAgencyValue(agency, 'Variation_PAR_90'))">
-                            {{ formatEcart(getAgencyValue(agency, 'Variation_PAR_90')) }}
-                          </td>
-                          <td class="percent-red">{{ formatPercent(calculatePercent(getAgencyValue(agency, 'PAR_90_M_1'), getAgencyValue(agency, 'PAR_90_M'))) }}</td>
-                          <!-- PAR 180 -->
-                          <td>{{ formatValue(getAgencyValue(agency, 'PAR_180_M_1')) }}</td>
-                          <td>{{ formatValue(getAgencyValue(agency, 'PAR_180_M')) }}</td>
-                          <td :class="getEcartClass(getAgencyValue(agency, 'Variation_PAR_180'))">
-                            {{ formatEcart(getAgencyValue(agency, 'Variation_PAR_180')) }}
-                          </td>
-                          <td class="percent-red">{{ formatPercent(calculatePercent(getAgencyValue(agency, 'PAR_180_M_1'), getAgencyValue(agency, 'PAR_180_M'))) }}</td>
-                          <!-- PAR 360 -->
-                          <td>{{ formatValue(getAgencyValue(agency, 'PAR_360_M_1')) }}</td>
-                          <td>{{ formatValue(getAgencyValue(agency, 'PAR_360_M')) }}</td>
-                          <td :class="getEcartClass(getAgencyValue(agency, 'Variation_PAR_360'))">
-                            {{ formatEcart(getAgencyValue(agency, 'Variation_PAR_360')) }}
-                          </td>
-                          <td class="percent-red">{{ formatPercent(calculatePercent(getAgencyValue(agency, 'PAR_360_M_1'), getAgencyValue(agency, 'PAR_360_M'))) }}</td>
-                        </template>
-                      </tr>
-                    </template>
-                  </template>
-                </template>
-              </template>
-            </template>
-            
             <!-- TOTAL (dernière ligne) -->
             <tr class="total-row">
               <td class="agency-name"><strong>TOTAL</strong></td>
@@ -712,13 +465,14 @@ export default {
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
-    const refMonth = currentMonth === 1 ? 12 : currentMonth - 1;
-    const refYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+    const y = currentYear;
+    const m = String(currentMonth).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
     return {
+      selectedPeriod: 'month',
+      selectedDate: `${y}-${m}-${d}`,
       selectedMonth: currentMonth,
       selectedYear: currentYear,
-      selectedMonthRef: refMonth,
-      selectedYearRef: refYear,
       months: [
         'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
         'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
@@ -728,12 +482,10 @@ export default {
       selectedView: 'par', // 'par' ou 'stock'
       selectedParView: '0-30', // '0-30' ou '90-360'
       hierarchicalDataFromBackend: {
-        TERRITOIRE: {},
-        'POINT SERVICES': {}
+        TERRITOIRE: {}
       },
       expandedSections: {
-        TERRITOIRE: false,
-        'POINT SERVICES': false
+        TERRITOIRE: false
       },
       expandedStockTerritories: {}, // Pour gérer l'expansion des territoires dans le tableau Stock
       stockData: [], // Structure hiérarchique
@@ -749,10 +501,33 @@ export default {
       }
       return years;
     },
+    snapshotMonthYear() {
+      const p = this.selectedPeriod;
+      if (p === 'month') {
+        return { month: this.selectedMonth, year: this.selectedYear };
+      }
+      if (p === 'year') {
+        return { month: 12, year: this.selectedYear };
+      }
+      if (p === 'week' && this.selectedDate) {
+        const dt = new Date(`${this.selectedDate}T12:00:00`);
+        if (Number.isNaN(dt.getTime())) {
+          const n = new Date();
+          return { month: n.getMonth() + 1, year: n.getFullYear() };
+        }
+        return { month: dt.getMonth() + 1, year: dt.getFullYear() };
+      }
+      const n = new Date();
+      return { month: n.getMonth() + 1, year: n.getFullYear() };
+    },
+    refMonthYear() {
+      const { month: m, year: y } = this.snapshotMonthYear;
+      if (m === 1) return { month: 12, year: y - 1 };
+      return { month: m - 1, year: y };
+    },
     filteredHierarchicalData() {
       return this.hierarchicalData || {
-        TERRITOIRE: {},
-        'POINT SERVICES': {}
+        TERRITOIRE: {}
       };
     },
     hierarchicalData() {
@@ -764,8 +539,7 @@ export default {
         }
       }
       return {
-        TERRITOIRE: {},
-        'POINT SERVICES': {}
+        TERRITOIRE: {}
       };
     },
     territoireTotal() {
@@ -817,97 +591,31 @@ export default {
       
       return total;
     },
-    pointServicesTotal() {
-      if (!this.filteredHierarchicalData || !this.filteredHierarchicalData['POINT SERVICES']) {
-        return {
-          par0M1: 0, par0M: 0, par0Ecart: 0, par0Percent: 0,
-          par30M1: 0, par30M: 0, par30Ecart: 0, par30Percent: 0,
-          par90M1: 0, par90M: 0, par90Ecart: 0, par90Percent: 0,
-          par180M1: 0, par180M: 0, par180Ecart: 0, par180Percent: 0,
-          par360M1: 0, par360M: 0, par360Ecart: 0, par360Percent: 0
-        };
-      }
-      
-      let total = {
-        par0M1: 0, par0M: 0, par0Ecart: 0, par0Percent: 0,
-        par30M1: 0, par30M: 0, par30Ecart: 0, par30Percent: 0,
-        par90M1: 0, par90M: 0, par90Ecart: 0, par90Percent: 0,
-        par180M1: 0, par180M: 0, par180Ecart: 0, par180Percent: 0,
-        par360M1: 0, par360M: 0, par360Ecart: 0, par360Percent: 0
-      };
-      
-      Object.values(this.filteredHierarchicalData['POINT SERVICES']).forEach(servicePoint => {
-        // Si le point de service a des totaux calculés, les utiliser
-        if (servicePoint.totals) {
-          total.par0M1 += servicePoint.totals.par0M1 || 0;
-          total.par0M += servicePoint.totals.par0M || 0;
-          total.par30M1 += servicePoint.totals.par30M1 || 0;
-          total.par30M += servicePoint.totals.par30M || 0;
-          total.par90M1 += servicePoint.totals.par90M1 || 0;
-          total.par90M += servicePoint.totals.par90M || 0;
-          total.par180M1 += servicePoint.totals.par180M1 || 0;
-          total.par180M += servicePoint.totals.par180M || 0;
-          total.par360M1 += servicePoint.totals.par360M1 || 0;
-          total.par360M += servicePoint.totals.par360M || 0;
-        } else if (servicePoint.agencies) {
-          // Sinon, calculer à partir des agences
-          servicePoint.agencies.forEach(agency => {
-            total.par0M1 += this.getAgencyValue(agency, 'PAR_0_M_1') || 0;
-            total.par0M += this.getAgencyValue(agency, 'PAR_0_M') || 0;
-            total.par30M1 += this.getAgencyValue(agency, 'PAR_30_M_1') || 0;
-            total.par30M += this.getAgencyValue(agency, 'PAR_30_M') || 0;
-            total.par90M1 += this.getAgencyValue(agency, 'PAR_90_M_1') || 0;
-            total.par90M += this.getAgencyValue(agency, 'PAR_90_M') || 0;
-            total.par180M1 += this.getAgencyValue(agency, 'PAR_180_M_1') || 0;
-            total.par180M += this.getAgencyValue(agency, 'PAR_180_M') || 0;
-            total.par360M1 += this.getAgencyValue(agency, 'PAR_360_M_1') || 0;
-            total.par360M += this.getAgencyValue(agency, 'PAR_360_M') || 0;
-          });
-        }
-      });
-      
-      total.par0Ecart = total.par0M - total.par0M1;
-      total.par30Ecart = total.par30M - total.par30M1;
-      total.par90Ecart = total.par90M - total.par90M1;
-      total.par180Ecart = total.par180M - total.par180M1;
-      total.par360Ecart = total.par360M - total.par360M1;
-      
-      // Calculer les pourcentages
-      total.par0Percent = total.par0M1 !== 0 ? (total.par0Ecart / total.par0M1) * 100 : 0;
-      total.par30Percent = total.par30M1 !== 0 ? (total.par30Ecart / total.par30M1) * 100 : 0;
-      total.par90Percent = total.par90M1 !== 0 ? (total.par90Ecart / total.par90M1) * 100 : 0;
-      total.par180Percent = total.par180M1 !== 0 ? (total.par180Ecart / total.par180M1) * 100 : 0;
-      total.par360Percent = total.par360M1 !== 0 ? (total.par360Ecart / total.par360M1) * 100 : 0;
-      
-      return total;
-    },
     totalGeneral() {
-      // Total général = TERRITOIRE + POINT SERVICES
       const territoire = this.territoireTotal;
-      const pointServices = this.pointServicesTotal;
       
-      const par0M1 = territoire.par0M1 + pointServices.par0M1;
-      const par0M = territoire.par0M + pointServices.par0M;
+      const par0M1 = territoire.par0M1;
+      const par0M = territoire.par0M;
       const par0Ecart = par0M - par0M1;
       const par0Percent = par0M1 !== 0 ? (par0Ecart / par0M1) * 100 : 0;
       
-      const par30M1 = territoire.par30M1 + pointServices.par30M1;
-      const par30M = territoire.par30M + pointServices.par30M;
+      const par30M1 = territoire.par30M1;
+      const par30M = territoire.par30M;
       const par30Ecart = par30M - par30M1;
       const par30Percent = par30M1 !== 0 ? (par30Ecart / par30M1) * 100 : 0;
       
-      const par90M1 = territoire.par90M1 + pointServices.par90M1;
-      const par90M = territoire.par90M + pointServices.par90M;
+      const par90M1 = territoire.par90M1;
+      const par90M = territoire.par90M;
       const par90Ecart = par90M - par90M1;
       const par90Percent = par90M1 !== 0 ? (par90Ecart / par90M1) * 100 : 0;
       
-      const par180M1 = territoire.par180M1 + pointServices.par180M1;
-      const par180M = territoire.par180M + pointServices.par180M;
+      const par180M1 = territoire.par180M1;
+      const par180M = territoire.par180M;
       const par180Ecart = par180M - par180M1;
       const par180Percent = par180M1 !== 0 ? (par180Ecart / par180M1) * 100 : 0;
       
-      const par360M1 = territoire.par360M1 + pointServices.par360M1;
-      const par360M = territoire.par360M + pointServices.par360M;
+      const par360M1 = territoire.par360M1;
+      const par360M = territoire.par360M;
       const par360Ecart = par360M - par360M1;
       const par360Percent = par360M1 !== 0 ? (par360Ecart / par360M1) * 100 : 0;
       
@@ -935,26 +643,16 @@ export default {
       };
     },
     stockTotal() {
-      // Si structure hiérarchique
-      if (this.stockData && (this.stockData.TERRITOIRE || this.stockData['POINT SERVICES'])) {
+      if (this.stockData && this.stockData.TERRITOIRE) {
         let totalStockProvision = 0;
         let totalProvisionComptabilisee = 0;
         
-        // Totaux des territoires
-        if (this.stockData.TERRITOIRE) {
-          Object.values(this.stockData.TERRITOIRE).forEach(territory => {
-            if (territory.totals) {
-              totalStockProvision += parseFloat(territory.totals.stockProvision || 0);
-              totalProvisionComptabilisee += parseFloat(territory.totals.provisionComptabilisee || 0);
-            }
-          });
-        }
-        
-        // Totaux des points de service
-        if (this.stockData['POINT SERVICES'] && this.stockData['POINT SERVICES'].service_points && this.stockData['POINT SERVICES'].service_points.totals) {
-          totalStockProvision += parseFloat(this.stockData['POINT SERVICES'].service_points.totals.stockProvision || 0);
-          totalProvisionComptabilisee += parseFloat(this.stockData['POINT SERVICES'].service_points.totals.provisionComptabilisee || 0);
-        }
+        Object.values(this.stockData.TERRITOIRE).forEach(territory => {
+          if (territory.totals) {
+            totalStockProvision += parseFloat(territory.totals.stockProvision || 0);
+            totalProvisionComptabilisee += parseFloat(territory.totals.provisionComptabilisee || 0);
+          }
+        });
         
         return {
           stockProvision: totalStockProvision,
@@ -986,7 +684,7 @@ export default {
     getPeriodTitle() {
       return `${this.getDateRefLabel()} / ${this.getDateMLabel()}`;
     },
-    handlePeriodChange() {
+    refreshPortefeuilleData() {
       if (this.selectedView === 'par') {
         this.fetchData();
       } else if (this.selectedView === 'stock') {
@@ -1000,10 +698,8 @@ export default {
       try {
         const response = await axios.get('/api/oracle/data/portefeuille-risque', {
           params: {
-            month: this.selectedMonth,
-            year: this.selectedYear,
-            month_ref: this.selectedMonthRef,
-            year_ref: this.selectedYearRef
+            month: this.snapshotMonthYear.month,
+            year: this.snapshotMonthYear.year
           }
         });
         
@@ -1013,16 +709,14 @@ export default {
           this.processFlatData(response.data.data);
         } else {
           this.hierarchicalDataFromBackend = {
-            TERRITOIRE: {},
-            'POINT SERVICES': {}
+            TERRITOIRE: {}
           };
         }
       } catch (err) {
         console.error('Erreur lors de la récupération des données PAR:', err);
         this.errorMessage = err.response?.data?.detail || err.response?.data?.error || 'Erreur lors de la récupération des données';
         this.hierarchicalDataFromBackend = {
-          TERRITOIRE: {},
-          'POINT SERVICES': {}
+          TERRITOIRE: {}
         };
       } finally {
         this.loading = false;
@@ -1031,8 +725,7 @@ export default {
     processFlatData(data) {
       // Grouper les données par agence et créer la structure hiérarchique
       const hierarchical = {
-        TERRITOIRE: {},
-        'POINT SERVICES': {}
+        TERRITOIRE: {}
       };
       
       // Mapping des agences vers les territoires (à adapter selon votre structure)
@@ -1128,20 +821,6 @@ export default {
       };
       return names[key] || key.toUpperCase();
     },
-    handleMonthChange() {
-      if (this.selectedView === 'par') {
-        this.fetchData();
-      } else if (this.selectedView === 'stock') {
-        this.fetchStockData();
-      }
-    },
-    handleYearChange() {
-      if (this.selectedView === 'par') {
-        this.fetchData();
-      } else if (this.selectedView === 'stock') {
-        this.fetchStockData();
-      }
-    },
     handleStockClick() {
       this.selectedView = 'stock';
       this.fetchStockData();
@@ -1153,13 +832,13 @@ export default {
       try {
         const response = await axios.get('/api/oracle/data/stock-provision', {
           params: {
-            month: this.selectedMonth,
-            year: this.selectedYear
+            month: this.snapshotMonthYear.month,
+            year: this.snapshotMonthYear.year
           }
         });
         
         // Gérer la nouvelle structure hiérarchique
-        if (response.data && (response.data.TERRITOIRE || response.data['POINT SERVICES'])) {
+        if (response.data && response.data.TERRITOIRE) {
           // Structure hiérarchique
           this.stockData = response.data;
           // Initialiser l'expansion des territoires
@@ -1185,7 +864,7 @@ export default {
       } catch (error) {
         console.error('Erreur lors de la récupération des données Stock:', error);
         this.errorMessage = error.response?.data?.error || error.message || 'Erreur lors du chargement des données Stock';
-        this.stockData = { TERRITOIRE: {}, 'POINT SERVICES': {} };
+        this.stockData = { TERRITOIRE: {} };
         this.stockDataFlat = [];
       } finally {
         this.loading = false;
@@ -1360,10 +1039,12 @@ export default {
       return this.getDateRefLabel();
     },
     getDateRefLabel() {
-      return `${this.months[this.selectedMonthRef - 1]} ${this.selectedYearRef}`;
+      const r = this.refMonthYear;
+      return `${this.months[r.month - 1]} ${r.year}`;
     },
     getDateMLabel() {
-      return `${this.months[this.selectedMonth - 1]} ${this.selectedYear}`;
+      const s = this.snapshotMonthYear;
+      return `${this.months[s.month - 1]} ${s.year}`;
     }
   }
 }
@@ -1433,9 +1114,20 @@ export default {
 
 .period-selector {
   display: flex;
-  gap: 24px;
-  align-items: flex-end;
+  gap: 12px;
+  align-items: center;
   flex-wrap: wrap;
+}
+
+.period-select,
+.date-select {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background: white;
+  color: #333;
+  cursor: pointer;
 }
 
 .period-group {

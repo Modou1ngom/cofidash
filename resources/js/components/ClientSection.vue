@@ -180,74 +180,6 @@
 
             </template>
 
-            <!-- POINT SERVICES -->
-            <tr v-if="Object.keys(filteredHierarchicalData['POINT SERVICES'] || {}).length > 0" class="level-1-row" @click="toggleExpand('POINT SERVICES')">
-              <td class="level-1">
-                <button class="expand-btn" @click.stop="toggleExpand('POINT SERVICES')">
-                  {{ expandedSections['POINT SERVICES'] ? '−' : '+' }}
-                </button>
-                <strong>POINT SERVICES</strong>
-              </td>
-              <td><strong>{{ formatNumber(pointServicesTotal.objectif) }}</strong></td>
-              <td><strong>{{ formatNumber(pointServicesTotal.nouveauxClientsM1) }}</strong></td>
-              <td><strong>{{ formatNumber(pointServicesTotal.nouveauxClientsM) }}</strong></td>
-              <td :class="getVariationClass(pointServicesTotal.variationClients)">
-                <strong>{{ formatVariation(pointServicesTotal.variationClients) }}</strong>
-              </td>
-              <td :class="getAchievementClass(pointServicesTotal.atteinte)">
-                <strong>{{ formatPercent(pointServicesTotal.atteinte) }}</strong>
-              </td>
-              <td :class="getGrowthClass(pointServicesTotal.tauxCroissanceClients)">
-                <strong>{{ formatGrowthRate(pointServicesTotal.tauxCroissanceClients) }}</strong>
-              </td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.fraisM1) }}</strong></td>
-              <td><strong>{{ formatCurrency(pointServicesTotal.fraisM) }}</strong></td>
-              <td :class="getVariationClass(pointServicesTotal.variationFrais)">
-                <strong>{{ formatVariation(pointServicesTotal.variationFrais) }}</strong>
-              </td>
-              <td :class="getGrowthClass(pointServicesTotal.tauxCroissanceFrais)">
-                <strong>{{ formatGrowthRate(pointServicesTotal.tauxCroissanceFrais) }}</strong>
-              </td>
-            </tr>
-            
-            <!-- Points de service individuels directement sous POINT SERVICES -->
-            <template v-if="expandedSections['POINT SERVICES']">
-              <template v-for="(servicePoint, servicePointKey) in filteredHierarchicalData['POINT SERVICES']" :key="servicePointKey">
-                <!-- Afficher directement les points de service individuels (SCAT URBAM, NIARRY TALLY) -->
-                <template v-if="servicePoint.agencies && servicePoint.agencies.length > 0">
-                  <tr 
-                    v-for="agency in servicePoint.agencies" 
-                    :key="agency.name" 
-                    class="level-2-row service-point-row"
-                    :class="{ 'selected-agency': selectedAgency && selectedAgency.name === agency.name && selectedAgency.category === 'POINT SERVICES' }"
-                    @click="selectAgency({ name: agency.name, category: 'POINT SERVICES', zone: servicePointKey })"
-                  >
-                    <td class="level-2 service-point-cell">{{ getAgencyName(agency) }}</td>
-                    <td>{{ formatNumber(agency.objectif || agency.OBJECTIF_CLIENT || 0) }}</td>
-                    <td>{{ formatNumber(agency.nouveauxClientsM1) }}</td>
-                    <td>{{ formatNumber(agency.nouveauxClientsM) }}</td>
-                    <td :class="getVariationClass(agency.variationClients)">
-                      {{ formatVariation(agency.variationClients) }}
-                    </td>
-                    <td :class="getAchievementClass(agency.atteinte || agency.TAUX_REALISATION || 0)">
-                      {{ formatPercent(agency.atteinte || agency.TAUX_REALISATION || 0) }}
-                    </td>
-                    <td :class="getGrowthClass(agency.tauxCroissanceClients)">
-                      {{ formatGrowthRate(agency.tauxCroissanceClients) }}
-                    </td>
-                    <td>{{ formatCurrency(agency.fraisM1) }}</td>
-                    <td>{{ formatCurrency(agency.fraisM) }}</td>
-                    <td :class="getVariationClass(agency.variationFrais)">
-                      {{ formatVariation(agency.variationFrais) }}
-                    </td>
-                    <td :class="getGrowthClass(agency.tauxCroissanceFrais)">
-                      {{ formatGrowthRate(agency.tauxCroissanceFrais) }}
-                    </td>
-                  </tr>
-                </template>
-              </template>
-            </template>
-            
             <!-- GRAND COMPTE -->
             <tr v-if="grandCompte" class="level-3-row">
               <td class="level-3">GRAND COMPTE</td>
@@ -521,18 +453,6 @@ export default {
               }
             });
           }
-          if (data['POINT SERVICES'] && typeof data['POINT SERVICES'] === 'object' && data['POINT SERVICES'] !== null) {
-            Object.keys(data['POINT SERVICES']).forEach(key => {
-              if (data['POINT SERVICES'][key]) {
-                // Filtrer les agences pour exclure "Inconnu"
-                const agencies = data['POINT SERVICES'][key].agencies || data['POINT SERVICES'][key].data || [];
-                data['POINT SERVICES'][key].agencies = this.filterAgencies(agencies);
-                if (!data['POINT SERVICES'][key].totals) {
-                  data['POINT SERVICES'][key].totals = this.calculateZoneTotals(data['POINT SERVICES'][key].agencies);
-                }
-              }
-            });
-          }
           return data;
         } catch (e) {
           console.warn('Erreur lors du traitement des données hiérarchiques:', e);
@@ -543,8 +463,7 @@ export default {
       // S'assurer que territories existe
       if (!this.territories || typeof this.territories !== 'object') {
         return {
-          TERRITOIRE: {},
-          'POINT SERVICES': {}
+          TERRITOIRE: {}
         };
       }
       
@@ -553,7 +472,6 @@ export default {
       const filteredDakarBanlieue = this.filterAgencies((this.territories.territoire_dakar_banlieue && this.territories.territoire_dakar_banlieue.agencies) || []);
       const filteredProvinceCentreSud = this.filterAgencies((this.territories.territoire_province_centre_sud && this.territories.territoire_province_centre_sud.agencies) || []);
       const filteredProvinceNord = this.filterAgencies((this.territories.territoire_province_nord && this.territories.territoire_province_nord.agencies) || []);
-      const filteredServicePoints = this.filterAgencies(this.servicePoints || []);
       
       const data = {
         TERRITOIRE: {
@@ -577,13 +495,6 @@ export default {
             agencies: filteredProvinceNord,
             totals: this.calculateZoneTotals(filteredProvinceNord)
           }
-        },
-        'POINT SERVICES': {
-          service_points: {
-            name: 'POINTS SERVICES',
-            agencies: filteredServicePoints,
-            totals: this.calculateZoneTotals(filteredServicePoints)
-          }
         }
       };
       
@@ -593,8 +504,7 @@ export default {
       // S'assurer que hierarchicalData existe et est un objet
       if (!this.hierarchicalData || typeof this.hierarchicalData !== 'object' || this.hierarchicalData === null) {
         return {
-          TERRITOIRE: {},
-          'POINT SERVICES': {}
+          TERRITOIRE: {}
         };
       }
       
@@ -605,10 +515,7 @@ export default {
       
       // Filtrer selon la zone sélectionnée
       const filtered = {
-        TERRITOIRE: {},
-        'POINT SERVICES': (this.hierarchicalData['POINT SERVICES'] && typeof this.hierarchicalData['POINT SERVICES'] === 'object' && this.hierarchicalData['POINT SERVICES'] !== null)
-          ? this.hierarchicalData['POINT SERVICES'] 
-          : {}
+        TERRITOIRE: {}
       };
       
       if (this.hierarchicalData.TERRITOIRE && 
@@ -648,22 +555,6 @@ export default {
           t1.fraisM + t2.fraisM + t3.fraisM + t4.fraisM
         ),
         atteinte: totalObjectif > 0 ? (totalNouveauxClientsM / totalObjectif) * 100 : null
-      };
-    },
-    pointServicesTotal() {
-      const servicePoints = this.servicePoints || [];
-      const totals = this.calculateZoneTotals(servicePoints);
-      return {
-        objectif: totals.objectif,
-        nouveauxClientsM1: totals.nouveauxClientsM1,
-        nouveauxClientsM: totals.nouveauxClientsM,
-        variationClients: totals.variationClients,
-        tauxCroissanceClients: totals.tauxCroissanceClients,
-        fraisM1: totals.fraisM1,
-        fraisM: totals.fraisM,
-        variationFrais: totals.variationFrais,
-        tauxCroissanceFrais: totals.tauxCroissanceFrais,
-        atteinte: totals.atteinte
       };
     },
     // Compatibilité avec l'ancien code
@@ -1008,14 +899,12 @@ export default {
       selectedYear: now.getFullYear(), // Année en cours
       expandedSections: {
         TERRITOIRE: false,
-        'POINT SERVICES': false,
         'TERRITOIRE_territoire_dakar_ville': false,
         'TERRITOIRE_territoire_dakar_banlieue': false,
         'TERRITOIRE_territoire_province_centre_sud': false,
         'TERRITOIRE_territoire_province_nord': false
       },
       hierarchicalDataFromBackend: null,
-      servicePoints: [],
       selectedAgency: null, // { name: 'POINT E', category: 'CORPORATE', zone: 'zone1' }
       selectedChartType: 'line', // 'line', 'bar', 'area', 'pie'
       selectedDataType: 'clients', // 'clients' ou 'frais'
@@ -1346,22 +1235,6 @@ export default {
         }
       }
       
-      // Calculer le total des points de service
-      if (hierarchicalData['POINT SERVICES'] && 
-          typeof hierarchicalData['POINT SERVICES'] === 'object' && 
-          hierarchicalData['POINT SERVICES'] !== null &&
-          !Array.isArray(hierarchicalData['POINT SERVICES'])) {
-        try {
-          Object.values(hierarchicalData['POINT SERVICES']).forEach(servicePoint => {
-            if (servicePoint && servicePoint.totals && servicePoint.totals[field] !== undefined) {
-              total += servicePoint.totals[field] || 0;
-            }
-          });
-        } catch (e) {
-          console.warn('Erreur lors du calcul du total des points de service:', e);
-        }
-      }
-      
       // Compatibilité avec l'ancienne structure
       if (hierarchicalData.CORPORATE && 
           typeof hierarchicalData.CORPORATE === 'object' && 
@@ -1651,13 +1524,6 @@ export default {
           // Priorité au nouveau format hiérarchique
           if (data.hierarchicalData) {
             console.log('📊 Données hiérarchiques reçues:', data.hierarchicalData);
-            console.log('📊 POINT SERVICES dans hierarchicalData:', data.hierarchicalData['POINT SERVICES']);
-            if (data.hierarchicalData['POINT SERVICES']) {
-              console.log('📊 service_points:', data.hierarchicalData['POINT SERVICES'].service_points);
-              if (data.hierarchicalData['POINT SERVICES'].service_points) {
-                console.log('📊 agencies dans service_points:', data.hierarchicalData['POINT SERVICES'].service_points.agencies);
-              }
-            }
             this.hierarchicalDataFromBackend = data.hierarchicalData;
             
             // Extraire les territoires et points de service
@@ -1703,56 +1569,12 @@ export default {
               };
             }
             
-            if (data.hierarchicalData['POINT SERVICES'] && data.hierarchicalData['POINT SERVICES'].service_points) {
-              const rawServicePoints = data.hierarchicalData['POINT SERVICES'].service_points.agencies || data.hierarchicalData['POINT SERVICES'].service_points.data || [];
-              this.servicePoints = this.filterAgencies(rawServicePoints);
-              console.log('📋 Points de service chargés (clients):', this.servicePoints);
-              console.log('📊 Nombre de points de service:', this.servicePoints.length);
-              if (this.servicePoints.length > 0) {
-                console.log('📋 Noms des points de service:', this.servicePoints.map(sp => sp.name || sp.AGENCE));
-                // Vérifier si LAMINE GUEYE est dans la liste
-                const lamineGueye = this.servicePoints.find(sp => 
-                  (sp.name || sp.AGENCE || '').toUpperCase().includes('LAMINE') || 
-                  (sp.name || sp.AGENCE || '').toUpperCase().includes('GUEYE')
-                );
-                if (lamineGueye) {
-                  console.log('✅ AGENCE LAMINE GUEYE trouvée dans servicePoints:', lamineGueye);
-                  console.log('   Objectif:', lamineGueye.objectif || lamineGueye.OBJECTIF_CLIENT);
-                } else {
-                  console.warn('⚠️ AGENCE LAMINE GUEYE non trouvée dans servicePoints');
-                }
-              } else {
-                console.warn('⚠️ Aucun point de service trouvé dans les données');
-              }
-            } else {
-              console.warn('⚠️ Structure POINT SERVICES non trouvée dans hierarchicalData:', data.hierarchicalData['POINT SERVICES']);
-              // Vérifier aussi dans la structure alternative
-              if (data.hierarchicalData['POINT SERVICES']) {
-                console.log('📋 Structure POINT SERVICES alternative:', Object.keys(data.hierarchicalData['POINT SERVICES']));
-                Object.keys(data.hierarchicalData['POINT SERVICES']).forEach(key => {
-                  const servicePoint = data.hierarchicalData['POINT SERVICES'][key];
-                  if (servicePoint.agencies) {
-                    console.log(`   ${key}: ${servicePoint.agencies.length} agences`);
-                    const lamineGueye = servicePoint.agencies.find(ag => 
-                      (ag.name || ag.AGENCE || '').toUpperCase().includes('LAMINE') || 
-                      (ag.name || ag.AGENCE || '').toUpperCase().includes('GUEYE')
-                    );
-                    if (lamineGueye) {
-                      console.log('✅ AGENCE LAMINE GUEYE trouvée dans', key, ':', lamineGueye);
-                      console.log('   Objectif:', lamineGueye.objectif || lamineGueye.OBJECTIF_CLIENT);
-                    }
-                  }
-                });
-              }
-            }
-            
             // Logger le nombre d'agences
             console.log('📊 Agences par territoire:');
             console.log('   DAKAR VILLE:', this.territories.territoire_dakar_ville.agencies?.length || 0);
             console.log('   DAKAR BANLIEUE:', this.territories.territoire_dakar_banlieue.agencies?.length || 0);
             console.log('   PROVINCE CENTRE-SUD:', this.territories.territoire_province_centre_sud.agencies?.length || 0);
             console.log('   PROVINCE NORD:', this.territories.territoire_province_nord.agencies?.length || 0);
-            console.log('   POINTS SERVICES:', this.servicePoints.length);
             console.log('📊 hierarchicalDataFromBackend:', this.hierarchicalDataFromBackend);
             
             // Mettre à jour aussi corporateZones et retailZones pour compatibilité
@@ -2109,31 +1931,6 @@ export default {
         }
       });
       
-      // Fusionner avec les points de service
-      if (this.servicePoints && Array.isArray(this.servicePoints)) {
-        this.servicePoints.forEach(agency => {
-          const agencyCode = (agency.CODE_AGENCE || agency.code_agence || agency.code || agency.CODE || '').toString().trim();
-          const agencyName = (agency.name || agency.AGENCE || agency.NOM_AGENCE || '').toString().trim();
-          
-          let objectiveValue = null;
-          if (agencyCode && objectivesMapByCode[agencyCode]) {
-            objectiveValue = objectivesMapByCode[agencyCode];
-            console.log(`✅ Objectif trouvé par code pour ${agencyName} (${agencyCode}):`, objectiveValue);
-          } else if (agencyName) {
-            const normalizedName = agencyName.toUpperCase().trim();
-            if (objectivesMapByName[normalizedName]) {
-              objectiveValue = objectivesMapByName[normalizedName];
-              console.log(`✅ Objectif trouvé par nom pour ${agencyName}:`, objectiveValue);
-            }
-          }
-          
-          if (objectiveValue !== null) {
-            agency.objectif = objectiveValue;
-            agency.OBJECTIF_CLIENT = objectiveValue;
-          }
-        });
-      }
-      
       // Fusionner avec le grand compte
       if (this.grandCompteData) {
         const agencyCode = (this.grandCompteData.CODE_AGENCE || this.grandCompteData.code_agence || this.grandCompteData.code || this.grandCompteData.CODE || '').toString().trim();
@@ -2185,29 +1982,6 @@ export default {
                 agency.OBJECTIF_CLIENT = objectiveValue;
               }
             });
-          }
-        });
-      }
-      
-      if (this.hierarchicalDataFromBackend['POINT SERVICES'] && this.hierarchicalDataFromBackend['POINT SERVICES'].service_points) {
-        const agencies = this.hierarchicalDataFromBackend['POINT SERVICES'].service_points.agencies || [];
-        agencies.forEach(agency => {
-          const agencyCode = (agency.CODE_AGENCE || agency.code_agence || agency.code || agency.CODE || '').toString().trim();
-          const agencyName = (agency.name || agency.AGENCE || agency.NOM_AGENCE || '').toString().trim();
-          
-          let objectiveValue = null;
-          if (agencyCode && objectivesMapByCode[agencyCode]) {
-            objectiveValue = objectivesMapByCode[agencyCode];
-          } else if (agencyName) {
-            const normalizedName = agencyName.toUpperCase().trim();
-            if (objectivesMapByName[normalizedName]) {
-              objectiveValue = objectivesMapByName[normalizedName];
-            }
-          }
-          
-          if (objectiveValue !== null) {
-            agency.objectif = objectiveValue;
-            agency.OBJECTIF_CLIENT = objectiveValue;
           }
         });
       }

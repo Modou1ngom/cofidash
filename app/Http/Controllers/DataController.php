@@ -854,6 +854,15 @@ class DataController extends Controller
                 $params['year'] = (int)date('Y');
             }
 
+            $period = $request->input('period');
+            $dateParam = $request->input('date');
+            if ($period) {
+                $params['period'] = $period;
+            }
+            if ($dateParam) {
+                $params['date'] = $dateParam;
+            }
+
             $result = $this->oracleService->getPythonGetCached('production', '/api/oracle/data/production', $params, 'Production dashboard');
 
             if ($result['success']) {
@@ -914,6 +923,15 @@ class DataController extends Controller
                 $params['year'] = (int)date('Y');
             }
 
+            $period = $request->input('period');
+            $dateParam = $request->input('date');
+            if ($period) {
+                $params['period'] = $period;
+            }
+            if ($dateParam) {
+                $params['date'] = $dateParam;
+            }
+
             $result = $this->oracleService->getPythonGetCached('production-volume', '/api/oracle/data/production-volume', $params, 'Production volume');
 
             if ($result['success']) {
@@ -939,6 +957,69 @@ class DataController extends Controller
             return response()->json([
                 'error' => 'Erreur de connexion au service Python',
                 'detail' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Évolution de l'encours crédit (PTF et produit d'intérêt) via l'API Python
+     */
+    public function getEncoursCreditData(Request $request): JsonResponse
+    {
+        try {
+            $monthM = $request->input('month_m');
+            $yearM = $request->input('year_m');
+            $monthM1 = $request->input('month_m1');
+            $yearM1 = $request->input('year_m1');
+
+            $params = [];
+            if ($monthM !== null && $monthM !== '' && $yearM !== null && $yearM !== '') {
+                $params['month_m'] = (int) $monthM;
+                $params['year_m'] = (int) $yearM;
+            }
+            if ($monthM1 !== null && $monthM1 !== '' && $yearM1 !== null && $yearM1 !== '') {
+                $params['month_m1'] = (int) $monthM1;
+                $params['year_m1'] = (int) $yearM1;
+            }
+
+            $period = $request->input('period');
+            $dateParam = $request->input('date');
+            if ($period) {
+                $params['period'] = $period;
+            }
+            if ($dateParam) {
+                $params['date'] = $dateParam;
+            }
+
+            $result = $this->oracleService->getPythonGetCached(
+                'encours-credit',
+                '/api/oracle/data/encours-credit',
+                $params,
+                'Encours crédit'
+            );
+
+            if ($result['success']) {
+                return response()->json($result['data']);
+            }
+
+            Log::error('Erreur API Python Encours crédit', [
+                'message' => $result['message'] ?? '',
+            ]);
+
+            return response()->json([
+                'error' => 'Erreur lors de la récupération des données',
+                'detail' => $result['message'] ?? '',
+                'status' => 500,
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Exception lors de l\'appel API Python Encours crédit', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error' => 'Erreur de connexion au service Python',
+                'detail' => $e->getMessage(),
             ], 500);
         }
     }
@@ -1137,6 +1218,63 @@ class DataController extends Controller
             return response()->json([
                 'error' => 'Erreur interne',
                 'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Récupère les données de transferts d'argent (OM, Wave, etc.) depuis le service Python
+     */
+    public function getTransfersData(Request $request): JsonResponse
+    {
+        try {
+            $period = $request->input('period', 'month');
+            $month = $request->input('month');
+            $year = $request->input('year');
+            $date = $request->input('date');
+            $service = $request->input('service', 'om');
+
+            $result = $this->oracleService->getTransfersData(
+                $period,
+                $month !== null && $month !== '' ? (int) $month : null,
+                $year !== null && $year !== '' ? (int) $year : null,
+                $date ? (string) $date : null,
+                (string) $service
+            );
+
+            if ($result['success']) {
+                $data = $result['data'];
+                $actualData = $data;
+                if (isset($data['data']) && is_array($data['data'])) {
+                    $actualData = $data['data'];
+                }
+                if (isset($data['data'])) {
+                    $data['data'] = $actualData;
+                } else {
+                    $data = $actualData;
+                }
+
+                return response()->json($data);
+            }
+
+            Log::error('Erreur lors de la récupération des données transferts', [
+                'error' => $result['error'] ?? null,
+                'message' => $result['message'] ?? null,
+            ]);
+
+            return response()->json([
+                'error' => $result['error'] ?? 'error',
+                'message' => $result['message'] ?? 'Erreur inconnue',
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Exception getTransfersData', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage(),
             ], 500);
         }
     }

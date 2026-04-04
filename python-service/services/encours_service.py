@@ -2,12 +2,79 @@
 Service pour la gestion des données Encours
 """
 import logging
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 from datetime import datetime
 import calendar
 from services.utils import get_territory_from_agency, get_territory_from_branch_code, get_territory_key, get_all_territories
 
 logger = logging.getLogger(__name__)
+
+
+def _dash_float(row: dict, *names: str) -> float:
+    """Lit un nombre dans une ligne Oracle (clés en majuscules variables)."""
+    upper_names = {n.upper() for n in names if n}
+    for k, v in row.items():
+        if k is not None and str(k).upper() in upper_names:
+            try:
+                return float(v) if v is not None else 0.0
+            except (TypeError, ValueError):
+                return 0.0
+    return 0.0
+
+
+def _normalize_dash_encours_epargne_row_pep(row: dict) -> Dict[str, Any]:
+    """
+    Une ligne DASH → structure « epargne-pep-simple » : simple + projet + dette agrégée.
+    C’est le format principal (l’UI ne requête que ce type pour remplir tous les onglets).
+    """
+    m_ep = _dash_float(row, "M_ENCOURS_EPARGNE_SIMPLE")
+    m1_ep = _dash_float(row, "M1_ENCOURS_EPARGNE_SIMPLE")
+    m_proj = _dash_float(row, "M_ENCOURS_CPT_EPARGNE_PROJET")
+    m1_proj = _dash_float(row, "M1_ENCOURS_CPT_EPARGNE_PROJET")
+    tot_m = _dash_float(row, "ENCOURS_TOTAL_M")
+    tot_m1 = _dash_float(row, "ENCOURS_TOTAL_M_1", "ENCOURS_TOTAL_M1")
+
+    d_simple_m = _dash_float(row, "DETES_RATT_EPARGNE_SIMPLE_M", "DETTES_RATT_EPARGNE_SIMPLE_M")
+    d_proj_m = _dash_float(row, "DETES_RATT_EPARGNE_SPROJET_M", "DETTES_RATT_EPARGNE_SPROJET_M")
+
+    code = row.get("BRANCH_CODE") or row.get("branch_code")
+    name = (row.get("BRANCH_NAME") or row.get("branch_name") or "").strip()
+
+    return {
+        "BRANCH_CODE": code,
+        "BRANCH_NAME": name,
+        "ENCOURS_TOTAL_M": tot_m,
+        "ENCOURS_TOTAL_M_1": tot_m1,
+        "M_ENCOURS_COMPTE_EPARGNE": m_ep,
+        "M1_ENCOURS_COMPTE_EPARGNE": m1_ep,
+        "M_ENCOURS_COMPTE_EPARGNE_PROJET": m_proj,
+        "M1_ENCOURS_COMPTE_EPARGNE_PROJET": m1_proj,
+        "M_ENCOURS_COMPTE_COURANT": 0.0,
+        "M1_ENCOURS_COMPTE_COURANT": 0.0,
+        "M_ENCOURS_DAT": 0.0,
+        "M1_ENCOURS_DAT": 0.0,
+        "M_ENCOURS_DEPOT_GARANTIE": 0.0,
+        "M1_ENCOURS_DEPOT_GARANTIE": 0.0,
+        "DETTE_RATTACHEE": d_simple_m + d_proj_m,
+        "detteRattachee": d_simple_m + d_proj_m,
+    }
+
+
+def _normalize_dash_encours_epargne_row(row: dict, encours_type: str) -> dict:
+    """À partir d’une ligne DASH : vue PEP complète, ou détente simple/projet seules si demandé."""
+    out = dict(_normalize_dash_encours_epargne_row_pep(row))
+    d_simple_m = _dash_float(row, "DETES_RATT_EPARGNE_SIMPLE_M", "DETTES_RATT_EPARGNE_SIMPLE_M")
+    d_proj_m = _dash_float(row, "DETES_RATT_EPARGNE_SPROJET_M", "DETTES_RATT_EPARGNE_SPROJET_M")
+
+    if encours_type == "epargne-simple":
+        out["DETTE_RATTACHEE"] = d_simple_m
+        out["detteRattachee"] = d_simple_m
+    elif encours_type == "epargne-projet":
+        out["DETTE_RATTACHEE"] = d_proj_m
+        out["detteRattachee"] = d_proj_m
+    # epargne-pep-simple : garder dette = simple + projet (déjà dans out)
+
+    return out
 
 
 def get_encours_data(period: str = "month", zone: Optional[str] = None, 
@@ -22,7 +89,8 @@ def get_encours_data(period: str = "month", zone: Optional[str] = None,
         month: Mois à analyser (1-12)
         year: Année à analyser
         date: Date pour la période semaine (format YYYY-MM-DD)
-        encours_type: Type d'encours ("compte-courant", "epargne-simple", "epargne-pep-simple", "epargne-projet")
+        encours_type: Type d'encours ("compte-courant", "epargne-simple", "epargne-pep-simple", "epargne-projet").
+            Les trois types épargne lisent uniquement ``DASH_ENCOURS_EPARGNE`` (plus de requête analytique sur les journaux).
     
     Returns:
         Dictionnaire avec les données Encours organisées par zones
@@ -122,7 +190,15 @@ def get_encours_data(period: str = "month", zone: Optional[str] = None,
     
     logger.info(f"📅 Dates calculées: M fin={m_end_str}, M-1 fin={m1_end_str}")
     logger.info(f"📅 Dates dettes rattachées: M début={m_start_str}, M fin={m_end_str}, M-1 début={m1_start_str}, M-1 fin={m1_end_str}")
-    
+
+    # Snapshot DASH_ENCOURS_EPARGNE (MM/YYYY) : mois sélectionné, décembre pour l’année, mois de m_end pour la semaine
+    if period == "month":
+        dash_epargne_month_year = f"{month:02d}/{year}"
+    elif period == "year":
+        dash_epargne_month_year = f"12/{year}"
+    else:
+        dash_epargne_month_year = f"{m_end.month:02d}/{m_end.year}"
+
     # Utiliser le pool de connexions et le cache
     from database.oracle_pool import get_pool
     from services.cache_service import get_cache, set_cache, generate_cache_key
@@ -146,9 +222,21 @@ def get_encours_data(period: str = "month", zone: Optional[str] = None,
         
         try:
             logger.info("🔍 Exécution de la requête Encours...")
-            
-            # Construire la requête SQL avec les dates dynamiques
-            if encours_type == "compte-courant":
+
+            use_dash_epargne = encours_type in ("epargne-simple", "epargne-pep-simple", "epargne-projet")
+            if use_dash_epargne:
+                from services.encours_epargne_dash_query import ENCOURS_EPARGNE_DASH_QUERY
+
+                logger.info(
+                    "📊 Encours épargne via DASH_ENCOURS_EPARGNE uniquement, month_year=%s (period=%s)",
+                    dash_epargne_month_year,
+                    period,
+                )
+                cursor.execute(ENCOURS_EPARGNE_DASH_QUERY, {"month_year": dash_epargne_month_year})
+                cols = [desc[0] for desc in cursor.description]
+                raw_rows = [dict(zip(cols, r)) for r in cursor.fetchall()]
+                data = [_normalize_dash_encours_epargne_row(r, encours_type) for r in raw_rows]
+            elif encours_type == "compte-courant":
                 query = f"""
 WITH JOURNAL AS (
     SELECT
@@ -359,833 +447,20 @@ FROM depot o
 LEFT JOIN encours_credit v ON o.BRANCH_CODE = v.BRANCH_CODE
 ORDER BY o.BRANCH_CODE, o.BRANCH_NAME
 """
-            elif encours_type == "epargne-simple":
-                query = f"""
-WITH Journal AS (
-    SELECT
-        TRN_REF_NO, AC_ENTRY_SR_NO, EVENT_SR_NO, EVENT, AC_BRANCH, AC_NO, AC_CCY, CATEGORY, DRCR_IND, TRN_CODE, FCY_AMOUNT, EXCH_RATE, LCY_AMOUNT, VALUE_DT AS TRN_DT, VALUE_DT, TXN_INIT_DATE, AMOUNT_TAG, RELATED_ACCOUNT, RELATED_CUSTOMER, RELATED_REFERENCE, MIS_HEAD, MIS_FLAG, INSTRUMENT_CODE, BANK_CODE, BALANCE_UPD, AUTH_STAT, MODULE, CUST_GL, DLY_HIST, FINANCIAL_CYCLE, PERIOD_CODE, BATCH_NO, USER_ID, CURR_NO, PRINT_STAT, AUTH_ID, GLMIS_VAL_UPD_FLAG, EXTERNAL_REF_NO, DONT_SHOWIN_STMT, IC_BAL_INCLUSION, AML_EXCEPTION, IB, GLMIS_UPDATE_FLAG, PRODUCT_ACCRUAL, ORIG_PNL_GL, STMT_DT, ENTRY_SEQ_NO, VIRTUAL_AC_NO, CLAIM_AMOUNT, GRP_REF_NO, SAVE_TIMESTAMP, AUTH_TIMESTAMP, PRODUCT_PROCESSOR, RELATED_AC_ENTRY_SR_NO, DONT_SHOWIN_STMT_FEE, ORG_SOURCE, ORG_SOURCE_REF, SOURCE_CODE,
-        CASE 
-            WHEN MODULE = 'DE' THEN VALUE_DT 
-            ELSE TRN_DT 
-        END AS TRN_DT_CALC
-    FROM CFSFCUBS145.ACVW_ALL_AC_ENTRIES 
-    WHERE MODULE = 'DE'
- 
-    UNION
- 
-    SELECT
-        TRN_REF_NO, AC_ENTRY_SR_NO, EVENT_SR_NO, EVENT, AC_BRANCH, AC_NO, AC_CCY, CATEGORY, DRCR_IND, TRN_CODE, FCY_AMOUNT, EXCH_RATE, LCY_AMOUNT, TRN_DT, VALUE_DT, TXN_INIT_DATE, AMOUNT_TAG, RELATED_ACCOUNT, RELATED_CUSTOMER, RELATED_REFERENCE, MIS_HEAD, MIS_FLAG, INSTRUMENT_CODE, BANK_CODE, BALANCE_UPD, AUTH_STAT, MODULE, CUST_GL, DLY_HIST, FINANCIAL_CYCLE, PERIOD_CODE, BATCH_NO, USER_ID, CURR_NO, PRINT_STAT, AUTH_ID, GLMIS_VAL_UPD_FLAG, EXTERNAL_REF_NO, DONT_SHOWIN_STMT, IC_BAL_INCLUSION, AML_EXCEPTION, IB, GLMIS_UPDATE_FLAG, PRODUCT_ACCRUAL, ORIG_PNL_GL, STMT_DT, ENTRY_SEQ_NO, VIRTUAL_AC_NO, CLAIM_AMOUNT, GRP_REF_NO, SAVE_TIMESTAMP, AUTH_TIMESTAMP, PRODUCT_PROCESSOR, RELATED_AC_ENTRY_SR_NO, DONT_SHOWIN_STMT_FEE, ORG_SOURCE, ORG_SOURCE_REF, SOURCE_CODE,
-        CASE 
-            WHEN MODULE = 'DE' THEN VALUE_DT 
-            ELSE TRN_DT 
-        END AS TRN_DT_CALC
-    FROM CFSFCUBS145.ACVW_ALL_AC_ENTRIES 
-    WHERE MODULE <> 'DE'
-),
-
-JOURNAL AS (
-    SELECT
-        AC_ENTRY_SR_NO,
-        AC_NO,
-        DRCR_IND,
-        LCY_AMOUNT,
-        TRN_DT_CALC AS TRN_DT
-    FROM Journal
-),
- 
-COMPTE AS (
-    SELECT 
-        cpt.BRANCH_CODE,
-        cpt.CUST_AC_NO,
-        cpt.AC_DESC,
-        cs.ACCOUNT_CLASS,
-        cs.DESCRIPTION,
-        cs.ACCOUNT_CODE
-    FROM CFSFCUBS145.STTM_CUST_ACCOUNT cpt
-    JOIN CFSFCUBS145.STTM_ACCOUNT_CLASS cs 
-        ON cpt.ACCOUNT_CLASS = cs.ACCOUNT_CLASS
-),
- 
-BRANCH AS (
-    SELECT  
-        BRANCH_CODE,
-        BRANCH_NAME
-    FROM CFSFCUBS145.STTM_BRANCH
-),
- 
--- Compte Courant
-CPT_COURANT AS (
-    SELECT 
-        y.BRANCH_CODE,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M_1
-    FROM JOURNAL a
-    JOIN COMPTE y ON a.AC_NO = y.CUST_AC_NO
-    WHERE y.ACCOUNT_CODE = '251'
-    GROUP BY y.BRANCH_CODE
-),
-
--- Compte Épargne Projet
-EPARGNE_PROJET AS (
-    SELECT 
-        y.BRANCH_CODE,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M_1
-    FROM JOURNAL a
-    JOIN COMPTE y ON a.AC_NO = y.CUST_AC_NO
-    WHERE y.ACCOUNT_CODE = '253'
-      AND UPPER(y.DESCRIPTION) LIKE '%PROJET%'
-    GROUP BY y.BRANCH_CODE
-),
-
--- Compte Épargne (autres)
-CPT_EPARGNE AS (
-    SELECT 
-        y.BRANCH_CODE,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M_1
-    FROM JOURNAL a
-    JOIN COMPTE y ON a.AC_NO = y.CUST_AC_NO
-    WHERE y.ACCOUNT_CODE = '253'
-      AND UPPER(y.DESCRIPTION) NOT LIKE '%PROJET%'
-    GROUP BY y.BRANCH_CODE
-),
-
--- DAT
-DAT AS (
-    SELECT 
-        y.BRANCH_CODE,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M_1
-    FROM JOURNAL a
-    JOIN COMPTE y ON a.AC_NO = y.CUST_AC_NO
-    WHERE y.ACCOUNT_CODE = '252'
-    GROUP BY y.BRANCH_CODE
-),
-
--- Dépôt de Garantie
-DEPOT_GARANTIE AS (
-    SELECT 
-        y.BRANCH_CODE,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M_1
-    FROM JOURNAL a
-    JOIN COMPTE y ON a.AC_NO = y.CUST_AC_NO
-    WHERE y.ACCOUNT_CODE = '254'
-    GROUP BY y.BRANCH_CODE
-),
-
--- Somme des encours par agence (sans ORDER BY dans le CTE)
-depot AS (
-    SELECT
-        A.BRANCH_CODE,
-        A.BRANCH_NAME,
-        NVL(c.M, 0) AS M_ENCOURS_COMPTE_COURANT,
-        NVL(e.M, 0) AS M_ENCOURS_COMPTE_EPARGNE,
-        NVL(p.M, 0) AS M_ENCOURS_COMPTE_EPARGNE_PROJET,
-        NVL(d.M, 0) AS M_ENCOURS_DAT,
-        NVL(g.M, 0) AS M_ENCOURS_DEPOT_GARANTIE,
-        NVL(c.M_1, 0) AS M1_ENCOURS_COMPTE_COURANT,
-        NVL(e.M_1, 0) AS M1_ENCOURS_COMPTE_EPARGNE,
-        NVL(p.M_1, 0) AS M1_ENCOURS_COMPTE_EPARGNE_PROJET,
-        NVL(d.M_1, 0) AS M1_ENCOURS_DAT,
-        NVL(g.M_1, 0) AS M1_ENCOURS_DEPOT_GARANTIE
-    FROM BRANCH A
-    LEFT JOIN CPT_COURANT c ON A.BRANCH_CODE = c.BRANCH_CODE
-    LEFT JOIN CPT_EPARGNE e ON A.BRANCH_CODE = e.BRANCH_CODE
-    LEFT JOIN EPARGNE_PROJET p ON A.BRANCH_CODE = p.BRANCH_CODE
-    LEFT JOIN DAT d ON A.BRANCH_CODE = d.BRANCH_CODE
-    LEFT JOIN DEPOT_GARANTIE g ON A.BRANCH_CODE = g.BRANCH_CODE
-),
-
-DEBLOCAGE AS (
-    SELECT
-        ACCOUNT_NUMBER,
-        COALESCE(DTYPE, 'VIDE') AS DTYPE,
-        MAX(SCHEDULE_LINKAGE) AS SCHEDULE_LINKAGE
-    FROM CFSFCUBS145.CLTB_DISBR_SCHEDULES
-    WHERE (DTYPE <> 'X' OR DTYPE IS NULL)
-    GROUP BY ACCOUNT_NUMBER, COALESCE(DTYPE, 'VIDE')
-),
-
-ENCOURS_M AS (
-    SELECT 
-        c.ACCOUNT_NUMBER AS NO_PRET,
-        c.BRANCH_CODE,
-        SUM(NVL(z.AMOUNT_DUE,0)) AS MT_CAPITAL_TA,
-        SUM(NVL(z.AMOUNT_DUE,0) - NVL(z.AMOUNT_SETTLED,0)) AS ENCOURS_TOTAL_M,
-        SUM(CASE WHEN c.USER_DEFINED_STATUS IN ('NORM', 'IMPA') 
-                 THEN (NVL(z.AMOUNT_DUE,0) - NVL(z.AMOUNT_SETTLED,0)) ELSE 0 END) AS ENCOURS_SAIN,
-        SUM(CASE WHEN c.USER_DEFINED_STATUS NOT IN ('NORM', 'IMPA') 
-                 THEN (NVL(z.AMOUNT_DUE,0) - NVL(z.AMOUNT_SETTLED,0)) ELSE 0 END) AS ENCOURS_IMPAYE
-    FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER c
-    LEFT JOIN CFSFCUBS145.CLTB_ACCOUNT_SCHEDULES z 
-           ON z.ACCOUNT_NUMBER = c.ACCOUNT_NUMBER
-    LEFT JOIN DEBLOCAGE d 
-           ON d.ACCOUNT_NUMBER = c.ACCOUNT_NUMBER
-    WHERE 
-        c.ACCOUNT_STATUS NOT IN ('L', 'V')
-        AND z.COMPONENT_NAME = 'PRINCIPAL'
-        AND (d.SCHEDULE_LINKAGE IS NULL OR d.SCHEDULE_LINKAGE <= TO_DATE('{m_end_str}','DD/MM/YYYY'))
-    GROUP BY c.ACCOUNT_NUMBER, c.BRANCH_CODE
-),
-
-ENCOURS_M_1 AS (
-    SELECT 
-        c.ACCOUNT_NUMBER AS NO_PRET,
-        c.BRANCH_CODE,
-        SUM(NVL(z.AMOUNT_DUE,0)) AS MT_CAPITAL_TA,
-        SUM(NVL(z.AMOUNT_DUE,0) - NVL(z.AMOUNT_SETTLED,0)) AS ENCOURS_TOTAL_M_1,
-        SUM(CASE WHEN c.USER_DEFINED_STATUS IN ('NORM', 'IMPA') 
-                 THEN (NVL(z.AMOUNT_DUE,0) - NVL(z.AMOUNT_SETTLED,0)) ELSE 0 END) AS ENCOURS_SAIN,
-        SUM(CASE WHEN c.USER_DEFINED_STATUS NOT IN ('NORM', 'IMPA') 
-                 THEN (NVL(z.AMOUNT_DUE,0) - NVL(z.AMOUNT_SETTLED,0)) ELSE 0 END) AS ENCOURS_IMPAYE
-    FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER c
-    LEFT JOIN CFSFCUBS145.CLTB_ACCOUNT_SCHEDULES z 
-           ON z.ACCOUNT_NUMBER = c.ACCOUNT_NUMBER
-    LEFT JOIN DEBLOCAGE d 
-           ON d.ACCOUNT_NUMBER = c.ACCOUNT_NUMBER
-    WHERE 
-        c.ACCOUNT_STATUS NOT IN ('L', 'V')
-        AND z.COMPONENT_NAME = 'PRINCIPAL'
-        AND (d.SCHEDULE_LINKAGE IS NULL OR d.SCHEDULE_LINKAGE <= TO_DATE('{m1_end_str}','DD/MM/YYYY'))
-    GROUP BY c.ACCOUNT_NUMBER, c.BRANCH_CODE
-),
-
-encours_credit AS (
-    SELECT
-      COALESCE(e1.BRANCH_CODE, e.BRANCH_CODE) AS BRANCH_CODE,
-      br.BRANCH_NAME,
-      SUM(NVL(e.ENCOURS_TOTAL_M,0)) AS ENCOURS_TOTAL_M,
-      SUM(NVL(e1.ENCOURS_TOTAL_M_1,0)) AS ENCOURS_TOTAL_M_1,
-      SUM(NVL(e.ENCOURS_TOTAL_M,0)) - SUM(NVL(e1.ENCOURS_TOTAL_M_1,0)) AS VARIATION_ENCOURS_CREDIT,
-      SUM(NVL(e.ENCOURS_SAIN,0)) AS ENCOURS_SAIN_M,
-      SUM(NVL(e.ENCOURS_IMPAYE,0)) AS ENCOURS_IMPAYE_M
-    FROM  ENCOURS_M e
-    LEFT JOIN ENCOURS_M_1 e1 ON e1.NO_PRET = e.NO_PRET
-    LEFT JOIN BRANCH br ON br.BRANCH_CODE = COALESCE(e1.BRANCH_CODE, e.BRANCH_CODE)
-    GROUP BY COALESCE(e1.BRANCH_CODE, e.BRANCH_CODE), br.BRANCH_NAME
-),
-
--- Dettes rattachées épargne pour le mois M
-RESUL_DETTES_RATTACHEES_EPARGNES_M AS (
-    SELECT 
-        ar.AC_BRANCH AS CODE_AGENCE,
-        b.BRANCH_NAME AS AGENCE,
-        SUM(ar.LCY_AMOUNT) AS DETTES_RATTACHEES_EPARGNE_M
-    FROM Journal ar
-    LEFT JOIN CFSFCUBS145.STTM_BRANCH b ON b.BRANCH_CODE = ar.AC_BRANCH
-    WHERE ar.AMOUNT_TAG='IACR'
-      AND ar.RELATED_ACCOUNT LIKE '253%'
-      AND ar.DRCR_IND='D'
-      AND ar.TRN_CODE='045'
-      AND ar.AC_NO='602530000001'
-      AND ar.TRN_DT_CALC BETWEEN TO_DATE('{m_start_str}','DD/MM/YYYY') AND TO_DATE('{m_end_str}','DD/MM/YYYY')
-    GROUP BY ar.AC_BRANCH, b.BRANCH_NAME
-),
-
--- Dettes rattachées épargne pour le mois M-1
-RESUL_DETTES_RATTACHEES_EPARGNES_M1 AS (
-    SELECT 
-        ar.AC_BRANCH AS CODE_AGENCE,
-        b.BRANCH_NAME AS AGENCE,
-        SUM(ar.LCY_AMOUNT) AS DETTES_RATTACHEES_EPARGNE_M1
-    FROM Journal ar
-    LEFT JOIN CFSFCUBS145.STTM_BRANCH b ON b.BRANCH_CODE = ar.AC_BRANCH
-    WHERE ar.AMOUNT_TAG='IACR'
-      AND ar.RELATED_ACCOUNT LIKE '253%'
-      AND ar.DRCR_IND='D'
-      AND ar.TRN_CODE='045'
-      AND ar.AC_NO='602530000001'
-      AND ar.TRN_DT_CALC BETWEEN TO_DATE('{m1_start_str}','DD/MM/YYYY') AND TO_DATE('{m1_end_str}','DD/MM/YYYY')
-    GROUP BY ar.AC_BRANCH, b.BRANCH_NAME
-)
-
-SELECT 
-    o.BRANCH_CODE,
-    o.BRANCH_NAME,
-    NVL(v.ENCOURS_TOTAL_M,0)         AS ENCOURS_TOTAL_M,
-    o.M_ENCOURS_COMPTE_EPARGNE,
-    o.M1_ENCOURS_COMPTE_EPARGNE,
-    NVL(dm.DETTES_RATTACHEES_EPARGNE_M, 0) AS DETTE_RATTACHEE,
-    NVL(dm1.DETTES_RATTACHEES_EPARGNE_M1, 0) AS DETTE_RATTACHEE_M1
-FROM depot o
-LEFT JOIN encours_credit v ON o.BRANCH_CODE = v.BRANCH_CODE
-LEFT JOIN RESUL_DETTES_RATTACHEES_EPARGNES_M dm ON o.BRANCH_CODE = dm.CODE_AGENCE
-LEFT JOIN RESUL_DETTES_RATTACHEES_EPARGNES_M1 dm1 ON o.BRANCH_CODE = dm1.CODE_AGENCE
-ORDER BY o.BRANCH_CODE, o.BRANCH_NAME
-"""
-            elif encours_type == "epargne-pep-simple":
-                query = f"""
-WITH Journal AS (
-    SELECT
-        TRN_REF_NO, AC_ENTRY_SR_NO, EVENT_SR_NO, EVENT, AC_BRANCH, AC_NO, AC_CCY, CATEGORY, DRCR_IND, TRN_CODE, FCY_AMOUNT, EXCH_RATE, LCY_AMOUNT, VALUE_DT AS TRN_DT, VALUE_DT, TXN_INIT_DATE, AMOUNT_TAG, RELATED_ACCOUNT, RELATED_CUSTOMER, RELATED_REFERENCE, MIS_HEAD, MIS_FLAG, INSTRUMENT_CODE, BANK_CODE, BALANCE_UPD, AUTH_STAT, MODULE, CUST_GL, DLY_HIST, FINANCIAL_CYCLE, PERIOD_CODE, BATCH_NO, USER_ID, CURR_NO, PRINT_STAT, AUTH_ID, GLMIS_VAL_UPD_FLAG, EXTERNAL_REF_NO, DONT_SHOWIN_STMT, IC_BAL_INCLUSION, AML_EXCEPTION, IB, GLMIS_UPDATE_FLAG, PRODUCT_ACCRUAL, ORIG_PNL_GL, STMT_DT, ENTRY_SEQ_NO, VIRTUAL_AC_NO, CLAIM_AMOUNT, GRP_REF_NO, SAVE_TIMESTAMP, AUTH_TIMESTAMP, PRODUCT_PROCESSOR, RELATED_AC_ENTRY_SR_NO, DONT_SHOWIN_STMT_FEE, ORG_SOURCE, ORG_SOURCE_REF, SOURCE_CODE,
-        CASE 
-            WHEN MODULE = 'DE' THEN VALUE_DT 
-            ELSE TRN_DT 
-        END AS TRN_DT_CALC
-    FROM CFSFCUBS145.ACVW_ALL_AC_ENTRIES 
-    WHERE MODULE = 'DE'
- 
-    UNION
- 
-    SELECT
-        TRN_REF_NO, AC_ENTRY_SR_NO, EVENT_SR_NO, EVENT, AC_BRANCH, AC_NO, AC_CCY, CATEGORY, DRCR_IND, TRN_CODE, FCY_AMOUNT, EXCH_RATE, LCY_AMOUNT, TRN_DT, VALUE_DT, TXN_INIT_DATE, AMOUNT_TAG, RELATED_ACCOUNT, RELATED_CUSTOMER, RELATED_REFERENCE, MIS_HEAD, MIS_FLAG, INSTRUMENT_CODE, BANK_CODE, BALANCE_UPD, AUTH_STAT, MODULE, CUST_GL, DLY_HIST, FINANCIAL_CYCLE, PERIOD_CODE, BATCH_NO, USER_ID, CURR_NO, PRINT_STAT, AUTH_ID, GLMIS_VAL_UPD_FLAG, EXTERNAL_REF_NO, DONT_SHOWIN_STMT, IC_BAL_INCLUSION, AML_EXCEPTION, IB, GLMIS_UPDATE_FLAG, PRODUCT_ACCRUAL, ORIG_PNL_GL, STMT_DT, ENTRY_SEQ_NO, VIRTUAL_AC_NO, CLAIM_AMOUNT, GRP_REF_NO, SAVE_TIMESTAMP, AUTH_TIMESTAMP, PRODUCT_PROCESSOR, RELATED_AC_ENTRY_SR_NO, DONT_SHOWIN_STMT_FEE, ORG_SOURCE, ORG_SOURCE_REF, SOURCE_CODE,
-        CASE 
-            WHEN MODULE = 'DE' THEN VALUE_DT 
-            ELSE TRN_DT 
-        END AS TRN_DT_CALC
-    FROM CFSFCUBS145.ACVW_ALL_AC_ENTRIES 
-    WHERE MODULE <> 'DE'
-),
-
-JOURNAL AS (
-    SELECT
-        AC_ENTRY_SR_NO,
-        AC_NO,
-        DRCR_IND,
-        LCY_AMOUNT,
-        TRN_DT_CALC AS TRN_DT
-    FROM Journal
-),
- 
-COMPTE AS (
-    SELECT 
-        cpt.BRANCH_CODE,
-        cpt.CUST_AC_NO,
-        cpt.AC_DESC,
-        cs.ACCOUNT_CLASS,
-        cs.DESCRIPTION,
-        cs.ACCOUNT_CODE
-    FROM CFSFCUBS145.STTM_CUST_ACCOUNT cpt
-    JOIN CFSFCUBS145.STTM_ACCOUNT_CLASS cs 
-        ON cpt.ACCOUNT_CLASS = cs.ACCOUNT_CLASS
-),
- 
-BRANCH AS (
-    SELECT  
-        BRANCH_CODE,
-        BRANCH_NAME
-    FROM CFSFCUBS145.STTM_BRANCH
-),
- 
--- Compte Courant
-CPT_COURANT AS (
-    SELECT 
-        y.BRANCH_CODE,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M_1
-    FROM JOURNAL a
-    JOIN COMPTE y ON a.AC_NO = y.CUST_AC_NO
-    WHERE y.ACCOUNT_CODE = '251'
-    GROUP BY y.BRANCH_CODE
-),
-
--- Compte Épargne Projet
-EPARGNE_PROJET AS (
-    SELECT 
-        y.BRANCH_CODE,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M_1
-    FROM JOURNAL a
-    JOIN COMPTE y ON a.AC_NO = y.CUST_AC_NO
-    WHERE y.ACCOUNT_CODE = '253'
-      AND UPPER(y.DESCRIPTION) LIKE '%PROJET%'
-    GROUP BY y.BRANCH_CODE
-),
-
--- Compte Épargne (autres)
-CPT_EPARGNE AS (
-    SELECT 
-        y.BRANCH_CODE,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M_1
-    FROM JOURNAL a
-    JOIN COMPTE y ON a.AC_NO = y.CUST_AC_NO
-    WHERE y.ACCOUNT_CODE = '253'
-      AND UPPER(y.DESCRIPTION) NOT LIKE '%PROJET%'
-    GROUP BY y.BRANCH_CODE
-),
-
--- DAT
-DAT AS (
-    SELECT 
-        y.BRANCH_CODE,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M_1
-    FROM JOURNAL a
-    JOIN COMPTE y ON a.AC_NO = y.CUST_AC_NO
-    WHERE y.ACCOUNT_CODE = '252'
-    GROUP BY y.BRANCH_CODE
-),
-
--- Dépôt de Garantie
-DEPOT_GARANTIE AS (
-    SELECT 
-        y.BRANCH_CODE,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M_1
-    FROM JOURNAL a
-    JOIN COMPTE y ON a.AC_NO = y.CUST_AC_NO
-    WHERE y.ACCOUNT_CODE = '254'
-    GROUP BY y.BRANCH_CODE
-),
-
--- Somme des encours par agence (sans ORDER BY dans le CTE)
-depot AS (
-    SELECT
-        A.BRANCH_CODE,
-        A.BRANCH_NAME,
-        NVL(c.M, 0) AS M_ENCOURS_COMPTE_COURANT,
-        NVL(e.M, 0) AS M_ENCOURS_COMPTE_EPARGNE,
-        NVL(p.M, 0) AS M_ENCOURS_COMPTE_EPARGNE_PROJET,
-        NVL(d.M, 0) AS M_ENCOURS_DAT,
-        NVL(g.M, 0) AS M_ENCOURS_DEPOT_GARANTIE,
-        NVL(c.M_1, 0) AS M1_ENCOURS_COMPTE_COURANT,
-        NVL(e.M_1, 0) AS M1_ENCOURS_COMPTE_EPARGNE,
-        NVL(p.M_1, 0) AS M1_ENCOURS_COMPTE_EPARGNE_PROJET,
-        NVL(d.M_1, 0) AS M1_ENCOURS_DAT,
-        NVL(g.M_1, 0) AS M1_ENCOURS_DEPOT_GARANTIE
-    FROM BRANCH A
-    LEFT JOIN CPT_COURANT c ON A.BRANCH_CODE = c.BRANCH_CODE
-    LEFT JOIN CPT_EPARGNE e ON A.BRANCH_CODE = e.BRANCH_CODE
-    LEFT JOIN EPARGNE_PROJET p ON A.BRANCH_CODE = p.BRANCH_CODE
-    LEFT JOIN DAT d ON A.BRANCH_CODE = d.BRANCH_CODE
-    LEFT JOIN DEPOT_GARANTIE g ON A.BRANCH_CODE = g.BRANCH_CODE
-),
-
-DEBLOCAGE AS (
-    SELECT
-        ACCOUNT_NUMBER,
-        COALESCE(DTYPE, 'VIDE') AS DTYPE,
-        MAX(SCHEDULE_LINKAGE) AS SCHEDULE_LINKAGE
-    FROM CFSFCUBS145.CLTB_DISBR_SCHEDULES
-    WHERE (DTYPE <> 'X' OR DTYPE IS NULL)
-    GROUP BY ACCOUNT_NUMBER, COALESCE(DTYPE, 'VIDE')
-),
-
-ENCOURS_M AS (
-    SELECT 
-        c.ACCOUNT_NUMBER AS NO_PRET,
-        c.BRANCH_CODE,
-        SUM(NVL(z.AMOUNT_DUE,0)) AS MT_CAPITAL_TA,
-        SUM(NVL(z.AMOUNT_DUE,0) - NVL(z.AMOUNT_SETTLED,0)) AS ENCOURS_TOTAL_M,
-        SUM(CASE WHEN c.USER_DEFINED_STATUS IN ('NORM', 'IMPA') 
-                 THEN (NVL(z.AMOUNT_DUE,0) - NVL(z.AMOUNT_SETTLED,0)) ELSE 0 END) AS ENCOURS_SAIN,
-        SUM(CASE WHEN c.USER_DEFINED_STATUS NOT IN ('NORM', 'IMPA') 
-                 THEN (NVL(z.AMOUNT_DUE,0) - NVL(z.AMOUNT_SETTLED,0)) ELSE 0 END) AS ENCOURS_IMPAYE
-    FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER c
-    LEFT JOIN CFSFCUBS145.CLTB_ACCOUNT_SCHEDULES z 
-           ON z.ACCOUNT_NUMBER = c.ACCOUNT_NUMBER
-    LEFT JOIN DEBLOCAGE d 
-           ON d.ACCOUNT_NUMBER = c.ACCOUNT_NUMBER
-    WHERE 
-        c.ACCOUNT_STATUS NOT IN ('L', 'V')
-        AND z.COMPONENT_NAME = 'PRINCIPAL'
-        AND (d.SCHEDULE_LINKAGE IS NULL OR d.SCHEDULE_LINKAGE <= TO_DATE('{m_end_str}','DD/MM/YYYY'))
-    GROUP BY c.ACCOUNT_NUMBER, c.BRANCH_CODE
-),
-
-ENCOURS_M_1 AS (
-    SELECT 
-        c.ACCOUNT_NUMBER AS NO_PRET,
-        c.BRANCH_CODE,
-        SUM(NVL(z.AMOUNT_DUE,0)) AS MT_CAPITAL_TA,
-        SUM(NVL(z.AMOUNT_DUE,0) - NVL(z.AMOUNT_SETTLED,0)) AS ENCOURS_TOTAL_M_1,
-        SUM(CASE WHEN c.USER_DEFINED_STATUS IN ('NORM', 'IMPA') 
-                 THEN (NVL(z.AMOUNT_DUE,0) - NVL(z.AMOUNT_SETTLED,0)) ELSE 0 END) AS ENCOURS_SAIN,
-        SUM(CASE WHEN c.USER_DEFINED_STATUS NOT IN ('NORM', 'IMPA') 
-                 THEN (NVL(z.AMOUNT_DUE,0) - NVL(z.AMOUNT_SETTLED,0)) ELSE 0 END) AS ENCOURS_IMPAYE
-    FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER c
-    LEFT JOIN CFSFCUBS145.CLTB_ACCOUNT_SCHEDULES z 
-           ON z.ACCOUNT_NUMBER = c.ACCOUNT_NUMBER
-    LEFT JOIN DEBLOCAGE d 
-           ON d.ACCOUNT_NUMBER = c.ACCOUNT_NUMBER
-    WHERE 
-        c.ACCOUNT_STATUS NOT IN ('L', 'V')
-        AND z.COMPONENT_NAME = 'PRINCIPAL'
-        AND (d.SCHEDULE_LINKAGE IS NULL OR d.SCHEDULE_LINKAGE <= TO_DATE('{m1_end_str}','DD/MM/YYYY'))
-    GROUP BY c.ACCOUNT_NUMBER, c.BRANCH_CODE
-),
-
-encours_credit AS (
-    SELECT
-      COALESCE(e1.BRANCH_CODE, e.BRANCH_CODE) AS BRANCH_CODE,
-      br.BRANCH_NAME,
-      SUM(NVL(e.ENCOURS_TOTAL_M,0)) AS ENCOURS_TOTAL_M,
-      SUM(NVL(e1.ENCOURS_TOTAL_M_1,0)) AS ENCOURS_TOTAL_M_1,
-      SUM(NVL(e.ENCOURS_TOTAL_M,0)) - SUM(NVL(e1.ENCOURS_TOTAL_M_1,0)) AS VARIATION_ENCOURS_CREDIT,
-      SUM(NVL(e.ENCOURS_SAIN,0)) AS ENCOURS_SAIN_M,
-      SUM(NVL(e.ENCOURS_IMPAYE,0)) AS ENCOURS_IMPAYE_M
-    FROM  ENCOURS_M e
-    LEFT JOIN ENCOURS_M_1 e1 ON e1.NO_PRET = e.NO_PRET
-    LEFT JOIN BRANCH br ON br.BRANCH_CODE = COALESCE(e1.BRANCH_CODE, e.BRANCH_CODE)
-    GROUP BY COALESCE(e1.BRANCH_CODE, e.BRANCH_CODE), br.BRANCH_NAME
-),
-
--- Dettes rattachées épargne pour le mois M
-RESUL_DETTES_RATTACHEES_EPARGNES_M AS (
-    SELECT 
-        ar.AC_BRANCH AS CODE_AGENCE,
-        b.BRANCH_NAME AS AGENCE,
-        SUM(ar.LCY_AMOUNT) AS DETTES_RATTACHEES_EPARGNE_M
-    FROM Journal ar
-    LEFT JOIN CFSFCUBS145.STTM_BRANCH b ON b.BRANCH_CODE = ar.AC_BRANCH
-    WHERE ar.AMOUNT_TAG='IACR'
-      AND ar.RELATED_ACCOUNT LIKE '253%'
-      AND ar.DRCR_IND='D'
-      AND ar.TRN_CODE='045'
-      AND ar.AC_NO='602530000001'
-      AND ar.TRN_DT_CALC BETWEEN TO_DATE('{m_start_str}','DD/MM/YYYY') AND TO_DATE('{m_end_str}','DD/MM/YYYY')
-    GROUP BY ar.AC_BRANCH, b.BRANCH_NAME
-),
-
--- Dettes rattachées épargne pour le mois M-1
-RESUL_DETTES_RATTACHEES_EPARGNES_M1 AS (
-    SELECT 
-        ar.AC_BRANCH AS CODE_AGENCE,
-        b.BRANCH_NAME AS AGENCE,
-        SUM(ar.LCY_AMOUNT) AS DETTES_RATTACHEES_EPARGNE_M1
-    FROM Journal ar
-    LEFT JOIN CFSFCUBS145.STTM_BRANCH b ON b.BRANCH_CODE = ar.AC_BRANCH
-    WHERE ar.AMOUNT_TAG='IACR'
-      AND ar.RELATED_ACCOUNT LIKE '253%'
-      AND ar.DRCR_IND='D'
-      AND ar.TRN_CODE='045'
-      AND ar.AC_NO='602530000001'
-      AND ar.TRN_DT_CALC BETWEEN TO_DATE('{m1_start_str}','DD/MM/YYYY') AND TO_DATE('{m1_end_str}','DD/MM/YYYY')
-    GROUP BY ar.AC_BRANCH, b.BRANCH_NAME
-)
-
-SELECT 
-    o.BRANCH_CODE,
-    o.BRANCH_NAME,
-    NVL(v.ENCOURS_TOTAL_M,0)         AS ENCOURS_TOTAL_M,
-    o.M_ENCOURS_COMPTE_COURANT,
-    o.M_ENCOURS_COMPTE_EPARGNE,
-    o.M_ENCOURS_COMPTE_EPARGNE_PROJET,
-    o.M_ENCOURS_DAT,
-    o.M_ENCOURS_DEPOT_GARANTIE,
-    o.M1_ENCOURS_COMPTE_COURANT,
-    o.M1_ENCOURS_COMPTE_EPARGNE,
-    o.M1_ENCOURS_COMPTE_EPARGNE_PROJET,
-    o.M1_ENCOURS_DAT,
-    o.M1_ENCOURS_DEPOT_GARANTIE,
-    NVL(dm.DETTES_RATTACHEES_EPARGNE_M, 0) AS DETTE_RATTACHEE,
-    NVL(dm1.DETTES_RATTACHEES_EPARGNE_M1, 0) AS DETTE_RATTACHEE_M1
-FROM depot o
-LEFT JOIN encours_credit v ON o.BRANCH_CODE = v.BRANCH_CODE
-LEFT JOIN RESUL_DETTES_RATTACHEES_EPARGNES_M dm ON o.BRANCH_CODE = dm.CODE_AGENCE
-LEFT JOIN RESUL_DETTES_RATTACHEES_EPARGNES_M1 dm1 ON o.BRANCH_CODE = dm1.CODE_AGENCE
-ORDER BY o.BRANCH_CODE, o.BRANCH_NAME
-"""
-            elif encours_type == "epargne-projet":
-                query = f"""
-WITH Journal AS (
-    SELECT
-        TRN_REF_NO, AC_ENTRY_SR_NO, EVENT_SR_NO, EVENT, AC_BRANCH, AC_NO, AC_CCY, CATEGORY, DRCR_IND, TRN_CODE, FCY_AMOUNT, EXCH_RATE, LCY_AMOUNT, VALUE_DT AS TRN_DT, VALUE_DT, TXN_INIT_DATE, AMOUNT_TAG, RELATED_ACCOUNT, RELATED_CUSTOMER, RELATED_REFERENCE, MIS_HEAD, MIS_FLAG, INSTRUMENT_CODE, BANK_CODE, BALANCE_UPD, AUTH_STAT, MODULE, CUST_GL, DLY_HIST, FINANCIAL_CYCLE, PERIOD_CODE, BATCH_NO, USER_ID, CURR_NO, PRINT_STAT, AUTH_ID, GLMIS_VAL_UPD_FLAG, EXTERNAL_REF_NO, DONT_SHOWIN_STMT, IC_BAL_INCLUSION, AML_EXCEPTION, IB, GLMIS_UPDATE_FLAG, PRODUCT_ACCRUAL, ORIG_PNL_GL, STMT_DT, ENTRY_SEQ_NO, VIRTUAL_AC_NO, CLAIM_AMOUNT, GRP_REF_NO, SAVE_TIMESTAMP, AUTH_TIMESTAMP, PRODUCT_PROCESSOR, RELATED_AC_ENTRY_SR_NO, DONT_SHOWIN_STMT_FEE, ORG_SOURCE, ORG_SOURCE_REF, SOURCE_CODE,
-        CASE 
-            WHEN MODULE = 'DE' THEN VALUE_DT 
-            ELSE TRN_DT 
-        END AS TRN_DT_CALC
-    FROM CFSFCUBS145.ACVW_ALL_AC_ENTRIES 
-    WHERE MODULE = 'DE'
- 
-    UNION
- 
-    SELECT
-        TRN_REF_NO, AC_ENTRY_SR_NO, EVENT_SR_NO, EVENT, AC_BRANCH, AC_NO, AC_CCY, CATEGORY, DRCR_IND, TRN_CODE, FCY_AMOUNT, EXCH_RATE, LCY_AMOUNT, TRN_DT, VALUE_DT, TXN_INIT_DATE, AMOUNT_TAG, RELATED_ACCOUNT, RELATED_CUSTOMER, RELATED_REFERENCE, MIS_HEAD, MIS_FLAG, INSTRUMENT_CODE, BANK_CODE, BALANCE_UPD, AUTH_STAT, MODULE, CUST_GL, DLY_HIST, FINANCIAL_CYCLE, PERIOD_CODE, BATCH_NO, USER_ID, CURR_NO, PRINT_STAT, AUTH_ID, GLMIS_VAL_UPD_FLAG, EXTERNAL_REF_NO, DONT_SHOWIN_STMT, IC_BAL_INCLUSION, AML_EXCEPTION, IB, GLMIS_UPDATE_FLAG, PRODUCT_ACCRUAL, ORIG_PNL_GL, STMT_DT, ENTRY_SEQ_NO, VIRTUAL_AC_NO, CLAIM_AMOUNT, GRP_REF_NO, SAVE_TIMESTAMP, AUTH_TIMESTAMP, PRODUCT_PROCESSOR, RELATED_AC_ENTRY_SR_NO, DONT_SHOWIN_STMT_FEE, ORG_SOURCE, ORG_SOURCE_REF, SOURCE_CODE,
-        CASE 
-            WHEN MODULE = 'DE' THEN VALUE_DT 
-            ELSE TRN_DT 
-        END AS TRN_DT_CALC
-    FROM CFSFCUBS145.ACVW_ALL_AC_ENTRIES 
-    WHERE MODULE <> 'DE'
-),
-
-JOURNAL AS (
-    SELECT
-        AC_ENTRY_SR_NO,
-        AC_NO,
-        DRCR_IND,
-        LCY_AMOUNT,
-        TRN_DT_CALC AS TRN_DT
-    FROM Journal
-),
- 
-COMPTE AS (
-    SELECT 
-        cpt.BRANCH_CODE,
-        cpt.CUST_AC_NO,
-        cpt.AC_DESC,
-        cs.ACCOUNT_CLASS,
-        cs.DESCRIPTION,
-        cs.ACCOUNT_CODE
-    FROM CFSFCUBS145.STTM_CUST_ACCOUNT cpt
-    JOIN CFSFCUBS145.STTM_ACCOUNT_CLASS cs 
-        ON cpt.ACCOUNT_CLASS = cs.ACCOUNT_CLASS
-),
- 
-BRANCH AS (
-    SELECT  
-        BRANCH_CODE,
-        BRANCH_NAME
-    FROM CFSFCUBS145.STTM_BRANCH
-),
- 
--- Compte Courant
-CPT_COURANT AS (
-    SELECT 
-        y.BRANCH_CODE,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M_1
-    FROM JOURNAL a
-    JOIN COMPTE y ON a.AC_NO = y.CUST_AC_NO
-    WHERE y.ACCOUNT_CODE = '251'
-    GROUP BY y.BRANCH_CODE
-),
-
--- Compte Épargne Projet
-EPARGNE_PROJET AS (
-    SELECT 
-        y.BRANCH_CODE,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M_1
-    FROM JOURNAL a
-    JOIN COMPTE y ON a.AC_NO = y.CUST_AC_NO
-    WHERE y.ACCOUNT_CODE = '253'
-      AND UPPER(y.DESCRIPTION) LIKE '%PROJET%'
-    GROUP BY y.BRANCH_CODE
-),
-
--- Compte Épargne (autres)
-CPT_EPARGNE AS (
-    SELECT 
-        y.BRANCH_CODE,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M_1
-    FROM JOURNAL a
-    JOIN COMPTE y ON a.AC_NO = y.CUST_AC_NO
-    WHERE y.ACCOUNT_CODE = '253'
-      AND UPPER(y.DESCRIPTION) NOT LIKE '%PROJET%'
-    GROUP BY y.BRANCH_CODE
-),
-
--- DAT
-DAT AS (
-    SELECT 
-        y.BRANCH_CODE,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M_1
-    FROM JOURNAL a
-    JOIN COMPTE y ON a.AC_NO = y.CUST_AC_NO
-    WHERE y.ACCOUNT_CODE = '252'
-    GROUP BY y.BRANCH_CODE
-),
-
--- Dépôt de Garantie
-DEPOT_GARANTIE AS (
-    SELECT 
-        y.BRANCH_CODE,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M,
-        SUM(CASE WHEN a.DRCR_IND = 'C' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END)
-      - SUM(CASE WHEN a.DRCR_IND = 'D' AND a.TRN_DT <= TO_DATE('{m1_end_str}','DD/MM/YYYY') THEN NVL(a.LCY_AMOUNT,0) ELSE 0 END) AS M_1
-    FROM JOURNAL a
-    JOIN COMPTE y ON a.AC_NO = y.CUST_AC_NO
-    WHERE y.ACCOUNT_CODE = '254'
-    GROUP BY y.BRANCH_CODE
-),
-
--- Somme des encours par agence (sans ORDER BY dans le CTE)
-depot AS (
-    SELECT
-        A.BRANCH_CODE,
-        A.BRANCH_NAME,
-        NVL(c.M, 0) AS M_ENCOURS_COMPTE_COURANT,
-        NVL(e.M, 0) AS M_ENCOURS_COMPTE_EPARGNE,
-        NVL(p.M, 0) AS M_ENCOURS_COMPTE_EPARGNE_PROJET,
-        NVL(d.M, 0) AS M_ENCOURS_DAT,
-        NVL(g.M, 0) AS M_ENCOURS_DEPOT_GARANTIE,
-        NVL(c.M_1, 0) AS M1_ENCOURS_COMPTE_COURANT,
-        NVL(e.M_1, 0) AS M1_ENCOURS_COMPTE_EPARGNE,
-        NVL(p.M_1, 0) AS M1_ENCOURS_COMPTE_EPARGNE_PROJET,
-        NVL(d.M_1, 0) AS M1_ENCOURS_DAT,
-        NVL(g.M_1, 0) AS M1_ENCOURS_DEPOT_GARANTIE
-    FROM BRANCH A
-    LEFT JOIN CPT_COURANT c ON A.BRANCH_CODE = c.BRANCH_CODE
-    LEFT JOIN CPT_EPARGNE e ON A.BRANCH_CODE = e.BRANCH_CODE
-    LEFT JOIN EPARGNE_PROJET p ON A.BRANCH_CODE = p.BRANCH_CODE
-    LEFT JOIN DAT d ON A.BRANCH_CODE = d.BRANCH_CODE
-    LEFT JOIN DEPOT_GARANTIE g ON A.BRANCH_CODE = g.BRANCH_CODE
-),
-
-DEBLOCAGE AS (
-    SELECT
-        ACCOUNT_NUMBER,
-        COALESCE(DTYPE, 'VIDE') AS DTYPE,
-        MAX(SCHEDULE_LINKAGE) AS SCHEDULE_LINKAGE
-    FROM CFSFCUBS145.CLTB_DISBR_SCHEDULES
-    WHERE (DTYPE <> 'X' OR DTYPE IS NULL)
-    GROUP BY ACCOUNT_NUMBER, COALESCE(DTYPE, 'VIDE')
-),
-
-ENCOURS_M AS (
-    SELECT 
-        c.ACCOUNT_NUMBER AS NO_PRET,
-        c.BRANCH_CODE,
-        SUM(NVL(z.AMOUNT_DUE,0)) AS MT_CAPITAL_TA,
-        SUM(NVL(z.AMOUNT_DUE,0) - NVL(z.AMOUNT_SETTLED,0)) AS ENCOURS_TOTAL_M,
-        SUM(CASE WHEN c.USER_DEFINED_STATUS IN ('NORM', 'IMPA') 
-                 THEN (NVL(z.AMOUNT_DUE,0) - NVL(z.AMOUNT_SETTLED,0)) ELSE 0 END) AS ENCOURS_SAIN,
-        SUM(CASE WHEN c.USER_DEFINED_STATUS NOT IN ('NORM', 'IMPA') 
-                 THEN (NVL(z.AMOUNT_DUE,0) - NVL(z.AMOUNT_SETTLED,0)) ELSE 0 END) AS ENCOURS_IMPAYE
-    FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER c
-    LEFT JOIN CFSFCUBS145.CLTB_ACCOUNT_SCHEDULES z 
-           ON z.ACCOUNT_NUMBER = c.ACCOUNT_NUMBER
-    LEFT JOIN DEBLOCAGE d 
-           ON d.ACCOUNT_NUMBER = c.ACCOUNT_NUMBER
-    WHERE 
-        c.ACCOUNT_STATUS NOT IN ('L', 'V')
-        AND z.COMPONENT_NAME = 'PRINCIPAL'
-        AND (d.SCHEDULE_LINKAGE IS NULL OR d.SCHEDULE_LINKAGE <= TO_DATE('{m_end_str}','DD/MM/YYYY'))
-    GROUP BY c.ACCOUNT_NUMBER, c.BRANCH_CODE
-),
-
-ENCOURS_M_1 AS (
-    SELECT 
-        c.ACCOUNT_NUMBER AS NO_PRET,
-        c.BRANCH_CODE,
-        SUM(NVL(z.AMOUNT_DUE,0)) AS MT_CAPITAL_TA,
-        SUM(NVL(z.AMOUNT_DUE,0) - NVL(z.AMOUNT_SETTLED,0)) AS ENCOURS_TOTAL_M_1,
-        SUM(CASE WHEN c.USER_DEFINED_STATUS IN ('NORM', 'IMPA') 
-                 THEN (NVL(z.AMOUNT_DUE,0) - NVL(z.AMOUNT_SETTLED,0)) ELSE 0 END) AS ENCOURS_SAIN,
-        SUM(CASE WHEN c.USER_DEFINED_STATUS NOT IN ('NORM', 'IMPA') 
-                 THEN (NVL(z.AMOUNT_DUE,0) - NVL(z.AMOUNT_SETTLED,0)) ELSE 0 END) AS ENCOURS_IMPAYE
-    FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER c
-    LEFT JOIN CFSFCUBS145.CLTB_ACCOUNT_SCHEDULES z 
-           ON z.ACCOUNT_NUMBER = c.ACCOUNT_NUMBER
-    LEFT JOIN DEBLOCAGE d 
-           ON d.ACCOUNT_NUMBER = c.ACCOUNT_NUMBER
-    WHERE 
-        c.ACCOUNT_STATUS NOT IN ('L', 'V')
-        AND z.COMPONENT_NAME = 'PRINCIPAL'
-        AND (d.SCHEDULE_LINKAGE IS NULL OR d.SCHEDULE_LINKAGE <= TO_DATE('{m1_end_str}','DD/MM/YYYY'))
-    GROUP BY c.ACCOUNT_NUMBER, c.BRANCH_CODE
-),
-
-encours_credit AS (
-    SELECT
-      COALESCE(e1.BRANCH_CODE, e.BRANCH_CODE) AS BRANCH_CODE,
-      br.BRANCH_NAME,
-      SUM(NVL(e.ENCOURS_TOTAL_M,0)) AS ENCOURS_TOTAL_M,
-      SUM(NVL(e1.ENCOURS_TOTAL_M_1,0)) AS ENCOURS_TOTAL_M_1,
-      SUM(NVL(e.ENCOURS_TOTAL_M,0)) - SUM(NVL(e1.ENCOURS_TOTAL_M_1,0)) AS VARIATION_ENCOURS_CREDIT,
-      SUM(NVL(e.ENCOURS_SAIN,0)) AS ENCOURS_SAIN_M,
-      SUM(NVL(e.ENCOURS_IMPAYE,0)) AS ENCOURS_IMPAYE_M
-    FROM  ENCOURS_M e
-    LEFT JOIN ENCOURS_M_1 e1 ON e1.NO_PRET = e.NO_PRET
-    LEFT JOIN BRANCH br ON br.BRANCH_CODE = COALESCE(e1.BRANCH_CODE, e.BRANCH_CODE)
-    GROUP BY COALESCE(e1.BRANCH_CODE, e.BRANCH_CODE), br.BRANCH_NAME
-),
-
--- Dettes rattachées épargne pour le mois M
-RESUL_DETTES_RATTACHEES_EPARGNES_M AS (
-    SELECT 
-        ar.AC_BRANCH AS CODE_AGENCE,
-        b.BRANCH_NAME AS AGENCE,
-        SUM(ar.LCY_AMOUNT) AS DETTES_RATTACHEES_EPARGNE_M
-    FROM Journal ar
-    LEFT JOIN CFSFCUBS145.STTM_BRANCH b ON b.BRANCH_CODE = ar.AC_BRANCH
-    WHERE ar.AMOUNT_TAG='IACR'
-      AND ar.RELATED_ACCOUNT LIKE '253%'
-      AND ar.DRCR_IND='D'
-      AND ar.TRN_CODE='045'
-      AND ar.AC_NO='602530000001'
-      AND ar.TRN_DT_CALC BETWEEN TO_DATE('{m_start_str}','DD/MM/YYYY') AND TO_DATE('{m_end_str}','DD/MM/YYYY')
-    GROUP BY ar.AC_BRANCH, b.BRANCH_NAME
-),
-
--- Dettes rattachées épargne pour le mois M-1
-RESUL_DETTES_RATTACHEES_EPARGNES_M1 AS (
-    SELECT 
-        ar.AC_BRANCH AS CODE_AGENCE,
-        b.BRANCH_NAME AS AGENCE,
-        SUM(ar.LCY_AMOUNT) AS DETTES_RATTACHEES_EPARGNE_M1
-    FROM Journal ar
-    LEFT JOIN CFSFCUBS145.STTM_BRANCH b ON b.BRANCH_CODE = ar.AC_BRANCH
-    WHERE ar.AMOUNT_TAG='IACR'
-      AND ar.RELATED_ACCOUNT LIKE '253%'
-      AND ar.DRCR_IND='D'
-      AND ar.TRN_CODE='045'
-      AND ar.AC_NO='602530000001'
-      AND ar.TRN_DT_CALC BETWEEN TO_DATE('{m1_start_str}','DD/MM/YYYY') AND TO_DATE('{m1_end_str}','DD/MM/YYYY')
-    GROUP BY ar.AC_BRANCH, b.BRANCH_NAME
-)
-
-SELECT 
-    o.BRANCH_CODE,
-    o.BRANCH_NAME,
-    NVL(v.ENCOURS_TOTAL_M,0)         AS ENCOURS_TOTAL_M,
-    o.M_ENCOURS_COMPTE_COURANT,
-    o.M_ENCOURS_COMPTE_EPARGNE,
-    o.M_ENCOURS_COMPTE_EPARGNE_PROJET,
-    o.M_ENCOURS_DAT,
-    o.M_ENCOURS_DEPOT_GARANTIE,
-    o.M1_ENCOURS_COMPTE_COURANT,
-    o.M1_ENCOURS_COMPTE_EPARGNE,
-    o.M1_ENCOURS_COMPTE_EPARGNE_PROJET,
-    o.M1_ENCOURS_DAT,
-    o.M1_ENCOURS_DEPOT_GARANTIE,
-    NVL(dm.DETTES_RATTACHEES_EPARGNE_M, 0) AS DETTE_RATTACHEE,
-    NVL(dm1.DETTES_RATTACHEES_EPARGNE_M1, 0) AS DETTE_RATTACHEE_M1
-FROM depot o
-LEFT JOIN encours_credit v ON o.BRANCH_CODE = v.BRANCH_CODE
-LEFT JOIN RESUL_DETTES_RATTACHEES_EPARGNES_M dm ON o.BRANCH_CODE = dm.CODE_AGENCE
-LEFT JOIN RESUL_DETTES_RATTACHEES_EPARGNES_M1 dm1 ON o.BRANCH_CODE = dm1.CODE_AGENCE
-ORDER BY o.BRANCH_CODE, o.BRANCH_NAME
-"""
             else:
                 # Pour les autres types, retourner une structure vide pour l'instant
                 query = "SELECT NULL AS BRANCH_CODE, NULL AS BRANCH_NAME, 0 AS M1_ENCOURS_COMPTE_COURANT, 0 AS M_ENCOURS_COMPTE_COURANT FROM DUAL WHERE 1=0"
-            
-            logger.info(f"⏱️  Exécution de la requête Encours (timeout: 5 minutes)")
-            cursor.execute(query)
-            
-            # Récupérer les résultats
-            columns = [desc[0] for desc in cursor.description]
-            data = []
-            for row in cursor.fetchall():
-                row_dict = dict(zip(columns, row))
-                data.append(row_dict)
+
+            if not use_dash_epargne:
+                logger.info(f"⏱️  Exécution de la requête Encours (timeout: 5 minutes)")
+                cursor.execute(query)
+
+                # Récupérer les résultats
+                columns = [desc[0] for desc in cursor.description]
+                data = []
+                for row in cursor.fetchall():
+                    row_dict = dict(zip(columns, row))
+                    data.append(row_dict)
             
             logger.info(f"📊 {len(data)} lignes récupérées depuis Oracle")
             if data and encours_type in ["epargne-pep-simple", "epargne-simple", "epargne-projet"]:
@@ -1216,7 +491,6 @@ ORDER BY o.BRANCH_CODE, o.BRANCH_NAME
                 'territoire_province_nord': []
             }
             
-            agencies_by_service_point = {}
             grand_compte = None
             
             for row in data:
@@ -1280,31 +554,23 @@ ORDER BY o.BRANCH_CODE, o.BRANCH_NAME
                         'ENCOURS_TOTAL_M_1': float(row.get('ENCOURS_TOTAL_M_1') or 0)
                     }
                 
-                # Déterminer le territoire
+                # Territoire : code agence (mapping Oracle), puis nom d'agence — nécessaire pour DASH
+                # (BRANCH_CODE parfois absent ou non présent dans le cache ; BRANCH_NAME toujours exploitable).
                 territory = get_territory_from_branch_code(branch_code)
-                
+                if territory is None:
+                    territory = get_territory_from_agency(agency_name)
+
                 # Vérifier si c'est le grand compte
                 if agency_name and 'GRAND COMPTE' in agency_name.upper():
                     grand_compte = agency
                     continue
                 
-                # Si le territoire est None, ignorer cette agence ou la traiter comme point de service
-                if territory is None:
-                    territory = 'POINT SERVICES'
-                
-                territory_key = get_territory_key(territory)
-                
-                # Vérifier si c'est un point de service
-                if territory == 'POINT SERVICES':
-                    # Utiliser le nom de l'agence comme clé pour les points de service
-                    service_point_key = agency_name or branch_code
-                    if service_point_key not in agencies_by_service_point:
-                        agencies_by_service_point[service_point_key] = []
-                    agencies_by_service_point[service_point_key].append(agency)
+                if territory is None or territory == 'POINT SERVICES':
+                    territory_key = 'territoire_dakar_ville'
                 else:
-                    # Ajouter à la liste du territoire approprié
-                    if territory_key in agencies_by_territory:
-                        agencies_by_territory[territory_key].append(agency)
+                    territory_key = get_territory_key(territory)
+                if territory_key in agencies_by_territory:
+                    agencies_by_territory[territory_key].append(agency)
             
             # Calculer les totaux pour chaque territoire
             def calculate_territory_totals(agencies_list):
@@ -1398,15 +664,6 @@ ORDER BY o.BRANCH_CODE, o.BRANCH_NAME
                         "name": "GRAND COMPTE",
                         "agencies": [grand_compte],
                         "totals": grand_compte_totals
-                    }
-            
-            # Ajouter les points de service
-            if agencies_by_service_point:
-                for service_point_key, agencies in agencies_by_service_point.items():
-                    response_data["hierarchicalData"]["POINT SERVICES"][service_point_key] = {
-                        "name": service_point_key,
-                        "agencies": agencies,
-                        "totals": calculate_territory_totals(agencies)
                     }
             
             # Mettre en cache le résultat (TTL de 5 minutes)

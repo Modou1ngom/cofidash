@@ -2,14 +2,20 @@
 Configuration du service Python pour COFIdash Dashboard
 """
 import os
+from pathlib import Path
 
-# Configuration de la connexion Oracle
-# Chaîne de connexion: oracle://report_sn:rEport$ml221@10.44.221.104:1522/?service_name=FCPRDSNPDB
-ORACLE_CONFIG = {
-    'host': os.getenv('ORACLE_HOST', '10.44.221.104'),
-    'port': os.getenv('ORACLE_PORT', '1522'),
-    'service_name': os.getenv('ORACLE_SERVICE_NAME', 'FCPRDSNPDB'),
-    'username': os.getenv('ORACLE_USERNAME', 'report_sn'),
-    'password': os.getenv('ORACLE_PASSWORD', 'rEport$ml221')
+from dotenv import load_dotenv
+
+# python-service/.env (non versionné)
+load_dotenv(Path(__file__).resolve().parent.parent / '.env')
+
+
+# Oracle Cofina (REPORT_GROUPE) — mot de passe uniquement via ORACLE_COFINA_PASSWORD (fichier .env local, non versionné)
+ORACLE_COFINA_CONFIG = {
+    'host': os.getenv('ORACLE_COFINA_HOST', ''),
+    'port': os.getenv('ORACLE_COFINA_PORT', ''),
+    'service_name': os.getenv('ORACLE_COFINA_SERVICE_NAME', ''),
+    'username': os.getenv('ORACLE_COFINA_USERNAME', ''),
+    'password': os.getenv('ORACLE_COFINA_PASSWORD', ''),
 }
 

@@ -7,7 +7,7 @@ from datetime import datetime
 import calendar
 from database.oracle import get_oracle_connection
 from services.utils import get_territory_from_agency, get_territory_from_branch_code, get_territory_key, get_all_territories
-from services.portefeuille_risque_global_query import get_query_for_date
+from services.portefeuille_risque_global_query import PORTEFEUILLE_GLOBAL_QUERY
 
 logger = logging.getLogger(__name__)
 
@@ -50,24 +50,31 @@ def get_portefeuille_risque_data(
             month_m1 = month - 1
             year_m1 = year
     
-    # Date de fin du mois M (dernier jour du mois)
-    last_day_m = calendar.monthrange(year, month)[1]
-    date_m = datetime(year, month, last_day_m)
-    date_m_str = date_m.strftime("%d/%m/%Y")
-    
-    # Date de fin du mois M-1
-    last_day_m1 = calendar.monthrange(year_m1, month_m1)[1]
-    date_m1 = datetime(year_m1, month_m1, last_day_m1)
-    date_m1_str = date_m1.strftime("%d/%m/%Y")
-    
-    logger.info(f"📅 Calcul des dates: M={date_m_str}, M-1={date_m1_str}")
+    # Snapshots DASH : mois calendaire (MM/YYYY), pas le dernier jour seul (souvent 02/04 au lieu de 30/04)
+    month_year_m = f"{month:02d}/{year}"
+    month_year_m1 = f"{month_m1:02d}/{year_m1}"
 
-    def _run_query(date_str: str):
-        """Exécute la requête Portefeuille global pour une date et retourne la liste de lignes."""
-        sql = get_query_for_date(date_str)
+    last_day_m = calendar.monthrange(year, month)[1]
+    date_m_str = datetime(year, month, last_day_m).strftime("%d/%m/%Y")
+    last_day_m1 = calendar.monthrange(year_m1, month_m1)[1]
+    date_m1_str = datetime(year_m1, month_m1, last_day_m1).strftime("%d/%m/%Y")
+
+    logger.info(
+        "📅 Portefeuille PAR — snapshots DASH: M=%s (%s), M-1=%s (%s)",
+        month_year_m,
+        date_m_str,
+        month_year_m1,
+        date_m1_str,
+    )
+
+    def _run_query(m_y: str):
+        """Exécute la requête Portefeuille global (DASH_PAR_GLOBAL) : dernier lot du mois MM/YYYY."""
         conn = get_oracle_connection()
         cursor = conn.cursor()
-        cursor.execute(sql)
+        cursor.execute(
+            PORTEFEUILLE_GLOBAL_QUERY,
+            {"month_year": m_y},
+        )
         columns = [desc[0] for desc in cursor.description]
         rows = cursor.fetchall()
         cursor.close()
@@ -84,10 +91,10 @@ def get_portefeuille_risque_data(
         return 0.0
 
     try:
-        logger.info("🔍 Exécution requête Portefeuille global (date M)...")
-        rows_m = _run_query(date_m_str)
-        logger.info("🔍 Exécution requête Portefeuille global (date M-1)...")
-        rows_m1 = _run_query(date_m1_str)
+        logger.info("🔍 Exécution requête Portefeuille global (mois M=%s)...", month_year_m)
+        rows_m = _run_query(month_year_m)
+        logger.info("🔍 Exécution requête Portefeuille global (mois M-1=%s)...", month_year_m1)
+        rows_m1 = _run_query(month_year_m1)
 
         # Index M-1 par (BRANCH_NAME, CODE_GESTION_PRET) pour rapprochement des lignes CAF
         key_m1 = {((r.get("BRANCH_NAME") or "").strip() or "-", (r.get("CODE_GESTION_PRET") or "").strip() or ""): r for r in rows_m1}
@@ -376,9 +383,17 @@ def get_portefeuille_risque_caf_data(
     return caf_list
 
 
+def _is_grand_compte_agency_name(agency_name: str) -> bool:
+    """Détecte l’agence « Grand compte » (même logique que les autres services)."""
+    if not agency_name:
+        return False
+    n = " ".join(str(agency_name).upper().split())
+    return "GRAND COMPTE" in n or "GRAND COMPTES" in n or "GRAND_COMPTE" in n
+
+
 def organize_par_data(raw_data: List[Dict]) -> Dict:
     """
-    Organise les données PAR en structure hiérarchique (TERRITOIRE et POINT SERVICES)
+    Organise les données PAR en structure hiérarchique (points de service sous TERRITOIRE DAKAR VILLE)
     
     Args:
         raw_data: Liste de dictionnaires avec les données brutes
@@ -460,6 +475,9 @@ def organize_par_data(raw_data: List[Dict]) -> Dict:
     
     # Organiser par territoire et points de service
     for agency_name, agency_data in agencies_map.items():
+        if _is_grand_compte_agency_name(agency_name):
+            continue
+
         # Vérifier d'abord si c'est un point de service
         from services.utils import SERVICE_POINT_MAPPING
         
@@ -487,46 +505,13 @@ def organize_par_data(raw_data: List[Dict]) -> Dict:
                 break
         
         if is_service_point:
-            # C'est un point de service, l'ajouter à POINT SERVICES
-            if not hierarchical["POINT SERVICES"].get("service_points"):
-                hierarchical["POINT SERVICES"]["service_points"] = {
-                    "name": "POINT SERVICES",
-                    "agencies": [],
-                    "totals": {
-                        "par0M1": 0, "par0M": 0, "par0Ecart": 0, "par0Percent": 0,
-                        "par30M1": 0, "par30M": 0, "par30Ecart": 0, "par30Percent": 0,
-                        "par90M1": 0, "par90M": 0, "par90Ecart": 0, "par90Percent": 0,
-                        "par180M1": 0, "par180M": 0, "par180Ecart": 0, "par180Percent": 0,
-                        "par360M1": 0, "par360M": 0, "par360Ecart": 0, "par360Percent": 0,
-                        "nbreDossiers": 0, "encoursM": 0, "encoursM1": 0, "provisions": 0
-                    }
-                }
-            
-            hierarchical["POINT SERVICES"]["service_points"]["agencies"].append(agency_data)
-            
-            # Agréger les totaux des points de service
-            service_point = hierarchical["POINT SERVICES"]["service_points"]
-            service_point["totals"]["par0M1"] += agency_data["totals"]["par0M1"]
-            service_point["totals"]["par0M"] += agency_data["totals"]["par0M"]
-            service_point["totals"]["par30M1"] += agency_data["totals"]["par30M1"]
-            service_point["totals"]["par30M"] += agency_data["totals"]["par30M"]
-            service_point["totals"]["par90M1"] += agency_data["totals"]["par90M1"]
-            service_point["totals"]["par90M"] += agency_data["totals"]["par90M"]
-            service_point["totals"]["par180M1"] += agency_data["totals"]["par180M1"]
-            service_point["totals"]["par180M"] += agency_data["totals"]["par180M"]
-            service_point["totals"]["par360M1"] += agency_data["totals"]["par360M1"]
-            service_point["totals"]["par360M"] += agency_data["totals"]["par360M"]
-            service_point["totals"]["nbreDossiers"] += agency_data["totals"].get("nbreDossiers", 0)
-            service_point["totals"]["encoursM"] += agency_data["totals"].get("encoursM", 0)
-            service_point["totals"]["encoursM1"] += agency_data["totals"].get("encoursM1", 0)
-            service_point["totals"]["provisions"] += agency_data["totals"].get("provisions", 0)
+            territory_key = "territoire_dakar_ville"
+            territory_name = get_all_territories()["territoire_dakar_ville"]["name"]
         else:
-            # C'est une agence normale, l'ajouter à un territoire
             territory_name = get_territory_from_agency(agency_name)
             if territory_name:
                 territory_key = get_territory_key(territory_name)
             else:
-                # Si pas de territoire trouvé, utiliser le code de l'agence ou un défaut
                 code = agency_data.get('code', '')
                 if code:
                     territory_name = get_territory_from_branch_code(code)
@@ -538,39 +523,40 @@ def organize_par_data(raw_data: List[Dict]) -> Dict:
                 else:
                     territory_key = "territoire_autre"
                     territory_name = agency_name
-            
-            if not hierarchical["TERRITOIRE"].get(territory_key):
-                hierarchical["TERRITOIRE"][territory_key] = {
-                    "name": territory_name,
-                    "agencies": [],
-                    "totals": {
-                        "par0M1": 0, "par0M": 0, "par0Ecart": 0, "par0Percent": 0,
-                        "par30M1": 0, "par30M": 0, "par30Ecart": 0, "par30Percent": 0,
-                        "par90M1": 0, "par90M": 0, "par90Ecart": 0, "par90Percent": 0,
-                        "par180M1": 0, "par180M": 0, "par180Ecart": 0, "par180Percent": 0,
-                        "par360M1": 0, "par360M": 0, "par360Ecart": 0, "par360Percent": 0,
-                        "nbreDossiers": 0, "encoursM": 0, "encoursM1": 0, "provisions": 0
-                    }
+        
+        if not hierarchical["TERRITOIRE"].get(territory_key):
+            hierarchical["TERRITOIRE"][territory_key] = {
+                "name": territory_name,
+                "agencies": [],
+                "totals": {
+                    "par0M1": 0, "par0M": 0, "par0Ecart": 0, "par0Percent": 0,
+                    "par30M1": 0, "par30M": 0, "par30Ecart": 0, "par30Percent": 0,
+                    "par90M1": 0, "par90M": 0, "par90Ecart": 0, "par90Percent": 0,
+                    "par180M1": 0, "par180M": 0, "par180Ecart": 0, "par180Percent": 0,
+                    "par360M1": 0, "par360M": 0, "par360Ecart": 0, "par360Percent": 0,
+                    "nbreDossiers": 0, "encoursM": 0, "encoursM1": 0, "provisions": 0
                 }
-            
-            hierarchical["TERRITOIRE"][territory_key]["agencies"].append(agency_data)
-            
-            # Agréger les totaux du territoire
-            territory = hierarchical["TERRITOIRE"][territory_key]
-            territory["totals"]["par0M1"] += agency_data["totals"]["par0M1"]
-            territory["totals"]["par0M"] += agency_data["totals"]["par0M"]
-            territory["totals"]["par30M1"] += agency_data["totals"]["par30M1"]
-            territory["totals"]["par30M"] += agency_data["totals"]["par30M"]
-            territory["totals"]["par90M1"] += agency_data["totals"]["par90M1"]
-            territory["totals"]["par90M"] += agency_data["totals"]["par90M"]
-            territory["totals"]["par180M1"] += agency_data["totals"]["par180M1"]
-            territory["totals"]["par180M"] += agency_data["totals"]["par180M"]
-            territory["totals"]["par360M1"] += agency_data["totals"]["par360M1"]
-            territory["totals"]["par360M"] += agency_data["totals"]["par360M"]
-            territory["totals"]["nbreDossiers"] += agency_data["totals"].get("nbreDossiers", 0)
-            territory["totals"]["encoursM"] += agency_data["totals"].get("encoursM", 0)
-            territory["totals"]["encoursM1"] += agency_data["totals"].get("encoursM1", 0)
-            territory["totals"]["provisions"] += agency_data["totals"].get("provisions", 0)
+            }
+
+        hierarchical["TERRITOIRE"][territory_key]["agencies"].append(agency_data)
+
+        territory = hierarchical["TERRITOIRE"][territory_key]
+        territory["totals"]["par0M1"] += agency_data["totals"]["par0M1"]
+        territory["totals"]["par0M"] += agency_data["totals"]["par0M"]
+        territory["totals"]["par30M1"] += agency_data["totals"]["par30M1"]
+        territory["totals"]["par30M"] += agency_data["totals"]["par30M"]
+        territory["totals"]["par90M1"] += agency_data["totals"]["par90M1"]
+        territory["totals"]["par90M"] += agency_data["totals"]["par90M"]
+        territory["totals"]["par180M1"] += agency_data["totals"]["par180M1"]
+        territory["totals"]["par180M"] += agency_data["totals"]["par180M"]
+        territory["totals"]["par360M1"] += agency_data["totals"]["par360M1"]
+        territory["totals"]["par360M"] += agency_data["totals"]["par360M"]
+        territory["totals"]["nbreDossiers"] += agency_data["totals"].get("nbreDossiers", 0)
+        territory["totals"]["encoursM"] += agency_data["totals"].get("encoursM", 0)
+        territory["totals"]["encoursM1"] += agency_data["totals"].get("encoursM1", 0)
+        territory["totals"]["provisions"] += agency_data["totals"].get("provisions", 0)
+
+    hierarchical["POINT SERVICES"] = {}
     
     # Calculer les écarts et pourcentages pour les territoires
     for territory in hierarchical["TERRITOIRE"].values():
@@ -591,26 +577,55 @@ def organize_par_data(raw_data: List[Dict]) -> Dict:
             territory["totals"]["par180Percent"] = (territory["totals"]["par180Ecart"] / territory["totals"]["par180M1"]) * 100
         if territory["totals"]["par360M1"] != 0:
             territory["totals"]["par360Percent"] = (territory["totals"]["par360Ecart"] / territory["totals"]["par360M1"]) * 100
-    
-    # Calculer les écarts et pourcentages pour les points de service
-    if hierarchical["POINT SERVICES"].get("service_points"):
-        service_point = hierarchical["POINT SERVICES"]["service_points"]
-        service_point["totals"]["par0Ecart"] = service_point["totals"]["par0M"] - service_point["totals"]["par0M1"]
-        service_point["totals"]["par30Ecart"] = service_point["totals"]["par30M"] - service_point["totals"]["par30M1"]
-        service_point["totals"]["par90Ecart"] = service_point["totals"]["par90M"] - service_point["totals"]["par90M1"]
-        service_point["totals"]["par180Ecart"] = service_point["totals"]["par180M"] - service_point["totals"]["par180M1"]
-        service_point["totals"]["par360Ecart"] = service_point["totals"]["par360M"] - service_point["totals"]["par360M1"]
-        
-        # Calculer les pourcentages (variation en pourcentage)
-        if service_point["totals"]["par0M1"] != 0:
-            service_point["totals"]["par0Percent"] = (service_point["totals"]["par0Ecart"] / service_point["totals"]["par0M1"]) * 100
-        if service_point["totals"]["par30M1"] != 0:
-            service_point["totals"]["par30Percent"] = (service_point["totals"]["par30Ecart"] / service_point["totals"]["par30M1"]) * 100
-        if service_point["totals"]["par90M1"] != 0:
-            service_point["totals"]["par90Percent"] = (service_point["totals"]["par90Ecart"] / service_point["totals"]["par90M1"]) * 100
-        if service_point["totals"]["par180M1"] != 0:
-            service_point["totals"]["par180Percent"] = (service_point["totals"]["par180Ecart"] / service_point["totals"]["par180M1"]) * 100
-        if service_point["totals"]["par360M1"] != 0:
-            service_point["totals"]["par360Percent"] = (service_point["totals"]["par360Ecart"] / service_point["totals"]["par360M1"]) * 100
+
+    grand_compte_agencies = [
+        agency_data for agency_name, agency_data in agencies_map.items()
+        if _is_grand_compte_agency_name(agency_name)
+    ]
+    if grand_compte_agencies:
+        gc_totals = {
+            "par0M1": 0, "par0M": 0, "par0Ecart": 0, "par0Percent": 0,
+            "par30M1": 0, "par30M": 0, "par30Ecart": 0, "par30Percent": 0,
+            "par90M1": 0, "par90M": 0, "par90Ecart": 0, "par90Percent": 0,
+            "par180M1": 0, "par180M": 0, "par180Ecart": 0, "par180Percent": 0,
+            "par360M1": 0, "par360M": 0, "par360Ecart": 0, "par360Percent": 0,
+            "nbreDossiers": 0, "encoursM": 0, "encoursM1": 0, "provisions": 0,
+        }
+        for agency_data in grand_compte_agencies:
+            t = agency_data["totals"]
+            gc_totals["par0M1"] += t.get("par0M1", 0) or 0
+            gc_totals["par0M"] += t.get("par0M", 0) or 0
+            gc_totals["par30M1"] += t.get("par30M1", 0) or 0
+            gc_totals["par30M"] += t.get("par30M", 0) or 0
+            gc_totals["par90M1"] += t.get("par90M1", 0) or 0
+            gc_totals["par90M"] += t.get("par90M", 0) or 0
+            gc_totals["par180M1"] += t.get("par180M1", 0) or 0
+            gc_totals["par180M"] += t.get("par180M", 0) or 0
+            gc_totals["par360M1"] += t.get("par360M1", 0) or 0
+            gc_totals["par360M"] += t.get("par360M", 0) or 0
+            gc_totals["nbreDossiers"] += t.get("nbreDossiers", 0) or 0
+            gc_totals["encoursM"] += t.get("encoursM", 0) or 0
+            gc_totals["encoursM1"] += t.get("encoursM1", 0) or 0
+            gc_totals["provisions"] += t.get("provisions", 0) or 0
+        gc_totals["par0Ecart"] = gc_totals["par0M"] - gc_totals["par0M1"]
+        gc_totals["par30Ecart"] = gc_totals["par30M"] - gc_totals["par30M1"]
+        gc_totals["par90Ecart"] = gc_totals["par90M"] - gc_totals["par90M1"]
+        gc_totals["par180Ecart"] = gc_totals["par180M"] - gc_totals["par180M1"]
+        gc_totals["par360Ecart"] = gc_totals["par360M"] - gc_totals["par360M1"]
+        if gc_totals["par0M1"] != 0:
+            gc_totals["par0Percent"] = (gc_totals["par0Ecart"] / gc_totals["par0M1"]) * 100
+        if gc_totals["par30M1"] != 0:
+            gc_totals["par30Percent"] = (gc_totals["par30Ecart"] / gc_totals["par30M1"]) * 100
+        if gc_totals["par90M1"] != 0:
+            gc_totals["par90Percent"] = (gc_totals["par90Ecart"] / gc_totals["par90M1"]) * 100
+        if gc_totals["par180M1"] != 0:
+            gc_totals["par180Percent"] = (gc_totals["par180Ecart"] / gc_totals["par180M1"]) * 100
+        if gc_totals["par360M1"] != 0:
+            gc_totals["par360Percent"] = (gc_totals["par360Ecart"] / gc_totals["par360M1"]) * 100
+        hierarchical["TERRITOIRE"]["grand_compte"] = {
+            "name": "GRAND COMPTE",
+            "agencies": grand_compte_agencies,
+            "totals": gc_totals,
+        }
     
     return hierarchical

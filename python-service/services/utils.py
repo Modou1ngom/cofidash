@@ -314,6 +314,26 @@ SERVICE_POINT_MAPPING = {
 }
 
 
+def normalize_branch_code_for_territory(branch_code) -> str:
+    """
+    Normalise BRANCH_CODE renvoyé par Oracle (NUMBER, Decimal, float, str)
+    pour qu'il corresponde aux clés du mapping (ex. 501 et non 501.0).
+    """
+    if branch_code is None:
+        return ""
+    try:
+        x = float(branch_code)
+        if x == int(x):
+            branch_code_str = str(int(abs(x)))
+            if x < 0:
+                branch_code_str = "-" + branch_code_str
+        else:
+            branch_code_str = str(branch_code).strip()
+    except (TypeError, ValueError):
+        branch_code_str = str(branch_code).strip()
+    return branch_code_str.upper()
+
+
 def get_territory_from_branch_code(branch_code: str) -> Optional[str]:
     """
     Retourne le territoire d'une agence en fonction de son code agence (BRANCH_CODE).
@@ -325,12 +345,7 @@ def get_territory_from_branch_code(branch_code: str) -> Optional[str]:
     Returns:
         Nom du territoire ou None si non trouvé
     """
-    if not branch_code or branch_code is None:
-        return None
-    
-    # Normaliser le code agence (supprimer les espaces, convertir en string)
-    branch_code_str = str(branch_code).strip().upper() if branch_code else ''
-    
+    branch_code_str = normalize_branch_code_for_territory(branch_code)
     if not branch_code_str:
         return None
     

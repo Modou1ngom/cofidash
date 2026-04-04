@@ -177,7 +177,9 @@ async def get_production_nombre_data_endpoint(
     date_m_debut: Optional[str] = None,
     date_m_fin: Optional[str] = None,
     month: Optional[int] = None,
-    year: Optional[int] = None
+    year: Optional[int] = None,
+    period: Optional[str] = None,
+    date: Optional[str] = None,
 ):
     """
     Récupère les données de production en nombre (nombre de crédits décaissés par agence) depuis Oracle.
@@ -193,7 +195,9 @@ async def get_production_nombre_data_endpoint(
         Données de production par agence avec comparaison M vs M-1
     """
     try:
-        return get_production_nombre_data(date_m_debut, date_m_fin, month, year)
+        return get_production_nombre_data(
+            date_m_debut, date_m_fin, month, year, period=period, ref_date=date
+        )
     except Exception as e:
         import traceback
         error_detail = traceback.format_exc()
@@ -209,13 +213,17 @@ async def get_production_data_endpoint(
     date_m_debut: Optional[str] = None,
     date_m_fin: Optional[str] = None,
     month: Optional[int] = None,
-    year: Optional[int] = None
+    year: Optional[int] = None,
+    period: Optional[str] = None,
+    date: Optional[str] = None,
 ):
     """
     Récupère les données de production en nombre (nombre de crédits décaissés par agence) depuis Oracle.
     Route de compatibilité - utilise /api/oracle/data/production/nombre en interne.
     """
-    return await get_production_nombre_data_endpoint(date_m_debut, date_m_fin, month, year)
+    return await get_production_nombre_data_endpoint(
+        date_m_debut, date_m_fin, month, year, period, date
+    )
 
 
 @router.get("/data/production-volume")
@@ -223,7 +231,9 @@ async def get_production_volume_data_endpoint(
     date_m_debut: Optional[str] = None,
     date_m_fin: Optional[str] = None,
     month: Optional[int] = None,
-    year: Optional[int] = None
+    year: Optional[int] = None,
+    period: Optional[str] = None,
+    date: Optional[str] = None,
 ):
     """
     Récupère les données de production en volume (montant de crédits décaissés par agence) depuis Oracle.
@@ -239,7 +249,9 @@ async def get_production_volume_data_endpoint(
         Données de production en volume par agence avec comparaison M vs M-1, incluant les frais de dossier
     """
     try:
-        return get_production_volume_data(date_m_debut, date_m_fin, month, year)
+        return get_production_volume_data(
+            date_m_debut, date_m_fin, month, year, period=period, ref_date=date
+        )
     except Exception as e:
         import traceback
         error_detail = traceback.format_exc()
@@ -254,7 +266,9 @@ async def get_encours_credit_data_endpoint(
     month_m: Optional[int] = None,
     year_m: Optional[int] = None,
     month_m1: Optional[int] = None,
-    year_m1: Optional[int] = None
+    year_m1: Optional[int] = None,
+    period: Optional[str] = None,
+    date: Optional[str] = None,
 ):
     """
     Récupère les données d'évolution de l'encours crédit (PTF et Produit d'intérêt) depuis Oracle.
@@ -269,7 +283,9 @@ async def get_encours_credit_data_endpoint(
         Données d'évolution de l'encours crédit par agence avec PTF et Produit d'intérêt pour M et M-1
     """
     try:
-        return get_encours_credit_data(month_m, year_m, month_m1, year_m1)
+        return get_encours_credit_data(
+            month_m, year_m, month_m1, year_m1, period=period, ref_date=date
+        )
     except Exception as e:
         import traceback
         error_detail = traceback.format_exc()
@@ -391,7 +407,8 @@ async def get_volume_dat_data_endpoint(
         # Retourner les données dans le format attendu par le frontend
         return {
             "data": {
-                "hierarchicalData": result.get('hierarchicalData', {})
+                "hierarchicalData": result.get('hierarchicalData', {}),
+                "snapshot": result.get('snapshot'),
             }
         }
     except HTTPException:

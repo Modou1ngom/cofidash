@@ -269,51 +269,6 @@
               <td class="negative">0%</td>
             </tr>
 
-            <!-- POINT SERVICES -->
-            <tr class="category-row">
-              <td class="category-cell">
-                <button class="expand-btn">+</button>
-                <strong>POINT SERVICES</strong>
-              </td>
-              <td><strong>55</strong></td>
-              <td><strong>0</strong></td>
-              <td><strong>0,73</strong></td>
-              <td class="positive"><strong>0,73</strong></td>
-              <td>0%</td>
-              <td class="negative"><strong>1%</strong></td>
-              <td class="contribution"><strong>5%</strong></td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-2">SCAT URBAM</td>
-              <td>8</td>
-              <td>-</td>
-              <td>-</td>
-              <td>-</td>
-              <td>0%</td>
-              <td class="negative">0%</td>
-              <td class="negative">0%</td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-2">MARISTES</td>
-              <td>20</td>
-              <td>-</td>
-              <td>0,73</td>
-              <td class="positive">0,73</td>
-              <td>4%</td>
-              <td class="negative">4%</td>
-              <td class="contribution">100%</td>
-            </tr>
-            <tr class="sub-agency">
-              <td class="indent-cell level-2">RUFISQUE</td>
-              <td>20</td>
-              <td>-</td>
-              <td>-</td>
-              <td>-</td>
-              <td>0%</td>
-              <td class="negative">0%</td>
-              <td class="negative">0%</td>
-            </tr>
-
             <!-- TOTAL -->
             <tr class="total-row">
               <td class="category-cell">TOTAL</td>

@@ -412,46 +412,6 @@ export default {
             });
           }
           
-          // Extraire les agences de POINT SERVICES
-          if (hierarchicalData['POINT SERVICES']) {
-            Object.keys(hierarchicalData['POINT SERVICES']).forEach(servicePointKey => {
-              const servicePoint = hierarchicalData['POINT SERVICES'][servicePointKey];
-              if (servicePoint && servicePoint.agencies) {
-                servicePoint.agencies.forEach(agency => {
-                  const agencyName = agency.name || agency.BRANCH_NAME || '';
-                  // Les points de service sont généralement dans DAKAR BANLIEUE
-                  const zone = 'DAKAR BANLIEUE';
-                  if (agencyName && !agenciesByZone[zone].includes(agencyName)) {
-                    agenciesByZone[zone].push(agencyName);
-                  }
-                  
-                  // Accumuler les données par zone
-                  const encoursTotalM = getValue(agency, 'ENCOURS_TOTAL_M');
-                  const encoursCompteCourant = getValue(agency, 'M_ENCOURS_COMPTE_COURANT');
-                  const encoursCompteEpargne = getValue(agency, 'M_ENCOURS_COMPTE_EPARGNE');
-                  const encoursDat = getValue(agency, 'M_ENCOURS_DAT');
-                  const compteEpargneProj = getValue(agency, 'M_ENCOURS_COMPTE_EPARGNE_PROJET');
-                  const encoursDepotGarant = getValue(agency, 'M_ENCOURS_DEPOT_GARANTIE');
-                  
-                  zoneData[zone].encoursTotalM += encoursTotalM;
-                  zoneData[zone].encoursCompteCourant += encoursCompteCourant;
-                  zoneData[zone].encoursCompteEpargne += encoursCompteEpargne;
-                  zoneData[zone].encoursDat += encoursDat;
-                  zoneData[zone].compteEpargneProj += compteEpargneProj;
-                  zoneData[zone].encoursDepotGarant += encoursDepotGarant;
-                  
-                  // Totaux globaux
-                  totalEncoursTotalM += encoursTotalM;
-                  totalEncoursCompteCourant += encoursCompteCourant;
-                  totalEncoursCompteEpargne += encoursCompteEpargne;
-                  totalEncoursDat += encoursDat;
-                  totalCompteEpargneProj += compteEpargneProj;
-                  totalEncoursDepotGarant += encoursDepotGarant;
-                });
-              }
-            });
-          }
-          
           this.agenciesByZone = agenciesByZone;
           
           // Stocker toutes les données pour le filtrage
@@ -480,22 +440,6 @@ export default {
                   this.allAgenciesData.push({
                     name: agencyName,
                     zone: zone,
-                    data: agency
-                  });
-                });
-              }
-            });
-          }
-          
-          if (hierarchicalData['POINT SERVICES']) {
-            Object.keys(hierarchicalData['POINT SERVICES']).forEach(servicePointKey => {
-              const servicePoint = hierarchicalData['POINT SERVICES'][servicePointKey];
-              if (servicePoint && servicePoint.agencies) {
-                servicePoint.agencies.forEach(agency => {
-                  const agencyName = agency.name || agency.BRANCH_NAME || '';
-                  this.allAgenciesData.push({
-                    name: agencyName,
-                    zone: 'DAKAR BANLIEUE',
                     data: agency
                   });
                 });
