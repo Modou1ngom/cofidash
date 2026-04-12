@@ -16,3 +16,8 @@ ORACLE_COFINA_CONFIG = {
     'username': os.getenv('ORACLE_COFINA_USERNAME', ''),
     'password': os.getenv('ORACLE_COFINA_PASSWORD', ''),
 }
+
+# Collecte / domiciliation — si ORA-00942, renseigner le schéma ou les synonymes côté DBA
+# ORACLE_DASH_ETAT_CPT_TABLE=DASH_ETAT_CPT
+# ORACLE_DASH_TOMBE_MOIS_TABLE=DASH_TOMBE_MOIS
+# ORACLE_DASH_EXIGIBLE_TABLE=DASH_EXIGIBLE

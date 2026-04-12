@@ -379,10 +379,14 @@ async def get_collection_data_endpoint(
     except Exception as e:
         error_message = str(e) if str(e) else repr(e)
         logger.error(f"Erreur lors de la récupération des données collection: {error_message}", exc_info=True)
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Erreur lors de la récupération des données collection: {error_message}"
-        )
+        detail = f"Erreur lors de la récupération des données collection: {error_message}"
+        if "ORA-00942" in error_message:
+            detail += (
+                " — Tables attendues : DASH_ETAT_CPT, DASH_TOMBE_MOIS, DASH_EXIGIBLE "
+                "(créer des synonymes pour l’utilisateur Oracle ou définir ORACLE_DASH_ETAT_CPT_TABLE, "
+                "ORACLE_DASH_TOMBE_MOIS_TABLE, ORACLE_DASH_EXIGIBLE_TABLE dans python-service/.env)."
+            )
+        raise HTTPException(status_code=500, detail=detail)
 
 
 @router.get("/data/volume-dat")
@@ -586,10 +590,13 @@ async def get_domiciliation_flux_data_endpoint(
             error_message,
             exc_info=True,
         )
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erreur lors de la récupération domiciliation flux: {error_message}",
-        )
+        detail = f"Erreur lors de la récupération domiciliation flux: {error_message}"
+        if "ORA-00942" in error_message:
+            detail += (
+                " — Voir ORACLE_DASH_ETAT_CPT_TABLE / ORACLE_DASH_TOMBE_MOIS_TABLE / "
+                "ORACLE_DASH_EXIGIBLE_TABLE (python-service/.env) ou synonymes Oracle."
+            )
+        raise HTTPException(status_code=500, detail=detail)
 
 
 @router.get("/data/transfers")

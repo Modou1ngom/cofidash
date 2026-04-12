@@ -19,6 +19,10 @@ ORACLE_COFINA_CONFIG = {
     'password': os.getenv('ORACLE_COFINA_PASSWORD', ''),
 }
 
-
-
+# Domiciliation de flux (collecte) — tables DASH vues par ORACLE_COFINA_USERNAME.
+# En cas d’ORA-00942 en production : synonymes manquants ou objets dans un autre schéma.
+# Exemple : ORACLE_DASH_ETAT_CPT_TABLE=REPORT_GROUPE.DASH_ETAT_CPT
+ORACLE_DASH_ETAT_CPT_TABLE = os.getenv("ORACLE_DASH_ETAT_CPT_TABLE", "DASH_ETAT_CPT").strip()
+ORACLE_DASH_TOMBE_MOIS_TABLE = os.getenv("ORACLE_DASH_TOMBE_MOIS_TABLE", "DASH_TOMBE_MOIS").strip()
+ORACLE_DASH_EXIGIBLE_TABLE = os.getenv("ORACLE_DASH_EXIGIBLE_TABLE", "DASH_EXIGIBLE").strip()
 
