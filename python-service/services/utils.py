@@ -534,7 +534,10 @@ def generate_branch_code_mapping_from_db() -> Dict[str, str]:
 def get_all_territories() -> Dict[str, Dict]:
     """
     Retourne la structure complète des territoires avec leurs agences.
-    
+
+    La liste par territoire est dupliquée côté Laravel dans ``config/cofi_agencies.php``
+    (seed des agences). Mettre à jour les deux emplacements en parallèle.
+
     Returns:
         Dictionnaire avec la structure des territoires (clés avec préfixe "territoire_")
     """

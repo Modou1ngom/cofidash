@@ -14,6 +14,7 @@ from services.performance_service import get_agency_performance
 from services.volume_dat_service import get_volume_dat_data
 from services.encours_service import get_encours_data
 from services.depot_garantie_service import get_depot_garantie_data
+from services.domiciliation_flux_service import get_domiciliation_flux_data
 from services.prepaid_card_service import get_prepaid_card_sales_data
 from services.portefeuille_risque_service import (
     get_portefeuille_risque_data,
@@ -22,6 +23,7 @@ from services.portefeuille_risque_service import (
 from services.entrees_par_service import get_entrees_par_data
 from services.reference_compte_service import get_gl_by_code, search_gl
 from services.cr_par_agence_service import get_cr_data_by_parent_gl
+from services.agencies_from_dash_service import fetch_agencies_from_dash_relation
 
 logger = logging.getLogger(__name__)
 
@@ -170,6 +172,29 @@ async def get_clients_data_endpoint(
             status_code=500, 
             detail=f"Erreur lors de la récupération des données clients: {error_message}"
         )
+
+
+@router.get("/data/agencies-from-dash")
+async def get_agencies_from_dash_endpoint(
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    scope: str = Query(
+        "latest",
+        description="latest = dernier chargement global (liste complète). month = filtre MM/YYYY comme le dash clients (sous-ensemble).",
+    ),
+):
+    """
+    Liste des agences (CODE_BUREAU, AGENCE) depuis DASH_RELATION.
+    Par défaut (scope=latest) : MAX(MIGRATION_DATETIME) sur toute la table.
+    """
+    try:
+        return fetch_agencies_from_dash_relation(month=month, year=year, scope=scope)
+    except Exception as e:
+        logger.error("Erreur agencies-from-dash: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors de la récupération des agences: {e!s}",
+        ) from e
 
 
 @router.get("/data/production/nombre")
@@ -525,6 +550,48 @@ async def get_depot_garantie_data_endpoint(
         )
 
 
+@router.get("/data/domiciliation-flux")
+async def get_domiciliation_flux_data_endpoint(
+    period: Optional[str] = "month",
+    zone: Optional[str] = None,
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    date: Optional[str] = None,
+):
+    """
+    Domiciliation de flux (DASH_ETAT_CPT + DASH_TOMBE_MOIS J−1, DASH_EXIGIBLE M−1) — collecte net.
+    Périodes : semaine, mois, année (même logique que Volume DAT).
+    """
+    try:
+        logger.info(
+            "📅 domiciliation-flux: period=%s zone=%s month=%s year=%s date=%s",
+            period,
+            zone,
+            month,
+            year,
+            date,
+        )
+        result = get_domiciliation_flux_data(
+            period=period,
+            zone=zone,
+            month=month,
+            year=year,
+            date=date,
+        )
+        return result
+    except Exception as e:
+        error_message = str(e) if str(e) else repr(e)
+        logger.error(
+            "Erreur domiciliation-flux: %s",
+            error_message,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors de la récupération domiciliation flux: {error_message}",
+        )
+
+
 @router.get("/data/transfers")
 async def get_transfer_data_endpoint(
     period: Optional[str] = "month",
@@ -863,9 +930,10 @@ async def get_gl_lookup_endpoint(gl_code: Optional[str] = None, gl_desc: Optiona
 @router.post("/data/cr-par-agence")
 async def get_cr_par_agence_data(body: dict):
     """
-    Données CR par agence pour une liste de parent GL (sous-rubrique).
+    Données CR par agence (table DASH_CR_PAR_AGENCE).
     Body: { "date_from": "DD/MM/YYYY", "date_to": "DD/MM/YYYY", "parent_gl_codes": ["702120000000", ...] }
-    Retourne les montants par AC_BRANCH / BRANCH_NAME pour la période VALUE_DT.
+    Le snapshot DASH est sélectionné avec MIGRATION_DATE_MINUS1 = date_to (dernier MIGRATION_DATETIME du lot).
+    date_from est ignoré pour le filtre DASH (compatibilité écran).
     """
     try:
         date_from = (body.get("date_from") or "").strip()

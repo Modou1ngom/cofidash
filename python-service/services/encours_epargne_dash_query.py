@@ -1,6 +1,3 @@
-# Encours épargne : DASH_ENCOURS_EPARGNE (Cofina) — vue consolidée PEP (simple + projet + dettes).
-# L’app Encours n’appelle l’API qu’avec type=epargne-pep-simple ; les sous-onglets Simple / Projet
-# filtrent côté client (EncoursEpargnePepSimpleSection). Dernier MIGRATION_DATETIME du mois MM/YYYY.
 
 ENCOURS_EPARGNE_DASH_QUERY = """
 SELECT

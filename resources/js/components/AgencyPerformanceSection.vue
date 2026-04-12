@@ -8,7 +8,7 @@
     </div>
     
     <div v-if="loading" class="loading-message">
-      <p>🔄 Chargement des données depuis Oracle...</p>
+      <p>🔄 Chargement des données ...</p>
     </div>
     <div v-if="errorMessage" class="error-message">
       <p>⚠️ {{ errorMessage }}</p>

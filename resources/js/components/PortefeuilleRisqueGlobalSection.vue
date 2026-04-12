@@ -262,7 +262,7 @@
     <div v-if="activeTab === 'flop-30'" class="flop-30-container">
       <div class="flop-30-header">
         <h3 class="flop-30-title">Portefeuille Risque – FLOP 30 (30 CAF les plus à risque)</h3>
-        <p class="flop-30-subtitle">Classement par ratio de risque (PAR 0). Données pour la période {{ getPeriodTitle() }}.</p>
+        <p class="flop-30-subtitle">Classement par ratio de risque (PAR 0). Comparaison {{ getComparisonPeriodLabel() }}.</p>
       </div>
       <div class="table-wrapper flop-30-table-wrapper">
         <table class="flop-30-table">
@@ -360,7 +360,7 @@
     <div v-if="activeTab === 'top-50'" class="top-50-container">
       <div class="top-50-header">
         <h3 class="top-50-title">Portefeuille Risque – TOP 50 (50 CAF les moins à risque)</h3>
-        <p class="top-50-subtitle">Classement par ratio de risque (PAR 0, du plus faible au plus élevé). Période {{ getPeriodTitle() }}.</p>
+        <p class="top-50-subtitle">Classement par ratio de risque (PAR 0, du plus faible au plus élevé). Comparaison {{ getComparisonPeriodLabel() }}.</p>
       </div>
       <div class="table-wrapper top-50-table-wrapper">
         <table class="top-50-table">
@@ -447,7 +447,7 @@
     <div v-if="entreesParTabs.includes(activeTab)" class="entrees-par-page-container">
       <div class="entrees-par-header">
         <h3 class="entrees-par-title">{{ getEntreesParTitle(activeTab) }}</h3>
-        <p class="entrees-par-subtitle">Données pour la période {{ getPeriodTitle() }} (période courante).</p>
+        <p class="entrees-par-subtitle">Données pour {{ getDateMLabel() }} (aligné sur la période sélectionnée).</p>
       </div>
       <div class="entrees-par-content">
         <p v-if="entreesParError" class="entrees-par-error">⚠️ {{ entreesParError }}</p>
@@ -1203,7 +1203,21 @@ export default {
     }
   },
   methods: {
+    /** Même libellé que Collecte / Production (sélecteur Mois · Avril · 2026). */
     getPeriodTitle() {
+      if (this.selectedPeriod === 'week') {
+        return 'Résultat de la semaine';
+      }
+      if (this.selectedPeriod === 'month') {
+        return `Résultat Global du Mois (${this.months[this.selectedMonth - 1]} ${this.selectedYear})`;
+      }
+      if (this.selectedPeriod === 'year') {
+        return `Résultat Global de l'Année (${this.selectedYear})`;
+      }
+      return 'Résultat Global';
+    },
+    /** Libellé comparatif M-1 / M (référence vs période courante) pour sous-titres et tableaux. */
+    getComparisonPeriodLabel() {
       return `${this.getDateRefLabel()} / ${this.getDateMLabel()}`;
     },
     getEntreesParTitle(tab) {

@@ -1,13 +1,104 @@
 """
-Service CR par Agence - données du compte de résultat par agence.
-Requête DATA CR : solde (Crédit - Débit) par branche pour des parent GL donnés.
+Service CR par Agence — données pré-agrégées DASH (DASH_CR_PAR_AGENCE).
 """
 import logging
-from datetime import datetime, timedelta
-from typing import List, Dict
-from database.oracle import get_oracle_connection
+from datetime import datetime
+from typing import Any, Dict, List, Tuple
+
+from database.oracle import get_oracle_connection_cofina
 
 logger = logging.getLogger(__name__)
+
+# Filtre lot : aligné sur la requête métier (comparaison jour comme chaîne DD/MM/YYYY).
+# PARENT_GL : comparaison via TO_CHAR pour gérer NUMBER / VARCHAR et espaces.
+_SQL_CR_DASH = """
+SELECT
+    d.AC_BRANCH,
+    d.BRANCH_NAME,
+    d.PARENT_GL,
+    d.SOLDE_OUVERTURE,
+    d.SOLDE_MOIS,
+    d.MONTANT,
+    d.MIGRATION_DATE,
+    d.MIGRATION_DATETIME,
+    d.MIGRATION_DATE_MINUS1
+FROM DASH_CR_PAR_AGENCE d
+WHERE d.MIGRATION_DATETIME = (
+    SELECT MAX(t.MIGRATION_DATETIME)
+    FROM DASH_CR_PAR_AGENCE t
+    WHERE TO_CHAR(t.MIGRATION_DATE_MINUS1, 'DD/MM/YYYY') = :migration_date_minus1
+)
+AND TRIM(TO_CHAR(d.PARENT_GL)) IN ({parent_placeholders})
+"""
+
+# Si aucune ligne pour la date exacte (pas encore de snapshot ce jour-là) : dernier lot du mois.
+_SQL_CR_DASH_BY_MONTH = """
+SELECT
+    d.AC_BRANCH,
+    d.BRANCH_NAME,
+    d.PARENT_GL,
+    d.SOLDE_OUVERTURE,
+    d.SOLDE_MOIS,
+    d.MONTANT,
+    d.MIGRATION_DATE,
+    d.MIGRATION_DATETIME,
+    d.MIGRATION_DATE_MINUS1
+FROM DASH_CR_PAR_AGENCE d
+WHERE d.MIGRATION_DATETIME = (
+    SELECT MAX(t.MIGRATION_DATETIME)
+    FROM DASH_CR_PAR_AGENCE t
+    WHERE TO_CHAR(t.MIGRATION_DATE_MINUS1, 'MM/YYYY') = :month_year
+)
+AND TRIM(TO_CHAR(d.PARENT_GL)) IN ({parent_placeholders})
+"""
+
+
+def _month_year_from_dd_mm_yyyy(date_to: str) -> str:
+    """'31/03/2026' -> '03/2026'."""
+    s = (date_to or "").strip()
+    parts = s.split("/")
+    if len(parts) != 3:
+        return ""
+    try:
+        d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
+        datetime(y, m, d)
+        return f"{m:02d}/{y}"
+    except (ValueError, TypeError):
+        return ""
+
+
+def _serialize_cell(val: Any) -> Any:
+    if val is None:
+        return None
+    if hasattr(val, "isoformat"):
+        try:
+            return val.isoformat()
+        except Exception:
+            return str(val)
+    return val
+
+
+def _row_to_dict(columns: List[str], row: tuple) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    for col, cell in zip(columns, row):
+        key = col.upper() if isinstance(col, str) else col
+        out[key] = _serialize_cell(cell)
+    return out
+
+
+def _execute_cr_query(
+    conn,
+    query_template: str,
+    parent_placeholders: str,
+    params: Dict[str, Any],
+) -> Tuple[List[str], List[tuple]]:
+    cursor = conn.cursor()
+    query = query_template.format(parent_placeholders=parent_placeholders)
+    cursor.execute(query, params)
+    columns = [d[0] for d in cursor.description]
+    rows = cursor.fetchall()
+    cursor.close()
+    return columns, rows
 
 
 def get_cr_data_by_parent_gl(
@@ -16,107 +107,66 @@ def get_cr_data_by_parent_gl(
     parent_gl_codes: List[str],
 ) -> List[Dict]:
     """
-    Récupère les montants CR par agence pour une liste de parent GL.
+    Récupère les montants CR par agence depuis DASH_CR_PAR_AGENCE.
 
-    Logique alignée sur la requête de reporting financier :
-    - Journal = union des écritures module DE (TRN_DT = VALUE_DT) et non-DE (TRN_DT natif)
-    - Solde ouverture = cumul (C-D) jusqu'à la veille de date_from
-    - Solde mois = cumul (C-D) entre date_from et date_to
-    - Solde final = ouverture + mois
-    Le champ `montant` retourné correspond au solde final de période par agence.
+    Lot : MAX(MIGRATION_DATETIME) parmi les lignes dont la date (J-1 DASH) correspond à
+    ``date_to`` (DD/MM/YYYY), via TO_CHAR comme en SQL métier.
+
+    Si aucune ligne pour cette date, repli : dernier lot du mois calendaire de ``date_to``
+    (MM/YYYY), comme pour les autres écrans DASH.
 
     Args:
-        date_from: Date début (DD/MM/YYYY)
-        date_to: Date fin (DD/MM/YYYY)
-        parent_gl_codes: Liste des codes parent GL (ex: ['702120000000', '702130000000'])
+        date_from: compatibilité API — non utilisé pour le filtre DASH.
+        date_to: date cible du snapshot DASH (DD/MM/YYYY).
+        parent_gl_codes: liste des PARENT_GL à filtrer.
 
     Returns:
-        Liste de dicts avec AC_BRANCH, BRANCH_NAME, montant (somme par agence)
+        Lignes AC_BRANCH, BRANCH_NAME, PARENT_GL, SOLDE_*, MONTANT, MIGRATION_*.
     """
+    _ = date_from
     if not parent_gl_codes:
         return []
 
-    conn = get_oracle_connection()
+    codes = [str(c).strip() for c in parent_gl_codes if str(c).strip()]
+    if not codes:
+        return []
+
+    migration_key = (date_to or "").strip()
+    month_year = _month_year_from_dd_mm_yyyy(migration_key)
+
+    conn = get_oracle_connection_cofina()
     try:
-        cursor = conn.cursor()
-        cursor.execute("ALTER SESSION SET CURRENT_SCHEMA = CFSFCUBS145")
+        parent_placeholders = ", ".join([f":p{i}" for i in range(len(codes))])
+        base_params: Dict[str, Any] = {"migration_date_minus1": migration_key}
+        for i, c in enumerate(codes):
+            base_params[f"p{i}"] = c
 
-        # Placeholders Oracle pour IN (:p0, :p1, ...)
-        placeholders = ", ".join([f":p{i}" for i in range(len(parent_gl_codes))])
-        params = {f"p{i}": str(c).strip() for i, c in enumerate(parent_gl_codes)}
-        params["date_from"] = date_from
-        params["date_to"] = date_to
-        opening_date = (datetime.strptime(date_from, "%d/%m/%Y") - timedelta(days=1)).strftime("%d/%m/%Y")
-        params["opening_date"] = opening_date
-
-        query = f"""
-        WITH Journal AS (
-            SELECT
-                a.AC_BRANCH,
-                a.AC_NO,
-                a.DRCR_IND,
-                a.LCY_AMOUNT,
-                a.VALUE_DT AS TRN_DT
-            FROM CFSFCUBS145.ACVW_ALL_AC_ENTRIES a
-            WHERE a.MODULE = 'DE'
-            UNION ALL
-            SELECT
-                a.AC_BRANCH,
-                a.AC_NO,
-                a.DRCR_IND,
-                a.LCY_AMOUNT,
-                a.TRN_DT AS TRN_DT
-            FROM CFSFCUBS145.ACVW_ALL_AC_ENTRIES a
-            WHERE a.MODULE <> 'DE'
-        ),
-        base AS (
-            SELECT
-                j.AC_BRANCH,
-                NVL(c.PARENT_GL, s.DR_GL) AS parent_gl,
-                SUM(
-                    DECODE(
-                        j.DRCR_IND,
-                        'C', CASE WHEN j.TRN_DT <= TO_DATE(:opening_date, 'DD/MM/YYYY') THEN j.LCY_AMOUNT ELSE 0 END,
-                        'D', -CASE WHEN j.TRN_DT <= TO_DATE(:opening_date, 'DD/MM/YYYY') THEN j.LCY_AMOUNT ELSE 0 END,
-                        0
-                    )
-                ) AS solde_ouverture,
-                SUM(
-                    DECODE(
-                        j.DRCR_IND,
-                        'C', CASE WHEN j.TRN_DT BETWEEN TO_DATE(:date_from, 'DD/MM/YYYY') AND TO_DATE(:date_to, 'DD/MM/YYYY') THEN j.LCY_AMOUNT ELSE 0 END,
-                        'D', -CASE WHEN j.TRN_DT BETWEEN TO_DATE(:date_from, 'DD/MM/YYYY') AND TO_DATE(:date_to, 'DD/MM/YYYY') THEN j.LCY_AMOUNT ELSE 0 END,
-                        0
-                    )
-                ) AS solde_mois
-            FROM Journal j
-            LEFT JOIN CFSFCUBS145.GLTM_GLMASTER c ON c.GL_CODE = j.AC_NO
-            LEFT JOIN CFSFCUBS145.STTM_CUST_ACCOUNT s ON s.CUST_AC_NO = j.AC_NO
-            WHERE j.TRN_DT <= TO_DATE(:date_to, 'DD/MM/YYYY')
-              AND NVL(c.PARENT_GL, s.DR_GL) IN ({placeholders})
-            GROUP BY j.AC_BRANCH, NVL(c.PARENT_GL, s.DR_GL)
+        logger.info(
+            "CR par Agence DASH — date=%s, %s parent GL",
+            migration_key,
+            len(codes),
         )
-        SELECT
-            base.AC_BRANCH,
-            b.BRANCH_NAME,
-            NVL(SUM(base.solde_ouverture), 0) AS SOLDE_OUVERTURE,
-            NVL(SUM(base.solde_mois), 0) AS SOLDE_MOIS,
-            NVL(SUM(base.solde_ouverture + base.solde_mois), 0) AS MONTANT
-        FROM base
-        JOIN CFSFCUBS145.STTM_BRANCH b ON b.BRANCH_CODE = base.AC_BRANCH
-        GROUP BY base.AC_BRANCH, b.BRANCH_NAME
-        """
-        cursor.execute(query, params)
-        columns = [d[0] for d in cursor.description]
-        rows = cursor.fetchall()
-        cursor.close()
 
-        return [
-            dict(zip(columns, row))
-            for row in rows
-        ]
-    except Exception as e:
-        logger.exception("CR par Agence: erreur get_cr_data_by_parent_gl")
-        raise
+        columns, rows = _execute_cr_query(conn, _SQL_CR_DASH, parent_placeholders, base_params)
+        out = [_row_to_dict(columns, row) for row in rows]
+
+        if not out and month_year:
+            logger.warning(
+                "CR par Agence DASH — 0 ligne pour la date %s, repli mois %s",
+                migration_key,
+                month_year,
+            )
+            params_m = {f"p{i}": codes[i] for i in range(len(codes))}
+            params_m["month_year"] = month_year
+            columns, rows = _execute_cr_query(
+                conn, _SQL_CR_DASH_BY_MONTH, parent_placeholders, params_m
+            )
+            out = [_row_to_dict(columns, row) for row in rows]
+
+        logger.info("CR par Agence DASH — %s lignes", len(out))
+        return out
     finally:
-        conn.close()
+        try:
+            conn.close()
+        except Exception:
+            pass

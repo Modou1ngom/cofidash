@@ -1,13 +1,13 @@
 """
-Service pour la référence compte - récupération des GL (General Ledger) depuis Oracle.
+Service pour la référence compte 
 """
 from typing import Optional, List, Dict
-from database.oracle import get_oracle_connection
+from database.oracle import get_oracle_connection_cofina
 
 
 def get_gl_by_code(gl_code: str) -> Optional[Dict]:
     """
-    Récupère un GL par son code depuis CFSFCUBS145.GLVW_GLMASTER_E.
+    Récupère un GL par son code 
     
     Args:
         gl_code: Code GL (ex: '702930000000')
@@ -18,7 +18,7 @@ def get_gl_by_code(gl_code: str) -> Optional[Dict]:
     if not gl_code or not str(gl_code).strip():
         return None
     
-    conn = get_oracle_connection()
+    conn = get_oracle_connection_cofina()
     try:
         cursor = conn.cursor()
         query = """
@@ -59,7 +59,7 @@ def search_gl(gl_code: Optional[str] = None, gl_desc: Optional[str] = None, limi
     Returns:
         Liste de dicts avec GL_CODE_E et GL_DESC_E
     """
-    conn = get_oracle_connection()
+    conn = get_oracle_connection_cofina()
     results = []
     try:
         cursor = conn.cursor()
@@ -67,14 +67,14 @@ def search_gl(gl_code: Optional[str] = None, gl_desc: Optional[str] = None, limi
         if gl_code and str(gl_code).strip():
             query = """
                 SELECT GL_CODE_E, GL_DESC_E
-                FROM CFSFCUBS145.GLVW_GLMASTER_E
+                FROM DASH_CR_PAR_AGENCE
                 WHERE GL_CODE_E = :gl_code
             """
             cursor.execute(query, {"gl_code": str(gl_code).strip()})
         elif gl_desc and str(gl_desc).strip():
             query = """
                 SELECT GL_CODE_E, GL_DESC_E
-                FROM CFSFCUBS145.GLVW_GLMASTER_E
+                FROM DASH_CR_PAR_AGENCE
                 WHERE UPPER(GL_DESC_E) LIKE UPPER(:gl_desc)
                 FETCH FIRST 50 ROWS ONLY
             """

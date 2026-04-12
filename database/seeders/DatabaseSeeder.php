@@ -11,8 +11,8 @@ class DatabaseSeeder extends Seeder
         $this->call([
             ProfileSeeder::class,
             TerritorySeeder::class,
-            UserSeeder::class,
             AgencySeeder::class,
+            UserSeeder::class,
             ReferenceCompteSeeder::class,
         ]);
     }

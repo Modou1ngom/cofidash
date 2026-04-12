@@ -682,6 +682,18 @@ export default {
   },
   methods: {
     getPeriodTitle() {
+      if (this.selectedPeriod === 'week') {
+        return 'Résultat de la semaine';
+      }
+      if (this.selectedPeriod === 'month') {
+        return `Résultat Global du Mois (${this.months[this.selectedMonth - 1]} ${this.selectedYear})`;
+      }
+      if (this.selectedPeriod === 'year') {
+        return `Résultat Global de l'Année (${this.selectedYear})`;
+      }
+      return 'Résultat Global';
+    },
+    getComparisonPeriodLabel() {
       return `${this.getDateRefLabel()} / ${this.getDateMLabel()}`;
     },
     refreshPortefeuilleData() {

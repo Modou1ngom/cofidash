@@ -49,9 +49,7 @@
     <div class="global-result-section">
       <div v-if="loading" class="loading-message">
         <p>🔄 Chargement des données ...</p>
-        <p style="font-size: 12px; color: #666; margin-top: 5px;">
-          ⏱️ Cette opération peut prendre jusqu'à 5 minutes en raison de la complexité des calculs.
-        </p>
+       
       </div>
       <div v-if="errorMessage" class="error-message">
         <p>⚠️ {{ errorMessage }}</p>
@@ -68,12 +66,15 @@
       >
         📊 DOMICILIATION DE FLUX
       </button>
-      <button 
+    <!-- 
+    <button 
         :class="['tab-button', { active: activeTab === 'solde' }]"
         @click="setActiveTab('solde')"
       >
         💰 SOLDE
       </button>
+    -->
+      
      
     </div>
     
@@ -1089,7 +1090,7 @@ export default {
           name: 'TERRITOIRE PROVINCE NORD',
           agencies: []
         }
-      }
+      },
     }
   },
   props: {

@@ -8,6 +8,8 @@ use App\Http\Controllers\ChartController;
 use App\Http\Controllers\DataController;
 use App\Http\Controllers\ObjectiveController;
 use App\Http\Controllers\ReferenceCompteController;
+use App\Http\Controllers\TerritoryController;
+use App\Http\Controllers\AgencyController;
 
 // Routes publiques
 Route::post('/login', [AuthController::class, 'login']);
@@ -29,6 +31,7 @@ Route::prefix('oracle')->group(function () {
     Route::post('/query', [DataController::class, 'executeQuery']);
     Route::get('/table/{tableName}', [DataController::class, 'getTableData']);
     Route::get('/data/clients', [DataController::class, 'getClientsData']);
+    Route::get('/data/agencies-from-dash', [DataController::class, 'getAgenciesFromDashData']);
     Route::get('/data/production', [DataController::class, 'getProductionData']);
     Route::get('/data/production-volume', [DataController::class, 'getProductionVolumeData']);
     Route::get('/data/encours-credit', [DataController::class, 'getEncoursCreditData']);
@@ -36,6 +39,7 @@ Route::prefix('oracle')->group(function () {
     Route::get('/data/collection', [DataController::class, 'getCollectionData']);
     Route::get('/data/volume-dat', [DataController::class, 'getVolumeDatData']);
     Route::get('/data/depot-garantie', [DataController::class, 'getDepotGarantieData']);
+    Route::get('/data/domiciliation-flux', [DataController::class, 'getDomiciliationFluxData']);
     Route::get('/data/transfers', [DataController::class, 'getTransfersData']);
     Route::get('/data/prepaid-card-sales', [DataController::class, 'getPrepaidCardSalesData']);
     Route::get('/data/portefeuille-risque', [DataController::class, 'getPortefeuilleRisqueData']);
@@ -71,6 +75,16 @@ Route::middleware('auth:sanctum')->prefix('objectives')->group(function () {
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    // Alias pratiques pour la gestion territoires / agences (TerritoryAgencyManagement.vue)
+    Route::get('/users', [\App\Http\Controllers\UserController::class, 'index']);
+
+    Route::post('/agencies/sync-from-oracle', [AgencyController::class, 'syncFromOracle']);
+    Route::post('/agencies/{id}/assign-chef-agence', [AgencyController::class, 'assignChefAgence']);
+    Route::apiResource('agencies', AgencyController::class);
+
+    Route::post('/territories/{id}/assign-responsible', [TerritoryController::class, 'assignResponsible']);
+    Route::apiResource('territories', TerritoryController::class);
     
     // Routes admin
     Route::prefix('admin')->group(function () {

@@ -371,6 +371,28 @@ class OracleService
     }
 
     /**
+     * Domiciliation de flux (DASH — collecte net)
+     */
+    public function getDomiciliationFluxData(string $period = 'month', ?string $zone = null, ?int $month = null, ?int $year = null, ?string $date = null): array
+    {
+        $params = ['period' => $period];
+        if ($zone) {
+            $params['zone'] = $zone;
+        }
+        if ($month) {
+            $params['month'] = $month;
+        }
+        if ($year) {
+            $params['year'] = $year;
+        }
+        if ($date) {
+            $params['date'] = $date;
+        }
+
+        return $this->getPythonGetCached('domiciliation-flux', '/api/oracle/data/domiciliation-flux', $params, 'Domiciliation flux');
+    }
+
+    /**
      * Transferts d'argent (Orange Money, Wave, Ria, WU) — service Python
      */
     public function getTransfersData(
@@ -745,6 +767,19 @@ class OracleService
         ];
 
         return $this->getPythonPostCached('cr-par-agence', '/api/oracle/data/cr-par-agence', $body, 'CR par Agence');
+    }
+
+    /**
+     * Liste des agences depuis DASH_RELATION (CODE_BUREAU, service Python) pour la synchro Laravel.
+     */
+    public function getAgenciesFromDashProductionNombre(): array
+    {
+        return $this->getPythonGetCached(
+            'agencies_dash_relation',
+            '/api/oracle/data/agencies-from-dash',
+            ['scope' => 'latest'],
+            'Agences DASH_RELATION'
+        );
     }
 }
 

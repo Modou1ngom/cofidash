@@ -19,3 +19,6 @@ ORACLE_COFINA_CONFIG = {
     'password': os.getenv('ORACLE_COFINA_PASSWORD', ''),
 }
 
+
+
+

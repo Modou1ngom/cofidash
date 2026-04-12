@@ -66,9 +66,9 @@
             <span class="toggle-icon">{{ portefeuilleRisqueExpanded ? '▼' : '▶' }}</span>
           </div>
           <div v-if="portefeuilleRisqueExpanded" class="nav-section-items">
-            <a href="#" @click.stop.prevent="handlePortefeuilleRisqueSection('simple')" class="nav-link double-indent" :class="{ active: activeSection === 'portefeuille-risque' && activeSubSection === 'simple' }">
+           <!--<a href="#" @click.stop.prevent="handlePortefeuilleRisqueSection('simple')" class="nav-link double-indent" :class="{ active: activeSection === 'portefeuille-risque' && activeSubSection === 'simple' }">
               PAR SIMPLE
-            </a>
+            </a>-->
             <a href="#" @click.stop.prevent="handlePortefeuilleRisqueSection('global')" class="nav-link double-indent" :class="{ active: activeSection === 'portefeuille-risque' && activeSubSection === 'global' }">
               PAR GLOBAL
             </a>

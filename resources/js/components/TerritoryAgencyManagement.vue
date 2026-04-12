@@ -55,8 +55,8 @@
           </thead>
           <tbody>
             <tr v-for="territory in territories" :key="territory.id">
-              <td><strong>{{ territory.code }}</strong></td>
-              <td>{{ territory.name }}</td>
+              <td><strong>{{ territory.code || '—' }}</strong></td>
+              <td>{{ territory.name || '—' }}</td>
               <td>{{ territory.description || '-' }}</td>
               <td>
                 <span v-if="territory.responsible" class="assigned-user">
@@ -80,6 +80,10 @@
 
     <!-- Tab Agences -->
     <div v-if="activeTab === 'agencies'" class="tab-content">
+      <div v-if="agencies.length === 0" class="empty-state-banner">
+        <p><strong>Aucune agence en base.</strong> Les utilisateurs ne pourront pas être rattachés à une agence tant que la liste n’est pas remplie.</p>
+        <p>Utilisez <strong>Synchroniser les agences depuis Oracle</strong> : les codes affichés viennent de la table <code>DASH_RELATION</code> (<code>CODE_BUREAU</code>). Pour retirer d’anciennes lignes, <code>php artisan agencies:sync-from-oracle --prune</code>.</p>
+      </div>
       <div class="table-container">
         <table class="management-table">
           <thead>
@@ -92,6 +96,9 @@
             </tr>
           </thead>
           <tbody>
+            <tr v-if="agencies.length === 0">
+              <td colspan="5" class="empty-table-cell">—</td>
+            </tr>
             <tr v-for="agency in agencies" :key="agency.id">
               <td><strong>{{ agency.code }}</strong></td>
               <td>{{ agency.name }}</td>
@@ -542,6 +549,16 @@ export default {
     this.loadData();
   },
   methods: {
+    /** Réponse JSON tableau brute ou pagination Laravel { data: [...] } */
+    normalizeListResponse(raw) {
+      if (Array.isArray(raw)) {
+        return raw;
+      }
+      if (raw && Array.isArray(raw.data)) {
+        return raw.data;
+      }
+      return [];
+    },
     async loadData() {
       this.loading = true;
       try {
@@ -566,7 +583,7 @@ export default {
         const response = await axios.get('/api/territories', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        this.territories = response.data;
+        this.territories = this.normalizeListResponse(response.data);
       } catch (error) {
         console.error('Erreur lors du chargement des territoires:', error);
       }
@@ -577,7 +594,7 @@ export default {
         const response = await axios.get('/api/agencies', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        this.agencies = response.data;
+        this.agencies = this.normalizeListResponse(response.data);
       } catch (error) {
         console.error('Erreur lors du chargement des agences:', error);
       }
@@ -589,7 +606,7 @@ export default {
         const response = await axios.get('/api/users', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        this.responsablesZone = response.data || [];
+        this.responsablesZone = this.normalizeListResponse(response.data);
         console.log('Responsables de zone chargés:', this.responsablesZone.length);
       } catch (error) {
         console.error('Erreur lors du chargement des responsables de zone:', error);
@@ -603,7 +620,7 @@ export default {
         const response = await axios.get('/api/users', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        this.chefsAgence = response.data || [];
+        this.chefsAgence = this.normalizeListResponse(response.data);
         console.log('Chefs d\'agence chargés:', this.chefsAgence.length);
       } catch (error) {
         console.error('Erreur lors du chargement des chefs d\'agence:', error);
@@ -622,7 +639,7 @@ export default {
         if (response.data.success) {
           this.syncMessage = '✅ ' + response.data.message;
           this.syncMessageType = 'success';
-          await this.loadAgencies();
+          await Promise.all([this.loadAgencies(), this.loadTerritories()]);
         } else {
           this.syncMessage = '❌ ' + (response.data.message || 'Erreur lors de la synchronisation');
           this.syncMessageType = 'error';
@@ -720,8 +737,7 @@ export default {
         const response = await axios.get('/api/users', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        console.log('Utilisateurs chargés:', response.data);
-        this.users = response.data || [];
+        this.users = this.normalizeListResponse(response.data);
         console.log('Nombre d\'utilisateurs:', this.users.length);
       } catch (error) {
         console.error('Erreur lors du chargement des utilisateurs:', error);
@@ -736,14 +752,14 @@ export default {
         const response = await axios.get('/api/admin/profiles', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        this.profiles = response.data || [];
+        this.profiles = this.normalizeListResponse(response.data);
         console.log('Profils chargés:', this.profiles.length);
       } catch (error) {
         console.error('Erreur lors du chargement des profils:', error);
         // En cas d'erreur, essayer la route publique
         try {
           const response = await axios.get('/api/profiles');
-          this.profiles = response.data || [];
+          this.profiles = this.normalizeListResponse(response.data);
         } catch (err) {
           console.error('Erreur lors du chargement des profils (route publique):', err);
           this.profiles = [];
@@ -1036,6 +1052,38 @@ export default {
   background: #d4edda;
   color: #155724;
   border: 1px solid #c3e6cb;
+}
+
+.empty-state-banner {
+  margin-bottom: 16px;
+  padding: 14px 18px;
+  background: #fff8e6;
+  border: 1px solid #e6d9a3;
+  border-radius: 8px;
+  color: #4a3f1c;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.empty-state-banner p {
+  margin: 0 0 8px 0;
+}
+
+.empty-state-banner p:last-child {
+  margin-bottom: 0;
+}
+
+.empty-state-banner code {
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.empty-table-cell {
+  text-align: center;
+  color: #999;
+  padding: 24px !important;
 }
 
 .sync-message.error {

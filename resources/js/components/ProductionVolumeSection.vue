@@ -47,7 +47,7 @@
     <!-- Message de chargement en haut -->
     <div v-if="loading" class="loading-banner">
       <div class="loading-spinner-small"></div>
-      <span>Chargement des données en cours... Cette opération peut prendre jusqu'à 5 minutes.</span>
+      <span>Chargement des données en cours... </span>
     </div>
     
     <!-- Message d'erreur -->

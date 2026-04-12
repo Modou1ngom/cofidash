@@ -1,9 +1,50 @@
 <template>
   <div class="cr-par-agence-section">
     <div class="section-header">
-      <h2 class="section-title">CR par Agence</h2>
-      <span v-if="loading || loadingData" class="loading-data-hint">Chargement des données...</span>
-      <span v-else-if="crLoadErrors > 0" class="load-errors-hint">Certaines données n'ont pas pu être chargées (service Oracle indisponible ou erreur).</span>
+      <div class="section-header-row">
+        <h2 class="section-title">CR par Agence - {{ getPeriodTitle }}</h2>
+        <div class="period-selector">
+          <select v-model="selectedPeriod" class="period-select" @change="handlePeriodChange">
+            <option value="week">Semaine</option>
+            <option value="month">Mois</option>
+            <option value="year">Année</option>
+          </select>
+
+          <template v-if="selectedPeriod === 'week'">
+            <input
+              type="date"
+              v-model="selectedDate"
+              class="date-select"
+              @change="updateWeekFromDate"
+            />
+          </template>
+
+          <template v-if="selectedPeriod === 'month'">
+            <select v-model="selectedMonth" class="month-select" @change="handleMonthChange">
+              <option v-for="(month, index) in months" :key="index" :value="index + 1">
+                {{ month }}
+              </option>
+            </select>
+            <select v-model="selectedYear" class="year-select" @change="handleYearChange">
+              <option v-for="year in years" :key="year" :value="year">
+                {{ year }}
+              </option>
+            </select>
+          </template>
+
+          <template v-if="selectedPeriod === 'year'">
+            <select v-model="selectedYear" class="year-select" @change="handleYearChange">
+              <option v-for="year in years" :key="year" :value="year">
+                {{ year }}
+              </option>
+            </select>
+          </template>
+        </div>
+      </div>
+      <div v-if="loading || loadingData || crLoadErrors > 0" class="section-header-hints">
+        <span v-if="loading || loadingData" class="loading-data-hint">Chargement des données...</span>
+        <span v-else-if="crLoadErrors > 0" class="load-errors-hint">Certaines données n'ont pas pu être chargées (service Oracle indisponible ou erreur).</span>
+      </div>
     </div>
 
     <div class="table-wrapper" :class="{ 'table-loading': loading || loadingData }">
@@ -111,6 +152,17 @@ function normalizeLibelle(s) {
   return t.replace(/^[_\-]\s*/, '').trim();
 }
 
+/** Comparaison insensible aux accents pour les clés de formules / libellés API. */
+function stripAccents(s) {
+  return String(s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function libellesFormulaEgaux(a, b) {
+  return stripAccents(normalizeLibelle(a)).toUpperCase() === stripAccents(normalizeLibelle(b)).toUpperCase();
+}
+
 /** Même ligne « clé répartition » que la sous-rubrique (ex. nom clé vs libellé avec « (-) »). */
 function libelleCorrespondCleRepartition(nomCle, libelle) {
   if (!nomCle || !libelle) return false;
@@ -156,6 +208,14 @@ const RUBRIQUE_FORMULAS = {
 export default {
   name: 'CRParAgenceSection',
   data() {
+    const now = new Date();
+    const getWeekNumber = (date) => {
+      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+      const dayNum = d.getUTCDay() || 7;
+      d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    };
     return {
       agenciesDakarVille: ['POINT E', 'CASTORS', 'LAMINE GUEYE', 'MARISTES', 'SCAT URBAM'],
       agenciesDakarBanlieue: ['NIARRY TALLI', 'LINGUERLA', 'PARCELLES', 'PIKINE', 'RUFISQUE'],
@@ -174,6 +234,20 @@ export default {
       expandedSections: {},
       crRowData: {},
       crLoadErrors: 0,
+      selectedPeriod: 'month',
+      selectedDate: (() => {
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      })(),
+      selectedWeek: getWeekNumber(now),
+      selectedMonth: now.getMonth() + 1,
+      selectedYear: now.getFullYear(),
+      months: [
+        'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+        'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+      ],
       dateFrom: '',
       dateTo: '',
       branchCodeToEntityKey: {
@@ -292,6 +366,26 @@ export default {
         }
       });
       return rows;
+    },
+    years() {
+      const currentYear = new Date().getFullYear();
+      const years = [];
+      for (let i = currentYear - 5; i <= currentYear + 2; i++) {
+        years.push(i);
+      }
+      return years;
+    },
+    getPeriodTitle() {
+      if (this.selectedPeriod === 'week') {
+        return `Semaine ${this.selectedWeek} ${this.selectedYear}`;
+      }
+      if (this.selectedPeriod === 'month') {
+        return `${this.months[this.selectedMonth - 1]} ${this.selectedYear}`;
+      }
+      if (this.selectedPeriod === 'year') {
+        return `Année ${this.selectedYear}`;
+      }
+      return `${this.months[this.selectedMonth - 1]} ${this.selectedYear}`;
     }
   },
   mounted() {
@@ -299,10 +393,86 @@ export default {
     this.loadReferenceCompte();
   },
   methods: {
+    getWeekNumber(date) {
+      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+      const dayNum = d.getUTCDay() || 7;
+      d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    },
+    applyPeriodToDates() {
+      const p = this.selectedPeriod;
+      const pad = (n) => String(n).padStart(2, '0');
+      if (p === 'month') {
+        const m = this.selectedMonth;
+        const y = this.selectedYear;
+        const lastDay = new Date(y, m, 0).getDate();
+        this.dateFrom = `01/${pad(m)}/${y}`;
+        this.dateTo = `${pad(lastDay)}/${pad(m)}/${y}`;
+      } else if (p === 'year') {
+        const y = this.selectedYear;
+        this.dateFrom = `01/01/${y}`;
+        this.dateTo = `31/12/${y}`;
+      } else if (p === 'week' && this.selectedDate) {
+        const ref = new Date(this.selectedDate + 'T12:00:00');
+        const day = ref.getDay();
+        const diffToMonday = (day + 6) % 7;
+        const monday = new Date(ref);
+        monday.setDate(ref.getDate() - diffToMonday);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        const fmt = (dt) => `${pad(dt.getDate())}/${pad(dt.getMonth() + 1)}/${dt.getFullYear()}`;
+        this.dateFrom = fmt(monday);
+        this.dateTo = fmt(sunday);
+      }
+    },
     setDefaultDates() {
-      const d = new Date();
-      this.dateTo = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
-      this.dateFrom = '01/01/' + d.getFullYear();
+      const now = new Date();
+      this.selectedPeriod = 'month';
+      this.selectedMonth = now.getMonth() + 1;
+      this.selectedYear = now.getFullYear();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      this.selectedDate = `${y}-${m}-${d}`;
+      this.selectedWeek = this.getWeekNumber(now);
+      this.applyPeriodToDates();
+    },
+    loadCrDataIfReady() {
+      if (this.referenceCompteBlocs && this.referenceCompteBlocs.length > 0 && this.dateFrom && this.dateTo) {
+        return this.loadCrData();
+      }
+      return Promise.resolve();
+    },
+    handlePeriodChange() {
+      if (this.selectedPeriod === 'week') {
+        if (!this.selectedDate) {
+          const n = new Date();
+          this.selectedDate = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+        }
+        const ref = new Date(this.selectedDate + 'T12:00:00');
+        this.selectedWeek = this.getWeekNumber(ref);
+        this.selectedYear = ref.getFullYear();
+      }
+      this.applyPeriodToDates();
+      this.$nextTick(() => this.loadCrDataIfReady());
+    },
+    handleMonthChange() {
+      this.applyPeriodToDates();
+      this.$nextTick(() => this.loadCrDataIfReady());
+    },
+    handleYearChange() {
+      this.applyPeriodToDates();
+      this.$nextTick(() => this.loadCrDataIfReady());
+    },
+    updateWeekFromDate() {
+      if (this.selectedDate) {
+        const ref = new Date(this.selectedDate + 'T12:00:00');
+        this.selectedWeek = this.getWeekNumber(ref);
+        this.selectedYear = ref.getFullYear();
+      }
+      this.applyPeriodToDates();
+      this.$nextTick(() => this.loadCrDataIfReady());
     },
     branchNameToEntityKey(name) {
       if (!name) return null;
@@ -387,7 +557,7 @@ export default {
         this.loading = false;
       }
       try {
-        await this.loadCrData();
+        await this.loadCrDataIfReady();
       } catch (err) {
         console.warn('CR par Agence: chargement données CR', err);
       }
@@ -444,6 +614,9 @@ export default {
           if (rubriqueData) newCrRowData[rubriqueKey] = rubriqueData;
         }
         this.crRowData = newCrRowData;
+        // Recalculer les totaux formulés : pendant les await Oracle, un rendu peut avoir
+        // rempli _entityDataCache avec l’ancien crRowData → tout à 0.
+        this._entityDataCache = {};
         this.crLoadErrors = errorCount;
       } finally {
         this.loadingData = false;
@@ -475,13 +648,13 @@ export default {
       const target = normalizeLibelle(libelle);
       if (this._entityDataCache[target] !== undefined) return this._entityDataCache[target];
       const blocs = this.referenceCompteBlocs || [];
-      let idx = blocs.findIndex((b) => normalizeLibelle(b.libelle) === target);
+      let idx = blocs.findIndex((b) => libellesFormulaEgaux(b.libelle, libelle));
       if (idx === -1 && (target.includes('INTÉRÊTS') || target.includes('INTERÊTS'))) {
         const alt = target.includes('INTÉRÊTS') ? target.replace(/INTÉRÊTS/g, 'INTERÊTS') : target.replace(/INTERÊTS/g, 'INTÉRÊTS');
         idx = blocs.findIndex((b) => normalizeLibelle(b.libelle) === alt);
       }
-      if (idx === -1 && target === 'MARGE NETTE') {
-        idx = blocs.findIndex((b) => normalizeLibelle(b.libelle || '').startsWith('MARGE NETTE'));
+      if (idx === -1 && stripAccents(target).toUpperCase() === 'MARGE NETTE') {
+        idx = blocs.findIndex((b) => stripAccents(normalizeLibelle(b.libelle || '')).toUpperCase().startsWith('MARGE NETTE'));
       }
       if (idx !== -1) {
         const bloc = blocs[idx];
@@ -499,8 +672,7 @@ export default {
       }
       // Ligne absente de la référence : si c'est une ligne calculée, calculer par formule
       for (const [formulaLabel, formula] of Object.entries(RUBRIQUE_FORMULAS)) {
-        const normalizedFormula = normalizeLibelle(formulaLabel);
-        if (normalizedFormula === target || normalizedFormula.startsWith(target)) {
+        if (libellesFormulaEgaux(formulaLabel, libelle)) {
           const out = {};
           this.entityKeys.forEach((k) => {
             let sum = 0;
@@ -524,7 +696,12 @@ export default {
     getFormulaForLabel(label) {
       if (!label) return null;
       const L = normalizeLibelle(label);
-      return RUBRIQUE_FORMULAS[L] || RUBRIQUE_FORMULAS[label] || RUBRIQUE_FORMULAS[L.replace(/INTERÊTS/g, 'INTÉRÊTS')] || RUBRIQUE_FORMULAS[L.replace(/INTÉRÊTS/g, 'INTERÊTS')] || null;
+      const direct = RUBRIQUE_FORMULAS[L] || RUBRIQUE_FORMULAS[label] || RUBRIQUE_FORMULAS[L.replace(/INTERÊTS/g, 'INTÉRÊTS')] || RUBRIQUE_FORMULAS[L.replace(/INTÉRÊTS/g, 'INTERÊTS')];
+      if (direct) return direct;
+      for (const [key, formula] of Object.entries(RUBRIQUE_FORMULAS)) {
+        if (libellesFormulaEgaux(key, label)) return formula;
+      }
+      return null;
     },
     getValue(row, colKey) {
       const formula = this.getFormulaForLabel(row.label);
@@ -560,9 +737,60 @@ export default {
 .section-header {
   margin-bottom: 16px;
   display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.section-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  width: 100%;
+}
+
+.section-header-hints {
+  width: 100%;
+}
+
+.period-selector {
+  display: flex;
+  gap: 10px;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+}
+
+.period-select,
+.month-select,
+.week-select,
+.year-select,
+.date-select {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background: white;
+  color: #333;
+  cursor: pointer;
+}
+
+.period-select:hover,
+.month-select:hover,
+.week-select:hover,
+.year-select:hover,
+.date-select:hover {
+  border-color: #1a4d3a;
+}
+
+.period-select:focus,
+.month-select:focus,
+.week-select:focus,
+.year-select:focus,
+.date-select:focus {
+  outline: none;
+  border-color: #1a4d3a;
+  box-shadow: 0 0 0 2px rgba(26, 77, 58, 0.1);
 }
 
 .loading-state {
@@ -575,15 +803,13 @@ export default {
 
 .loading-data-hint {
   font-size: 0.9rem;
-  color: #1A4D3A;
-  margin-left: 12px;
+  color: #1a4d3a;
   font-weight: 500;
 }
 
 .load-errors-hint {
   font-size: 0.85rem;
   color: #b45309;
-  margin-left: 12px;
 }
 
 .section-title {

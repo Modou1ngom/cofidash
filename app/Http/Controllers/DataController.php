@@ -76,6 +76,28 @@ class DataController extends Controller
     }
 
     /**
+     * Liste des agences depuis DASH_RELATION (CODE_BUREAU, AGENCE) — même source que php artisan agencies:sync-from-oracle.
+     */
+    public function getAgenciesFromDashData(): JsonResponse
+    {
+        try {
+            $result = $this->oracleService->getAgenciesFromDashProductionNombre();
+            if ($result['success']) {
+                return response()->json($result['data']);
+            }
+
+            return response()->json([
+                'error' => $result['error'] ?? 'Erreur',
+                'message' => $result['message'] ?? '',
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('getAgenciesFromDashData: '.$e->getMessage());
+
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Récupère les données clients depuis Oracle
      */
     public function getClientsData(Request $request): JsonResponse
@@ -1331,6 +1353,51 @@ class DataController extends Controller
             return response()->json([
                 'error' => 'Erreur interne',
                 'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Domiciliation de flux (DASH — collecte net)
+     */
+    public function getDomiciliationFluxData(Request $request): JsonResponse
+    {
+        try {
+            $period = $request->input('period', 'month');
+            $zone = $request->input('zone');
+            $month = $request->input('month');
+            $year = $request->input('year');
+            $date = $request->input('date');
+
+            $result = $this->oracleService->getDomiciliationFluxData(
+                $period,
+                $zone,
+                $month ? (int) $month : null,
+                $year ? (int) $year : null,
+                $date
+            );
+
+            if ($result['success']) {
+                $payload = $result['data'] ?? [];
+
+                return response()->json($payload);
+            }
+
+            Log::error('Erreur domiciliation-flux', [
+                'error' => $result['error'] ?? null,
+                'message' => $result['message'] ?? null,
+            ]);
+
+            return response()->json([
+                'error' => $result['error'] ?? 'oracle_error',
+                'message' => $result['message'] ?? 'Erreur Oracle',
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Exception domiciliation-flux', ['message' => $e->getMessage()]);
+
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage(),
             ], 500);
         }
     }
