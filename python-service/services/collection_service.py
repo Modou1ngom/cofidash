@@ -296,7 +296,7 @@ def get_collection_data(
 
     from services.cache_service import generate_cache_key, get_cache, set_cache
 
-    cache_key = f"collection_dash:v1:{generate_cache_key(period, zone, month, year, date)}"
+    cache_key = f"collection_dash:v2:{generate_cache_key(period, zone, month, year, date)}"
     cached = get_cache(cache_key)
     if cached is not None:
         logger.info("✅ Collection (DASH) depuis cache")
@@ -309,12 +309,18 @@ def get_collection_data(
         year=year,
         date=date,
     )
+    dom_meta = raw.get("meta") or {}
     rows = raw.get("data") or []
     if not isinstance(rows, list):
         rows = []
 
     response_data = _build_from_domiciliation_rows(rows)
-
-    set_cache(cache_key, response_data, ttl=300)
+    if dom_meta.get("oracle_tables_missing"):
+        response_data["domiciliation_meta"] = dom_meta
+        logger.warning(
+            "Collecte : domiciliation indisponible (Oracle). Agrégats à 0. Vérifier ORACLE_DASH_SCHEMA / synonymes."
+        )
+    else:
+        set_cache(cache_key, response_data, ttl=300)
     logger.info("✅ Collection (DASH) : %s lignes brutes → territoires", len(rows))
     return response_data

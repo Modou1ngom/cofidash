@@ -54,6 +54,9 @@
       <div v-if="errorMessage" class="error-message">
         <p>⚠️ {{ errorMessage }}</p>
       </div>
+      <div v-else-if="collectionOracleWarning" class="collection-oracle-warning">
+        <p>{{ collectionOracleWarning }}</p>
+      </div>
     </div>
 
     <!-- Tableaux hiérarchiques par niveaux - Scindés en Collecte et Solde -->
@@ -1031,6 +1034,7 @@ export default {
     return {
       loading: false,
       errorMessage: null,
+      collectionOracleWarning: null,
       selectedZone: null,
       selectedPeriod: 'month',
       activeTab: 'collecte', // 'collecte' ou 'solde'
@@ -2122,11 +2126,18 @@ export default {
         }
         
         this.errorMessage = null;
-        
+        this.collectionOracleWarning = null;
+
         const endpoint = '/api/oracle/data/collection';
 
         const response = await window.axios.get(endpoint, { params });
-        
+
+        const root = response.data || {};
+        if (root.meta && root.meta.domiciliation && root.meta.domiciliation.oracle_tables_missing) {
+          this.collectionOracleWarning =
+            'Les tables Oracle de domiciliation (état de compte, tombé, exigible) ne sont pas accessibles pour cet environnement. Les montants affichés sont à zéro. L’administrateur doit créer les synonymes ou définir ORACLE_DASH_SCHEMA / ORACLE_DASH_*_TABLE dans le service Python.';
+        }
+
         let data = null;
         let chargeAffaireDetailsFromResponse = null;
         
@@ -2603,6 +2614,18 @@ export default {
   text-align: center;
   color: #C62828;
   font-weight: 500;
+}
+
+.collection-oracle-warning {
+  background: #fffbeb;
+  border: 1px solid #f59e0b;
+  border-radius: 4px;
+  padding: 15px;
+  margin-bottom: 20px;
+  text-align: left;
+  color: #92400e;
+  font-weight: 500;
+  font-size: 0.95rem;
 }
 
 .kpi-row {

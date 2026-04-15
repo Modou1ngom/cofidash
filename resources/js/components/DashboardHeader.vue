@@ -86,8 +86,7 @@ export default {
   },
   data() {
     return {
-      currentDate: '10/01/2026',
-      clientName: 'MODOU',
+      clientName: ' ',
       navItems: [
         { label: 'Accueil', icon: '🏠', route: '/dashboard' },
         { label: 'Utilisateur', icon: '👤', route: null, adminOnly: true, submenu: [
@@ -100,6 +99,13 @@ export default {
     }
   },
   computed: {
+    currentDate() {
+      const d = new Date();
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    },
     currentUser() {
       return ProfileManager.getCurrentUser();
     },

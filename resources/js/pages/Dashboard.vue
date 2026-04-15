@@ -95,9 +95,9 @@
         <AgencyPerformanceSection v-if="activeSection === 'performance-divers'" :dataType="'divers'" />
         <PrepaidCardSalesSection v-if="activeSection === 'prepaid-cards' && activeSubSection === 'sales'" />
         <PrepaidCardRechargeSection v-if="activeSection === 'prepaid-cards' && activeSubSection === 'recharge'" />
-        <TerritoryAgencyManagement v-if="activeSection === 'management'" />
+        <TerritoryAgencyManagement v-if="isAdmin && activeSection === 'management'" />
         <MoneyTransferSection v-if="activeSection === 'money-transfers'" />
-        <EnvironmentsSection v-if="activeSection === 'environments'" />
+        <EnvironmentsSection v-if="isAdmin && activeSection === 'environments'" />
         <ReferenceCompteSection v-if="activeSection === 'reporting-financier' && activeSubSection === 'reference-compte'" />
         <CRParAgenceSection v-if="activeSection === 'reporting-financier' && activeSubSection === 'cr-par-agence'" />
         <div v-if="activeSection === 'reporting-financier' && !activeSubSection" class="section-placeholder">
@@ -184,11 +184,24 @@ export default {
       activeSubSection: 'production'
     }
   },
+  computed: {
+    isAdmin() {
+      return ProfileManager.isAdmin();
+    }
+  },
+  mounted() {
+    if (!this.isAdmin && (this.activeSection === 'management' || this.activeSection === 'environments' || this.activeSection === 'performance-management')) {
+      this.activeSection = 'client';
+    }
+  },
   methods: {
     handleZoneSelected(zone) {
       this.selectedZone = zone;
     },
     handleSectionSelected(section) {
+      if ((section === 'management' || section === 'environments' || section === 'performance-management') && !ProfileManager.isAdmin()) {
+        return;
+      }
       console.log('Section sélectionnée:', section);
       this.activeSection = section;
       if (section === 'production') {

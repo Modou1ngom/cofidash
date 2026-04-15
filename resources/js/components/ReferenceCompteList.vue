@@ -98,7 +98,6 @@
                 <thead>
                 <tr>
                     <th>Numéro parent GL</th>
-                    <th>Nom parent GL</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -109,10 +108,8 @@
                         type="text"
                         class="form-input-inline"
                         placeholder="Numéro parent GL"
-                        @blur="updateExistingGlNom(selectedBlocIndex, rubriqueIndex, glIdx)"
                       />
                     </td>
-                    <td>{{ gl.nom_gl || '—' }}</td>
                   </tr>
                   <tr v-if="addingToBloc === selectedBlocIndex && addingToRubrique === rubriqueIndex" class="add-gl-row">
                     <td>
@@ -124,11 +121,8 @@
                         placeholder="Ex: 702930000000"
                         @blur="fetchNewGlNom"
                       />
-                    </td>
-                    <td>
-                      <span v-if="newGlLoading" class="loading-text">Chargement...</span>
+                      <span v-if="newGlLoading" class="loading-text">Vérification…</span>
                       <span v-else-if="newGl.error" class="error-text">{{ newGl.error }}</span>
-                      <span v-else class="form-input-readonly-inline">{{ newGl.nom_gl || '—' }}</span>
                       <div class="add-gl-actions">
                         <button type="button" class="btn-validate" :disabled="savingNewGl" @click="saveNewGl(selectedBlocIndex, rubriqueIndex)">
                           {{ savingNewGl ? 'Enregistrement...' : 'Valider' }}
@@ -280,7 +274,6 @@ export default {
             this.showCleRepartitionByIndex[i] = !!hasVal;
           });
           this.loading = false;
-          this.hydrateNomsEnregistres();
         } else {
           this.savedBlocs = [];
           this.showCleRepartitionByIndex = {};
@@ -332,47 +325,6 @@ export default {
           };
         })
         .filter((b) => b.libelle && b.rubriques.length > 0);
-    },
-    async hydrateNomsEnregistres() {
-      const toFetch = [];
-      this.savedBlocs.forEach((bloc, bi) => {
-        (bloc.rubriques || []).forEach((rubrique, ri) => {
-          (rubrique.gls || []).forEach((g, gi) => {
-            if ((g.numero_gl || '').trim() && !(g.nom_gl || '').trim()) {
-              toFetch.push({ bi, ri, gi, numero: (g.numero_gl || '').trim() });
-            }
-          });
-        });
-      });
-      if (!toFetch.length) return;
-      const results = await Promise.all(
-        toFetch.map(async ({ bi, ri, gi, numero }) => {
-          try {
-            const response = await window.axios.get('/api/oracle/data/gl-lookup', {
-              params: { gl_code: numero }
-            });
-            const data = response.data;
-            const glData = data && (data.data != null ? data.data : data);
-            const nom = (glData && (glData.nom_gl || glData.GL_DESC_E || glData.gl_desc_e)) || '';
-            return { bi, ri, gi, nom };
-          } catch (_) {
-            return { bi, ri, gi, nom: '' };
-          }
-        })
-      );
-      const updated = this.savedBlocs.map((b) => ({
-        libelle: b.libelle,
-        rubriques: (b.rubriques || []).map((r) => ({
-          libelle: r.libelle,
-          gls: (r.gls || []).map((g) => ({ ...g, nom_gl: g.nom_gl || '' }))
-        }))
-      }));
-      results.forEach(({ bi, ri, gi, nom }) => {
-        if (updated[bi] && updated[bi].rubriques[ri] && updated[bi].rubriques[ri].gls[gi]) {
-          updated[bi].rubriques[ri].gls[gi].nom_gl = nom;
-        }
-      });
-      this.savedBlocs = updated;
     },
     toggleAddGl(blocIndex, rubriqueIndex) {
       if (this.addingToBloc === blocIndex && this.addingToRubrique === rubriqueIndex) {
@@ -451,11 +403,13 @@ export default {
         });
         const data = response.data;
         const glData = data && (data.data != null ? data.data : data);
-        if (glData && (glData.nom_gl || glData.GL_DESC_E || glData.gl_desc_e)) {
-          g.nom_gl = glData.nom_gl || glData.GL_DESC_E || glData.gl_desc_e || '';
+        const codeOk = glData && String(glData.GL_CODE_E || glData.numero_gl || '').trim();
+        if (codeOk) {
+          g.nom_gl = '';
+          g.error = null;
         } else {
           g.nom_gl = '';
-          g.error = (data && data.message) || 'GL non trouvé';
+          g.error = (data && data.message) || 'Parent GL inconnu dans DASH (vérifiez le numéro)';
         }
       } catch (err) {
         g.nom_gl = '';
@@ -482,27 +436,6 @@ export default {
         g.error = err.response?.data?.message || err.message || 'Erreur lors de l\'enregistrement';
       } finally {
         this.savingNewGl = false;
-      }
-    },
-    async updateExistingGlNom(blocIndex, rubriqueIndex, glIndex) {
-      const bloc = this.savedBlocs[blocIndex];
-      const rubrique = bloc && bloc.rubriques && bloc.rubriques[rubriqueIndex];
-      const gl = rubrique && rubrique.gls && rubrique.gls[glIndex];
-      if (!gl || !gl.numero_gl || !gl.numero_gl.trim()) {
-        if (gl) gl.nom_gl = '';
-        return;
-      }
-      try {
-        const response = await window.axios.get('/api/oracle/data/gl-lookup', {
-          params: { gl_code: gl.numero_gl.trim() }
-        });
-        const data = response.data;
-        const glData = data && (data.data != null ? data.data : data);
-        if (glData && (glData.nom_gl || glData.GL_DESC_E || glData.gl_desc_e)) {
-          gl.nom_gl = glData.nom_gl || glData.GL_DESC_E || glData.gl_desc_e || '';
-        }
-      } catch (_) {
-        // on laisse l'ancien nom en cas d'erreur
       }
     },
     async saveAll() {

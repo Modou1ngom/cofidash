@@ -365,7 +365,7 @@ async def get_collection_data_endpoint(
         result = get_collection_data(period=period, zone=zone, month=month, year=year, date=date)
         
         # Retourner les données dans le format attendu par le frontend
-        return {
+        payload = {
             "data": {
                 "hierarchicalData": result.get('hierarchicalData', {}),
                 "globalResult": result.get('globalResult', {}),
@@ -374,6 +374,9 @@ async def get_collection_data_endpoint(
             },
             "chargeAffaireDetails": result.get('chargeAffaireDetails', {})
         }
+        if result.get("domiciliation_meta"):
+            payload["meta"] = {"domiciliation": result["domiciliation_meta"]}
+        return payload
     except HTTPException:
         raise
     except Exception as e:
@@ -908,7 +911,9 @@ async def get_entrees_par_endpoint(
 @router.get("/data/gl-lookup")
 async def get_gl_lookup_endpoint(gl_code: Optional[str] = None, gl_desc: Optional[str] = None):
     """
-    Récupère un ou des GL depuis CFSFCUBS145.GLVW_GLMASTER_E.
+    Récupère un ou des GL depuis DASH_CR_PAR_AGENCE (Oracle Cofina).
+    - gl_code : vérifie PARENT_GL sur le dernier snapshot ; pas de libellé (nom_gl vide).
+    - gl_desc : non supporté (aucune colonne libellé dans DASH).
     
     - gl_code: recherche exacte par code (retourne 1 résultat)
     - gl_desc: recherche partielle par libellé (retourne une liste)

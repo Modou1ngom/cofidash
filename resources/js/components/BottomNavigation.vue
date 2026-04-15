@@ -36,7 +36,6 @@ export default {
   name: 'BottomNavigation',
   data() {
     return {
-      currentDate: '28/05/2020',
       clientName: 'DENIS',
       navItems: [
         { label: 'Accueil', icon: '🏠', badge: null },
@@ -49,6 +48,15 @@ export default {
         { label: 'Actions', icon: '👆', badge: null },
         { label: 'Analytiques', icon: '📈', badge: null }
       ]
+    }
+  },
+  computed: {
+    currentDate() {
+      const d = new Date();
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
     }
   }
 }

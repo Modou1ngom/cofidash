@@ -78,27 +78,14 @@
 
               <div v-for="(gl, glIndex) in rubrique.gls" :key="glIndex" class="gl-row">
                 <div class="gl-fields">
-                  <div class="form-group gl-numero">
+                  <div class="form-group gl-numero gl-numero-only">
                     <label>Numéro parent GL</label>
                     <input
                       v-model="gl.numero_gl"
                       type="text"
                       class="form-input"
                       placeholder="Ex: 702930000000"
-                      @blur="fetchGlNom(selectedBlocIndex, rubriqueIndex, glIndex)"
                     />
-                  </div>
-                  <div class="form-group gl-nom">
-                    <label>Nom parent GL</label>
-                    <input
-                      :value="gl.nom_gl"
-                      type="text"
-                      class="form-input form-input-readonly"
-                      placeholder="Récupéré depuis le SI"
-                      readonly
-                    />
-                    <span v-if="glLoading[glKey(selectedBlocIndex, rubriqueIndex, glIndex)]" class="loading-text">Chargement...</span>
-                    <span v-else-if="gl.error" class="error-text">{{ gl.error }}</span>
                   </div>
                 </div>
                 <button type="button" class="btn-remove-small" @click="removeGl(selectedBlocIndex, rubriqueIndex, glIndex)" title="Supprimer ce parent GL">✕</button>
@@ -202,7 +189,6 @@ export default {
           ]
         }
       ],
-      glLoading: {},
       saving: false,
       saveMessage: '',
       saveError: false,
@@ -227,9 +213,6 @@ export default {
     defaultCleRepartition,
     isCleRepartitionVisible(blocIndex) {
       return !!this.cleRepartitionVisibleMap[blocIndex];
-    },
-    glKey(blocIndex, rubriqueIndex, glIndex) {
-      return `${blocIndex}-${rubriqueIndex}-${glIndex}`;
     },
     addBloc() {
       this.blocs.push({
@@ -381,38 +364,6 @@ export default {
         this.saving = false;
       }
     },
-    async fetchGlNom(blocIndex, rubriqueIndex, glIndex) {
-      const gl = this.blocs[blocIndex].rubriques[rubriqueIndex].gls[glIndex];
-      if (!gl || !gl.numero_gl || !gl.numero_gl.trim()) {
-        if (gl) gl.nom_gl = '';
-        if (gl) gl.error = null;
-        return;
-      }
-
-      const key = this.glKey(blocIndex, rubriqueIndex, glIndex);
-      this.glLoading[key] = true;
-      gl.error = null;
-
-      try {
-        const response = await window.axios.get('/api/oracle/data/gl-lookup', {
-          params: { gl_code: gl.numero_gl.trim() }
-        });
-        const data = response.data;
-        const glData = data && (data.data != null ? data.data : data);
-        if (glData && (glData.nom_gl != null || glData.GL_DESC_E != null || glData.gl_desc_e != null)) {
-          gl.nom_gl = glData.nom_gl || glData.GL_DESC_E || glData.gl_desc_e || '';
-          gl.error = null;
-        } else {
-          gl.nom_gl = '';
-          gl.error = (data && data.message) || 'GL non trouvé';
-        }
-      } catch (err) {
-        gl.nom_gl = '';
-        gl.error = err.response?.data?.message || err.message || 'Erreur lors de la récupération';
-      } finally {
-        this.glLoading[key] = false;
-      }
-    }
   }
 };
 </script>

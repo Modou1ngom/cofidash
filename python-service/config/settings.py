@@ -20,9 +20,24 @@ ORACLE_COFINA_CONFIG = {
 }
 
 # Domiciliation de flux (collecte) — tables DASH vues par ORACLE_COFINA_USERNAME.
-# En cas d’ORA-00942 en production : synonymes manquants ou objets dans un autre schéma.
-# Exemple : ORACLE_DASH_ETAT_CPT_TABLE=REPORT_GROUPE.DASH_ETAT_CPT
-ORACLE_DASH_ETAT_CPT_TABLE = os.getenv("ORACLE_DASH_ETAT_CPT_TABLE", "DASH_ETAT_CPT").strip()
-ORACLE_DASH_TOMBE_MOIS_TABLE = os.getenv("ORACLE_DASH_TOMBE_MOIS_TABLE", "DASH_TOMBE_MOIS").strip()
-ORACLE_DASH_EXIGIBLE_TABLE = os.getenv("ORACLE_DASH_EXIGIBLE_TABLE", "DASH_EXIGIBLE").strip()
+# ORACLE_DASH_SCHEMA : préfixe unique si les 3 tables sont sous le même owner (ex. DATAMART).
+# Sinon surcharger chaque nom : ORACLE_DASH_ETAT_CPT_TABLE=OWNER.DASH_ETAT_CPT
+def _dash_domiciliation_table(env_explicit: str, short_name: str) -> str:
+    explicit = os.getenv(env_explicit, "").strip()
+    if explicit:
+        return explicit
+    schema = os.getenv("ORACLE_DASH_SCHEMA", "").strip().rstrip(".")
+    if schema:
+        return f"{schema}.{short_name}"
+    return short_name
+
+
+ORACLE_DASH_ETAT_CPT_TABLE = _dash_domiciliation_table("ORACLE_DASH_ETAT_CPT_TABLE", "DASH_ETAT_CPT")
+ORACLE_DASH_TOMBE_MOIS_TABLE = _dash_domiciliation_table("ORACLE_DASH_TOMBE_MOIS_TABLE", "DASH_TOMBE_MOIS")
+ORACLE_DASH_EXIGIBLE_TABLE = _dash_domiciliation_table("ORACLE_DASH_EXIGIBLE_TABLE", "DASH_EXIGIBLE")
+
+# Si 1 : en ORA-00942 (table absente), retourner 200 + data vide au lieu de 500 (dashboard utilisable).
+ORACLE_DOMICILIATION_ORA942_EMPTY = os.getenv(
+    "ORACLE_DOMICILIATION_ORA942_EMPTY", "1"
+).strip().lower() in ("1", "true", "yes", "on")
 

@@ -2,13 +2,13 @@
   <div class="encours-section">
     <div class="encours-tabs">
       
-      <button 
+     <!-- <button 
         @click="handleTabChange('compte-courant')" 
         class="encours-tab" 
         :class="{ active: activeTab === 'compte-courant' }"
       >
         ENCOURS COMPTE COURANT
-      </button>
+      </button>-->
       <div class="encours-tab-group">
         <button 
           @click="handleTabChange('epargne-pep-simple')" 

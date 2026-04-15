@@ -734,7 +734,7 @@ class OracleService
     }
 
     /**
-     * Récupère un GL par code ou recherche par libellé depuis CFSFCUBS145.GLVW_GLMASTER_E
+     * Vérifie un PARENT_GL dans DASH_CR_PAR_AGENCE (Cofina) ; pas de libellé renvoyé.
      */
     public function getGlLookup(?string $glCode = null, ?string $glDesc = null): array
     {
