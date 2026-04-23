@@ -268,7 +268,10 @@ export default {
         { value: 'om', label: 'Orange Money' },
         { value: 'wave', label: 'Wave' },
         { value: 'ria', label: 'Ria' },
-        { value: 'wu', label: 'Western Union' }
+        { value: 'wu', label: 'Western Union' },
+        { value: 'moneygram', label: 'MoneyGram' },
+        { value: 'wizzal', label: 'Wizzal' },
+        { value: 'free_money', label: 'FREE Money' }
       ],
       months: [
         'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -398,36 +401,52 @@ export default {
       };
       this.grandCompte = null;
       
-      // Mapping des entités (agences, zones, corporate, retail) vers les territoires
-      const territoryMap = {
-        'CASTOR': 'territoire_dakar_ville',
-        'CASTORS': 'territoire_dakar_ville',
-        'MARISTES': 'territoire_dakar_ville',
-        'NGUELAW': 'territoire_dakar_ville',
-        'VITRINE LAMINE': 'territoire_dakar_ville',
-        'GUEYE': 'territoire_dakar_ville',
-        'LAMINE GUEYE': 'territoire_dakar_ville',
-        'POINT E': 'territoire_dakar_ville',
-        'KEUR MASSAR': 'territoire_dakar_ville',
-        'LINGUERE': 'territoire_dakar_banlieue',
-        'GUEDIAWAYE': 'territoire_dakar_banlieue',
-        'RUFISQUE': 'territoire_dakar_banlieue',
-        'PARCELLES': 'territoire_dakar_banlieue',
-        'PIKINE': 'territoire_dakar_banlieue',
-        'SCAT URBAM': 'territoire_dakar_banlieue',
-        'NIARRY TALLY': 'territoire_dakar_banlieue',
-        'MBOUR': 'territoire_province_centre_sud',
-        'TAMBACOUNDA': 'territoire_province_centre_sud',
-        'ZIGUINCHOR': 'territoire_province_centre_sud',
-        'THIES': 'territoire_province_centre_sud',
-        'KAOLACK': 'territoire_province_centre_sud',
-        'TOUBA': 'territoire_province_nord',
-        'SAINT-LOUIS': 'territoire_province_nord',
-        'LOUGA': 'territoire_province_nord',
-        'DIOURBEL': 'territoire_province_nord',
-        'OUROSSOGUI': 'territoire_province_nord',
-        'TAMBA': 'territoire_province_nord'
-      };
+      // Zonage officiel : clés du plus spécifique au plus court (évite ex. TAMBA ⊂ TAMBACOUNDA)
+      const territoryEntries = [
+        ['AGENCE PRINCIPALE POINT E', 'territoire_dakar_ville'],
+        ['AGENCE LINGUERE LA GUEDIAWAYE', 'territoire_dakar_banlieue'],
+        ['AGENCE LINGUERLA', 'territoire_dakar_banlieue'],
+        ['AGENCE ZINGUINCHOR', 'territoire_province_centre_sud'],
+        ['AGENCE LAMINE GUEYE', 'territoire_dakar_ville'],
+        ['AGENCE CASTORS', 'territoire_dakar_ville'],
+        ['AGENCE MARISTES', 'territoire_dakar_ville'],
+        ['AGENCE TAMBACOUNDA', 'territoire_province_centre_sud'],
+        ['AGENCE TOUBA KHAYRA', 'territoire_province_nord'],
+        ['AGENCE SAINT LOUIS', 'territoire_province_nord'],
+        ['AGENCE SAINT-LOUIS', 'territoire_province_nord'],
+        ['NIARRY TALLY', 'territoire_dakar_ville'],
+        ['NIARRY TALLI', 'territoire_dakar_ville'],
+        ['NIARY TALLY', 'territoire_dakar_ville'],
+        ['SCAT URBAM', 'territoire_dakar_ville'],
+        ['LAMINE GUEYE', 'territoire_dakar_ville'],
+        ['CASTORS', 'territoire_dakar_ville'],
+        ['CASTOR', 'territoire_dakar_ville'],
+        ['MARISTES', 'territoire_dakar_ville'],
+        ['LINGUERLA', 'territoire_dakar_banlieue'],
+        ['LINGUERE', 'territoire_dakar_banlieue'],
+        ['GUEDIAWAYE', 'territoire_dakar_banlieue'],
+        ['PARCELLES', 'territoire_dakar_banlieue'],
+        ['PIKINE', 'territoire_dakar_banlieue'],
+        ['RUFISQUE', 'territoire_dakar_banlieue'],
+        ['TAMBACOUNDA', 'territoire_province_centre_sud'],
+        ['ZINGUINCHOR', 'territoire_province_centre_sud'],
+        ['ZIGUINCHOR', 'territoire_province_centre_sud'],
+        ['VITRINE LAMINE', 'territoire_dakar_ville'],
+        ['NGUELAW', 'territoire_dakar_ville'],
+        ['GUEYE', 'territoire_dakar_ville'],
+        ['POINT E', 'territoire_dakar_ville'],
+        ['KEUR MASSAR', 'territoire_dakar_banlieue'],
+        ['MBOUR', 'territoire_province_centre_sud'],
+        ['THIES', 'territoire_province_centre_sud'],
+        ['KAOLACK', 'territoire_province_centre_sud'],
+        ['SAINT LOUIS', 'territoire_province_nord'],
+        ['SAINT-LOUIS', 'territoire_province_nord'],
+        ['LOUGA', 'territoire_province_nord'],
+        ['DIOURBEL', 'territoire_province_nord'],
+        ['OUROSSOGUI', 'territoire_province_nord'],
+        ['TOUBA KHAYRA', 'territoire_province_nord'],
+        ['TOUBA', 'territoire_province_nord']
+      ];
       
       // Organiser les entités par territoire
       const entitiesByTerritory = {
@@ -459,29 +478,17 @@ export default {
           return;
         }
         
-        // Vérifier si c'est un point de service
-        const servicePointNames = ['SCAT URBAM', 'NIARRY TALLY', 'NIARRY TALLI', 'C-E NIARRY'];
-        const isServicePoint = servicePointNames.some(sp => agenceUpper.includes(sp));
-        
-        if (isServicePoint) {
-          entitiesByTerritory['territoire_dakar_ville'].push(agency);
-        } else {
-          // Trouver le territoire correspondant
-          let territoryKey = null;
-          for (const [key, territory] of Object.entries(territoryMap)) {
-            if (agenceUpper.includes(key)) {
-              territoryKey = territory;
-              break;
-            }
+        let territoryKey = null;
+        for (const [key, territory] of territoryEntries) {
+          if (agenceUpper.includes(key)) {
+            territoryKey = territory;
+            break;
           }
-          
-          // Si aucun territoire trouvé, utiliser DAKAR VILLE par défaut
-          if (!territoryKey) {
-            territoryKey = 'territoire_dakar_ville';
-          }
-          
-          entitiesByTerritory[territoryKey].push(agency);
         }
+        if (!territoryKey) {
+          territoryKey = 'territoire_dakar_ville';
+        }
+        entitiesByTerritory[territoryKey].push(agency);
       });
       
       // Construire la structure hiérarchique - mettre à jour les territoires existants

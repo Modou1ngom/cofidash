@@ -23,6 +23,18 @@ from services.wiz_dash_query import (
     sql_dash_envoi_wiz,
     sql_dash_paiement_wiz,
 )
+from services.moneygram_dash_query import (
+    sql_dash_envoi_moneygram,
+    sql_dash_paiement_moneygram,
+)
+from services.wizzal_dash_query import (
+    sql_dash_envoi_wizzal,
+    sql_dash_paiement_wizzal,
+)
+from services.free_money_dash_query import (
+    sql_dash_envoi_free_money,
+    sql_dash_paiement_free_money,
+)
 from services.production_dash_service import _inner_sql_fragment
 from services.volume_dat_service import _ref_month_year, _week_range_dd_mm_yyyy
 
@@ -288,6 +300,90 @@ def get_wu_data(
     )
 
 
+def get_moneygram_data(
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    period: str = "month",
+    date_str: Optional[str] = None,
+) -> List[Dict]:
+    """MoneyGram : DASH_ENVOIE_MONEYGRAM + DASH_PAIEMENT_MONEYGRAM."""
+    logger.info(
+        f"📅 get_moneygram_data (DASH) period={period}, month={month}, year={year}, date={date_str}"
+    )
+    now = datetime.now()
+    m = int(month) if month is not None else now.month
+    y = int(year) if year is not None else now.year
+    mode, binds = _migration_mode_and_binds_transfers_dash(period or "month", m, y, date_str)
+    inner = _inner_sql_fragment(mode)
+    return _get_dash_transfer_envoi_paiement_merged(
+        binds,
+        sql_dash_envoi_moneygram(inner),
+        sql_dash_paiement_moneygram(inner),
+        "VOLUME_ENVOIE_MONEYGRAM_M",
+        "VOLUME_ENVOIE_MONEYGRAM_M_1",
+        "VOLUME_PAIEMENT_MONEYGRAM_M",
+        "VOLUME_PAIEMENT_MONEYGRAM_M_1",
+        "MoneyGram",
+        mode,
+    )
+
+
+def get_wizzal_data(
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    period: str = "month",
+    date_str: Optional[str] = None,
+) -> List[Dict]:
+    """Wizzal : DASH_ENVOIE_WIZZAL + DASH_PAIEMENT_WIZZAL."""
+    logger.info(
+        f"📅 get_wizzal_data (DASH) period={period}, month={month}, year={year}, date={date_str}"
+    )
+    now = datetime.now()
+    m = int(month) if month is not None else now.month
+    y = int(year) if year is not None else now.year
+    mode, binds = _migration_mode_and_binds_transfers_dash(period or "month", m, y, date_str)
+    inner = _inner_sql_fragment(mode)
+    return _get_dash_transfer_envoi_paiement_merged(
+        binds,
+        sql_dash_envoi_wizzal(inner),
+        sql_dash_paiement_wizzal(inner),
+        "VOLUME_ENVOIE_WIZZAL_M",
+        "VOLUME_ENVOIE_WIZZAL_M_1",
+        "VOLUME_PAIEMENT_WIZZAL_M",
+        "VOLUME_PAIEMENT_WIZZAL_M_1",
+        "Wizzal",
+        mode,
+    )
+
+
+def get_free_money_data(
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    period: str = "month",
+    date_str: Optional[str] = None,
+) -> List[Dict]:
+    """FREE Money : DASH_ENVOIE_FREE_MONEY + DASH_PAIEMENT_FREE_MONEY."""
+    logger.info(
+        f"📅 get_free_money_data (DASH) period={period}, month={month}, year={year}, date={date_str}"
+    )
+    now = datetime.now()
+    m = int(month) if month is not None else now.month
+    y = int(year) if year is not None else now.year
+    mode, binds = _migration_mode_and_binds_transfers_dash(period or "month", m, y, date_str)
+    inner = _inner_sql_fragment(mode)
+    return _get_dash_transfer_envoi_paiement_merged(
+        binds,
+        sql_dash_envoi_free_money(inner),
+        sql_dash_paiement_free_money(inner),
+        "VOLUME_ENVOIE_FREE_MONEY_M",
+        "VOLUME_ENVOIE_FREE_MONEY_M_1",
+        "VOLUME_PAIEMENT_FREE_MONEY_M",
+        "VOLUME_PAIEMENT_FREE_MONEY_M_1",
+        "FREE Money",
+        mode,
+    )
+
+
 def calculate_month_dates(month: int, year: int) -> Dict[str, str]:
     """
     Calcule les dates du mois M et M-1
@@ -343,7 +439,7 @@ def get_transfer_data(period: str = "month", month: Optional[int] = None, year: 
         month: Mois à analyser (1-12)
         year: Année à analyser
         date: Date au format YYYY-MM-DD pour period="week"
-        service: Service de transfert ("om", "wave", "ria", "wu")
+        service: Service de transfert ("om", "wave", "ria", "wu", "moneygram", "wizzal", "free_money")
     
     Returns:
         Dictionnaire avec les données de transferts organisées par agences et services
@@ -389,6 +485,21 @@ def get_transfer_data(period: str = "month", month: Optional[int] = None, year: 
         elif service == "wu":
             logger.info("📊 Récupération des données Western Union / WIZ (DASH) depuis Oracle")
             om_data = get_wu_data(
+                month=month, year=year, period=period or "month", date_str=date
+            )
+        elif service == "moneygram":
+            logger.info("📊 Récupération des données MoneyGram (DASH) depuis Oracle")
+            om_data = get_moneygram_data(
+                month=month, year=year, period=period or "month", date_str=date
+            )
+        elif service == "wizzal":
+            logger.info("📊 Récupération des données Wizzal (DASH) depuis Oracle")
+            om_data = get_wizzal_data(
+                month=month, year=year, period=period or "month", date_str=date
+            )
+        elif service == "free_money":
+            logger.info("📊 Récupération des données FREE Money (DASH) depuis Oracle")
+            om_data = get_free_money_data(
                 month=month, year=year, period=period or "month", date_str=date
             )
         else:

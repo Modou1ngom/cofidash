@@ -131,36 +131,41 @@ def calculate_period_dates(period: str, month: Optional[int] = None, year: Optio
     }
 
 
-# Mapping des agences vers les territoires selon le nouveau zonage
+# Mapping des agences vers les territoires (zonage officiel : DAKAR VILLE, BANLIEUE, CENTRE-SUD, NORD)
 AGENCY_TERRITORY_MAPPING = {
-    # DAKAR CENTRE VILLE
-    'CASTOR': 'DAKAR CENTRE VILLE',
-    'CASTORS': 'DAKAR CENTRE VILLE',  # Variante
-    'AGENCE CASTOR': 'DAKAR CENTRE VILLE',
-    'AGENCE CASTORS': 'DAKAR CENTRE VILLE',  # Variante
-    'MARISTES': 'DAKAR CENTRE VILLE',
-    'AGENCE MARISTES': 'DAKAR CENTRE VILLE',
-    'C-E MARISTES': 'DAKAR CENTRE VILLE',  # Variante
-    'CE MARISTES': 'DAKAR CENTRE VILLE',  # Variante
-    'COFINA EXPRESS MARISTES': 'DAKAR CENTRE VILLE',
-    'NGUELAW': 'DAKAR CENTRE VILLE',
-    'C-E NGUELAW': 'DAKAR CENTRE VILLE',
-    'CE NGUELAW': 'DAKAR CENTRE VILLE',  # Variante
-    'VITRINE LAMINE': 'DAKAR CENTRE VILLE',
-    'AGENCE VITRINE LAMINE': 'DAKAR CENTRE VILLE',
-    'GUEYE': 'DAKAR CENTRE VILLE',
-    'LAMINE GUEYE': 'DAKAR CENTRE VILLE',  # Variante
-    'AGENCE LAMINE GUEYE': 'DAKAR CENTRE VILLE',  # Variante
-    'PRINCIPALE POINT E': 'DAKAR CENTRE VILLE',
-    'AGENCE PRINCIPALE POINT E': 'DAKAR CENTRE VILLE',
-    'POINT E': 'DAKAR CENTRE VILLE',
-    'AGENCE POINT E': 'DAKAR CENTRE VILLE',
-    'KEUR MASSAR': 'DAKAR CENTRE VILLE',
-    'AGENCE KEUR MASSAR': 'DAKAR CENTRE VILLE',
-    'GRAND COMPTE': 'DAKAR CENTRE VILLE',
-    'AGENCE GRAND COMPTE': 'DAKAR CENTRE VILLE',
-    'SIEGE': 'DAKAR CENTRE VILLE',  # AGENCE SIEGE
-    'AGENCE SIEGE': 'DAKAR CENTRE VILLE',
+    # DAKAR VILLE (6 agences : Castors, Maristes, Lamine Gueye, Princ. Point E, Niary Tally, SCAT Urbam)
+    'CASTOR': 'DAKAR VILLE',
+    'CASTORS': 'DAKAR VILLE',
+    'AGENCE CASTOR': 'DAKAR VILLE',
+    'AGENCE CASTORS': 'DAKAR VILLE',
+    'MARISTES': 'DAKAR VILLE',
+    'AGENCE MARISTES': 'DAKAR VILLE',
+    'C-E MARISTES': 'DAKAR VILLE',
+    'CE MARISTES': 'DAKAR VILLE',
+    'COFINA EXPRESS MARISTES': 'DAKAR VILLE',
+    'NGUELAW': 'DAKAR VILLE',
+    'C-E NGUELAW': 'DAKAR VILLE',
+    'CE NGUELAW': 'DAKAR VILLE',
+    'VITRINE LAMINE': 'DAKAR VILLE',
+    'AGENCE VITRINE LAMINE': 'DAKAR VILLE',
+    'GUEYE': 'DAKAR VILLE',
+    'LAMINE GUEYE': 'DAKAR VILLE',
+    'AGENCE LAMINE GUEYE': 'DAKAR VILLE',
+    'PRINCIPALE POINT E': 'DAKAR VILLE',
+    'AGENCE PRINCIPALE POINT E': 'DAKAR VILLE',
+    'POINT E': 'DAKAR VILLE',
+    'AGENCE POINT E': 'DAKAR VILLE',
+    'SCAT URBAM': 'DAKAR VILLE',
+    'SCAT-URBAM': 'DAKAR VILLE',
+    'NIARY TALLY': 'DAKAR VILLE',
+    'NIARRY TALLY': 'DAKAR VILLE',
+    'NIARRY TALLI': 'DAKAR VILLE',
+    'KEUR MASSAR': 'DAKAR BANLIEUE',
+    'AGENCE KEUR MASSAR': 'DAKAR BANLIEUE',
+    'GRAND COMPTE': 'DAKAR VILLE',
+    'AGENCE GRAND COMPTE': 'DAKAR VILLE',
+    'SIEGE': 'DAKAR VILLE',
+    'AGENCE SIEGE': 'DAKAR VILLE',
     
     # DAKAR BANLIEUE
     'LINGUERE': 'DAKAR BANLIEUE',
@@ -171,7 +176,9 @@ AGENCY_TERRITORY_MAPPING = {
     'AGENCE LINGUERE LA': 'DAKAR BANLIEUE',  # Variante sans apostrophe
     'AGENCE LINGUERE\'LA GUEDIAWAYE': 'DAKAR BANLIEUE',
     'AGENCE LINGUERE LA GUEDIAWAYE': 'DAKAR BANLIEUE',  # Variante sans apostrophe
-    'AGENCE LINGUERLA': 'DAKAR BANLIEUE',  # Variante
+    'AGENCE LINGUERLA': 'DAKAR BANLIEUE',
+    'LINGUERLA GUEDIAWAYE': 'DAKAR BANLIEUE',
+    'AGENCE LINGUERLA GUEDIAWAYE': 'DAKAR BANLIEUE',
     'GUEDIAWAYE': 'DAKAR BANLIEUE',
     'AGENCE GUEDIAWAYE': 'DAKAR BANLIEUE',
     'RUFISQUE': 'DAKAR BANLIEUE',
@@ -193,12 +200,19 @@ AGENCY_TERRITORY_MAPPING = {
     'COFINA EXPRESS TAMBA': 'PROVINCE CENTRE SUD',
     'CE TAMBA': 'PROVINCE CENTRE SUD',  # Variante
     'ZIGUINCHOR': 'PROVINCE CENTRE SUD',
+    'ZINGUINCHOR': 'PROVINCE CENTRE SUD',  # variante orthographique (ex. Oracle)
     'AGENCE ZIGUINCHOR': 'PROVINCE CENTRE SUD',
+    'AGENCE ZINGUINCHOR': 'PROVINCE CENTRE SUD',
     'COFINA C. E. ZIGUINCHOR': 'PROVINCE CENTRE SUD',
     'COFINA C E ZIGUINCHOR': 'PROVINCE CENTRE SUD',  # Variante sans points
     'COFINA CE ZIGUINCHOR': 'PROVINCE CENTRE SUD',  # Variante
     'C-E ZIGUINCHOR': 'PROVINCE CENTRE SUD',  # Variante
     'CE ZIGUINCHOR': 'PROVINCE CENTRE SUD',  # Variante
+    'COFINA C. E. ZINGUINCHOR': 'PROVINCE CENTRE SUD',
+    'COFINA C E ZINGUINCHOR': 'PROVINCE CENTRE SUD',
+    'COFINA CE ZINGUINCHOR': 'PROVINCE CENTRE SUD',
+    'C-E ZINGUINCHOR': 'PROVINCE CENTRE SUD',
+    'CE ZINGUINCHOR': 'PROVINCE CENTRE SUD',
     'THIES': 'PROVINCE CENTRE SUD',
     'AGENCE THIES': 'PROVINCE CENTRE SUD',
     'KAOLACK': 'PROVINCE CENTRE SUD',
@@ -207,6 +221,7 @@ AGENCY_TERRITORY_MAPPING = {
     # PROVINCE NORD
     'TOUBA KHAYRA': 'PROVINCE NORD',
     'AGENCE TOUBA KHAYRA': 'PROVINCE NORD',
+    # « TOUBA » seul après les clés plus longues (éviter les confusions avec TAMBACOUNDA)
     'TOUBA': 'PROVINCE NORD',
     'AGENCE TOUBA': 'PROVINCE NORD',
     'SAINT-LOUIS': 'PROVINCE NORD',
@@ -285,17 +300,17 @@ BRANCH_CODE_TERRITORY_MAPPING_MANUAL = {
     # Exemple: '001': 'DAKAR CENTRE VILLE',
 }
 
-# Mapping des points de service vers les agences
+# Mapping des points de service vers l'agence de rattachement (référence zonage)
 SERVICE_POINT_MAPPING = {
-    'SCAT URBAM': 'AGENCE CASTOR',
-    'SCAT-URBAM': 'AGENCE CASTOR',  # Variante avec tiret
-    'SCATURBAM': 'AGENCE CASTOR',  # Variante sans espace
-    'C-E SCAT URBAM': 'AGENCE CASTOR',  # Variante avec préfixe C-E
-    'C-E SCAT-URBAM': 'AGENCE CASTOR',  # Variante avec préfixe C-E et tiret
-    'CE SCAT URBAM': 'AGENCE CASTOR',  # Variante avec préfixe CE
-    'CE SCAT-URBAM': 'AGENCE CASTOR',  # Variante avec préfixe CE et tiret
-    'SCAT': 'AGENCE CASTOR',  # Variante courte (si seul)
-    'URBAM': 'AGENCE CASTOR',  # Variante courte (si seul)
+    'SCAT URBAM': 'AGENCE CASTORS',
+    'SCAT-URBAM': 'AGENCE CASTORS',
+    'SCATURBAM': 'AGENCE CASTORS',
+    'C-E SCAT URBAM': 'AGENCE CASTORS',
+    'C-E SCAT-URBAM': 'AGENCE CASTORS',
+    'CE SCAT URBAM': 'AGENCE CASTORS',
+    'CE SCAT-URBAM': 'AGENCE CASTORS',
+    'SCAT': 'AGENCE CASTORS',
+    'URBAM': 'AGENCE CASTORS',
     'NIARRY TALLY': 'AGENCE PRINCIPALE POINT E',
     'NIARRY TALLI': 'AGENCE PRINCIPALE POINT E',  # Variante
     'NIARRY-TALLY': 'AGENCE PRINCIPALE POINT E',  # Variante avec tiret
@@ -366,56 +381,43 @@ def get_territory_from_branch_code(branch_code: str) -> Optional[str]:
 
 def get_territory_from_agency(agency_name: str) -> Optional[str]:
     """
-    Retourne le territoire d'une agence selon le nouveau zonage.
-    Ne retourne pas de territoire pour les points de service.
-    
-    Args:
-        agency_name: Nom de l'agence (peut contenir des variations)
-    
-    Returns:
-        Nom du territoire ou None si non trouvé ou si c'est un point de service
+    Retourne le territoire d'une agence selon le zonage officiel.
+    Le mapping par nom a la priorité sur la détection « point de service »
+    (ex. SCAT URBAM, NIARRY TALLY → DAKAR VILLE).
     """
     if not agency_name or agency_name is None:
         return None
-    
-    # Convertir en chaîne et normaliser le nom de l'agence (majuscules, supprimer espaces multiples)
+
     agency_name_str = str(agency_name) if agency_name else ''
     normalized_name = ' '.join(agency_name_str.upper().split())
-    
-    # Vérifier d'abord si c'est un point de service
-    # Si c'est un point de service, ne pas retourner de territoire
-    for service_point_name in SERVICE_POINT_MAPPING.keys():
-        service_point_str = str(service_point_name) if service_point_name else ''
-        service_point_normalized = ' '.join(service_point_str.upper().split())
-        # Correspondance exacte
-        if service_point_normalized == normalized_name:
-            return None  # C'est un point de service, pas une agence
-        # Correspondance partielle
-        if service_point_normalized in normalized_name or normalized_name in service_point_normalized:
-            return None  # C'est un point de service, pas une agence
-    
-    # Chercher une correspondance exacte
+
+    # 1) Mapping explicite (prioritaire)
     if normalized_name in AGENCY_TERRITORY_MAPPING:
         return AGENCY_TERRITORY_MAPPING[normalized_name]
-    
-    # Chercher une correspondance partielle (contient) - vérifier d'abord les clés les plus longues
-    # Trier par longueur décroissante pour prioriser les correspondances les plus spécifiques
+
+    # 2) Correspondance partielle — clés les plus longues d'abord (évite ex. TAMBA vs TAMBACOUNDA)
     sorted_keys = sorted(AGENCY_TERRITORY_MAPPING.keys(), key=len, reverse=True)
     for key in sorted_keys:
-        # Vérifier si le nom de l'agence contient la clé ou vice versa
         if key in normalized_name or normalized_name in key:
             return AGENCY_TERRITORY_MAPPING[key]
-    
-    # Chercher par mots-clés dans le nom (plus flexible)
-    # Extraire les mots significatifs du nom de l'agence
+
+    # 3) Mots-clés (fallback)
     agency_words = [word for word in normalized_name.split() if len(word) > 2]
     for word in agency_words:
         for key, territory in AGENCY_TERRITORY_MAPPING.items():
             key_words = [w for w in key.split() if len(w) > 2]
             if word in key_words or any(kw in normalized_name for kw in key_words):
                 return territory
-    
-    # Si aucune correspondance, retourner None
+
+    # 4) Point de service sans entrée dans le mapping : pas de territoire autonome
+    for service_point_name in SERVICE_POINT_MAPPING.keys():
+        service_point_str = str(service_point_name) if service_point_name else ''
+        service_point_normalized = ' '.join(service_point_str.upper().split())
+        if service_point_normalized == normalized_name:
+            return None
+        if service_point_normalized in normalized_name or normalized_name in service_point_normalized:
+            return None
+
     return None
 
 
@@ -545,47 +547,50 @@ def get_all_territories() -> Dict[str, Dict]:
         'territoire_dakar_ville': {
             'name': 'TERRITOIRE DAKAR VILLE',
             'agencies': [
+                'AGENCE CASTORS',
+                'AGENCE MARISTES',
                 'AGENCE LAMINE GUEYE',
-                'AGENCE BOURGUIBA',
-                'AGENCE POINT E',
-                'COFINA EXPRESS MARISTES'
+                'AGENCE PRINCIPALE POINT E',
+                'NIARY TALLY',
+                'SCAT URBAM',
             ],
             'service_points': {
-                'AGENCE CASTOR': ['SCAT URBAM'],
-                'AGENCE POINT E': ['NIARRY TALLY']
-            }
+                'AGENCE CASTORS': ['SCAT URBAM'],
+                'AGENCE PRINCIPALE POINT E': ['NIARRY TALLY', 'NIARY TALLY'],
+            },
         },
         'territoire_dakar_banlieue': {
             'name': 'TERRITOIRE DAKAR BANLIEUE',
             'agencies': [
-                'AGENCE PIKINE',
+                'AGENCE LINGUERE LA GUEDIAWAYE',
+                'AGENCE RUFISQUE',
                 'AGENCE PARCELLES',
-                'AGENCE LINGUERE\'LA GUEDIAWAYE',
-                'COFINA EXPRESS RUFISQUE'
+                'AGENCE PIKINE',
             ],
-            'service_points': {}
+            'service_points': {},
         },
         'territoire_province_centre_sud': {
             'name': 'TERRITOIRE PROVINCE CENTRE SUD',
             'agencies': [
-                'COFINA EXPRESS TAMBA',
-                'KAOLACK',
-                'MBOUR',
-                'THIES',
-                'COFINA C. E. ZIGUINCHOR'
+                'AGENCE MBOUR',
+                'AGENCE TAMBACOUNDA',
+                'AGENCE ZIGUINCHOR',
+                'AGENCE ZINGUINCHOR',
+                'AGENCE THIES',
+                'AGENCE KAOLACK',
             ],
-            'service_points': {}
+            'service_points': {},
         },
         'territoire_province_nord': {
             'name': 'TERRITOIRE PROVINCE NORD',
             'agencies': [
-                'TOUBA',
-                'SAINT LOUIS',
-                'COFINA EXPRESS DIOURBEL',
-                'COFINA EXPRESS LOUGA',
-                'COFINA EXPRESS OUROSSOGUI'
+                'AGENCE TOUBA KHAYRA',
+                'AGENCE SAINT LOUIS',
+                'AGENCE LOUGA',
+                'AGENCE DIOURBEL',
+                'AGENCE OUROSSOGUI',
             ],
-            'service_points': {}
-        }
+            'service_points': {},
+        },
     }
 

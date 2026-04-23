@@ -269,6 +269,7 @@ def organize_stock_data_by_territory(data: List[Dict]) -> Dict:
     
     # Mapping des noms de territoires vers les clés
     territory_key_map = {
+        'DAKAR VILLE': 'territoire_dakar_ville',
         'DAKAR CENTRE VILLE': 'territoire_dakar_ville',
         'DAKAR BANLIEUE': 'territoire_dakar_banlieue',
         'PROVINCE CENTRE SUD': 'territoire_province_centre_sud',

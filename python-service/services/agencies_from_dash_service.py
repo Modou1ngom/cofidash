@@ -22,6 +22,7 @@ from services.utils import (
 logger = logging.getLogger(__name__)
 
 _TERRITORY_LABEL_TO_LARAVEL = {
+    "DAKAR VILLE": "DAKAR_VILLE",
     "DAKAR CENTRE VILLE": "DAKAR_VILLE",
     "DAKAR BANLIEUE": "DAKAR_BANLIEUE",
     "PROVINCE CENTRE SUD": "PROVINCE_CENTRE_SUD",

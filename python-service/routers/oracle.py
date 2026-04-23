@@ -618,7 +618,7 @@ async def get_transfer_data_endpoint(
         month: Mois à analyser (1-12). Si non fourni, utilise le mois courant.
         year: Année à analyser. Si non fourni, utilise l'année courante.
         date: Date au format YYYY-MM-DD - pour period="week"
-        service: Service de transfert ("om", "wave", "ria", "wu"). Par défaut "om" (Orange Money)
+        service: Service de transfert ("om", "wave", "ria", "wu", "moneygram", "wizzal", "free_money"). Par défaut "om" (Orange Money)
     
     Returns:
         Données de transferts d'argent par agence et par service avec:
