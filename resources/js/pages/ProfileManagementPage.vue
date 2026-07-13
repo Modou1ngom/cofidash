@@ -82,6 +82,7 @@ import axios from 'axios';
 const AVAILABLE_PERMISSIONS = [
   { value: 'VIEW_DASHBOARD', label: 'Voir le tableau de bord' },
   { value: 'VIEW_CLIENT', label: 'Voir les clients' },
+  { value: 'VIEW_VUE360', label: 'Voir Client Vue 360°' },
   { value: 'VIEW_ZONES', label: 'Voir les zones' },
   { value: 'VIEW_AGENCIES', label: 'Voir les agences' },
   { value: 'EDIT_OBJECTIVES', label: 'Éditer les objectifs' },

@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
             TerritorySeeder::class,
             AgencySeeder::class,
             UserSeeder::class,
+            Vue360UserSeeder::class,
             ReferenceCompteSeeder::class,
         ]);
     }

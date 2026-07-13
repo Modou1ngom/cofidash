@@ -1,0 +1,60 @@
+@startuml sequence_sync_c360
+!theme plain
+title Figure 3.5 — Séquence : synchronisation fiche client C360
+
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+actor "Mobile CAF" as M
+participant "Laravel API\n/api/c360" as L
+participant "FastAPI\n/api/c360" as P
+database "Oracle Flexcube\nCFSFCUBS145" as FC
+database "SQLite local\nc360_cache.sqlite" as SQL
+
+== Synchronisation ==
+
+M -> L : POST /api/c360/sync\n{ customer_no }
+activate L
+L -> P : POST /api/c360/sync
+activate P
+P -> SQL : upsert_sync_meta(status=running)
+activate SQL
+SQL --> P : OK
+deactivate SQL
+
+P -> FC : SELECT KYC (STTM_CUSTOMER)
+activate FC
+P -> FC : SELECT comptes (STTM_CUST_ACCOUNT)
+P -> FC : SELECT écritures (journaux)
+P -> FC : SELECT remboursements\n(CLTB_ACCOUNT_SCHEDULES)
+FC --> P : Données brutes
+deactivate FC
+
+P -> SQL : save_kyc, save_comptes
+activate SQL
+P -> SQL : save_ecritures, save_remboursements
+P -> SQL : upsert_sync_meta(status=success)
+SQL --> P : OK
+deactivate SQL
+
+P --> L : { comptes: n, ecritures: m, ... }
+deactivate P
+L --> M : Confirmation synchronisation
+deactivate L
+
+== Consultation ultérieure (cache) ==
+
+M -> L : GET /api/c360/client/{customer_no}
+activate L
+L -> P : GET /api/c360/client/{customer_no}
+activate P
+P -> SQL : Lecture cache SQLite
+activate SQL
+SQL --> P : Données JSON
+deactivate SQL
+P --> L : Fiche client consolidée
+deactivate P
+L --> M : Affichage fiche C360
+deactivate L
+
+@enduml

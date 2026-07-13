@@ -50,6 +50,17 @@ Route::prefix('oracle')->group(function () {
     Route::post('/data/cr-par-agence', [DataController::class, 'getCrParAgenceData']);
 });
 
+// C360 — Customer 360 (cache local + sync Oracle Flexcube)
+Route::prefix('c360')->group(function () {
+    Route::post('/sync', [DataController::class, 'syncC360Customer']);
+    Route::get('/sync/status/{customerNo}', [DataController::class, 'getC360SyncStatus']);
+    Route::get('/client/{customerNo}', [DataController::class, 'getC360Client']);
+    Route::get('/kyc/{customerNo}', [DataController::class, 'getC360Kyc']);
+    Route::get('/comptes/{customerNo}', [DataController::class, 'getC360Comptes']);
+    Route::get('/ecritures/{accountNo}', [DataController::class, 'getC360Ecritures']);
+    Route::get('/remboursements/{noPret}', [DataController::class, 'getC360Remboursements']);
+});
+
 // Référence compte (Reporting Financier)
 Route::get('/reference-compte', [ReferenceCompteController::class, 'index']);
 Route::post('/reference-compte', [ReferenceCompteController::class, 'store']);

@@ -7,6 +7,7 @@ export const PROFILES = {
   RESPONSABLE_ZONE: 'RESPONSABLE_ZONE',
   CHEF_AGENCE: 'CHEF_AGENCE',
   CAF: 'CAF',
+  CC: 'CC',
   FINANCES: 'FINANCES',
   EXPLOITATIONS: 'EXPLOITATIONS'
 };
@@ -18,6 +19,7 @@ export const PROFILE_LABELS = {
   [PROFILES.RESPONSABLE_ZONE]: 'Responsable Zone',
   [PROFILES.CHEF_AGENCE]: 'Chef d\'Agence',
   [PROFILES.CAF]: 'CAF',
+  [PROFILES.CC]: 'Conseiller Client',
   [PROFILES.FINANCES]: 'Finances',
   [PROFILES.EXPLOITATIONS]: 'Exploitations'
 };
@@ -29,6 +31,7 @@ export const PROFILE_DESCRIPTIONS = {
   [PROFILES.RESPONSABLE_ZONE]: 'Fixe les objectifs pour les agences - Doit être validé par le DGA',
   [PROFILES.CHEF_AGENCE]: 'Fixe les objectifs pour ses CAF - Doit être validé par le Responsable Zone',
   [PROFILES.CAF]: 'Consultation uniquement - Pas de droits d\'ajout d\'objectifs',
+  [PROFILES.CC]: 'Accès à la consultation Client Vue 360°',
   [PROFILES.FINANCES]: 'Gérer la gestion financière',
   [PROFILES.EXPLOITATIONS]: 'Consultation simple'
 };
@@ -38,6 +41,7 @@ export const PERMISSIONS = {
   // Permissions générales
   VIEW_DASHBOARD: 'VIEW_DASHBOARD',
   VIEW_CLIENT: 'VIEW_CLIENT',
+  VIEW_VUE360: 'VIEW_VUE360',
   VIEW_ZONES: 'VIEW_ZONES',
   VIEW_AGENCIES: 'VIEW_AGENCIES',
   
@@ -92,6 +96,10 @@ export const PROFILE_PERMISSIONS = {
     PERMISSIONS.VIEW_CLIENT,
     PERMISSIONS.VIEW_ZONES,
     PERMISSIONS.VIEW_AGENCIES
+  ],
+  [PROFILES.CC]: [
+    PERMISSIONS.VIEW_VUE360,
+    PERMISSIONS.VIEW_CLIENT
   ]
 };
 
@@ -171,6 +179,31 @@ export const ProfileManager = {
     const profileData = this.getCurrentProfileData();
     return profileData?.code === PROFILES.ADMIN || 
            this.hasPermission(PERMISSIONS.ADMIN_ACCESS);
+  },
+
+  isCAF() {
+    const code = String(this.getProfileCode() || this.getCurrentProfile() || '').toUpperCase();
+    return code === PROFILES.CAF;
+  },
+
+  isCC() {
+    const code = String(this.getProfileCode() || this.getCurrentProfile() || '').toUpperCase();
+    return code === PROFILES.CC;
+  },
+
+  canViewVue360() {
+    return this.isCC() || this.hasPermission(PERMISSIONS.VIEW_VUE360);
+  },
+
+  /** Page d'accueil après connexion selon le profil. */
+  getHomeRoute() {
+    if (this.isCAF()) {
+      return '/vue360/caf';
+    }
+    if (this.isCC()) {
+      return '/vue360/recherche';
+    }
+    return '/dashboard';
   },
 
   // Charger les profils depuis l'API

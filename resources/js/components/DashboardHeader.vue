@@ -1,56 +1,64 @@
 <template>
   <header class="dashboard-header">
-    <div class="header-left-section">
+    <div class="header-brand">
       <div class="logo-area">
-        <div class="logo-container">
-          <img src="/logo.png" alt="COFINA Logo" class="logo-icon" />
-          <div class="logo-text-container">
-            
-          </div>
-        </div>
-        <!--<div class="red-arrow-button">→</div>-->
+        <img src="/logo.png" alt="COFINA" class="logo-icon" />
       </div>
       <div class="user-bar">
-        <div class="user-info">
-          <span class="calendar-icon">📅</span>
-          <div class="user-name">{{ currentUserName }}</div>
+        <span class="user-avatar">{{ userInitials }}</span>
+        <div class="user-details">
+          <span class="user-name">{{ currentUserName }}</span>
+          <span class="user-role">{{ currentUserProfile?.code || 'Profil' }}</span>
         </div>
       </div>
     </div>
-    <div class="header-center-section">
-      <div class="accounting-date">Date comptable {{ currentDate }}</div>
-      <nav class="horizontal-nav">
-        <div 
-          v-for="(item, index) in visibleNavItems" 
-          :key="item.label" 
+
+    <div class="header-main">
+      <div class="header-top-row">
+        <div class="date-chip">
+          <svg class="date-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <path d="M16 2v4M8 2v4M3 10h18" stroke-linecap="round" />
+          </svg>
+          <span>Date comptable <strong>{{ currentDate }}</strong></span>
+        </div>
+      </div>
+
+      <nav class="horizontal-nav" aria-label="Navigation principale">
+        <div
+          v-for="item in visibleNavItems"
+          :key="item.label"
           class="nav-item-wrapper"
-          @mouseenter="item.submenu ? showUserSubmenu = true : null"
-          @mouseleave="item.submenu ? showUserSubmenu = false : null"
+          @mouseenter="item.submenu ? (showUserSubmenu = true) : null"
+          @mouseleave="item.submenu ? (showUserSubmenu = false) : null"
         >
-          <router-link 
+          <router-link
             v-if="item.route && !item.submenu"
-            :to="item.route" 
-            class="nav-item"
+            :to="item.route"
+            class="nav-pill"
+            :class="{ 'nav-pill--active': isNavActive(item) }"
           >
-            <div class="nav-icon">{{ item.icon }}</div>
-            <span class="nav-text">{{ item.label }}</span>
-            <span class="nav-arrow">▼</span>
+            <span class="nav-pill-icon">{{ item.icon }}</span>
+            <span class="nav-pill-label">{{ item.label }}</span>
           </router-link>
-          <a 
+          <button
             v-else
-            href="#" 
-            class="nav-item"
-            @click.prevent="item.submenu ? null : null"
+            type="button"
+            class="nav-pill"
+            :class="{ 'nav-pill--active': showUserSubmenu }"
+            @click.prevent
           >
-            <div class="nav-icon">{{ item.icon }}</div>
-            <span class="nav-text">{{ item.label }}</span>
-            <span class="nav-arrow">▼</span>
-          </a>
+            <span class="nav-pill-icon">{{ item.icon }}</span>
+            <span class="nav-pill-label">{{ item.label }}</span>
+            <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
           <div v-if="item.submenu && showUserSubmenu" class="nav-submenu">
-            <router-link 
-              v-for="subitem in item.submenu" 
+            <router-link
+              v-for="subitem in item.submenu"
               :key="subitem.label"
-              :to="subitem.route" 
+              :to="subitem.route"
               class="nav-submenu-item"
               @click="showUserSubmenu = false"
             >
@@ -60,14 +68,33 @@
         </div>
       </nav>
     </div>
-    <div class="header-right-section">
-      <div class="search-container">
-        <div class="search-label">Nom client</div>
-        <input type="text" v-model="clientName" class="client-input" />
-        <button class="search-button">🔍</button>
+
+    <div class="header-actions">
+      <div class="search-box">
+        <label class="sr-only" for="header-client-search">Recherche client</label>
+        <div class="search-field">
+          <svg class="search-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-3.5-3.5" stroke-linecap="round" />
+          </svg>
+          <input
+            id="header-client-search"
+            v-model="clientName"
+            type="text"
+            class="client-input"
+            placeholder="Nom, matricule, compte ou téléphone…"
+            @keyup.enter="searchClient"
+          />
+        </div>
+        <button type="button" class="search-submit" @click="searchClient">
+          Rechercher
+        </button>
       </div>
-      <button class="logout-button" @click="logout" title="Déconnexion">
-        <span class="icon">⏻</span>
+      <button class="logout-button" type="button" @click="logout" title="Déconnexion">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke-linecap="round" />
+          <path d="M16 17l5-5-5-5M21 12H9" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
       </button>
     </div>
   </header>
@@ -86,17 +113,24 @@ export default {
   },
   data() {
     return {
-      clientName: ' ',
+      clientName: '',
       navItems: [
         { label: 'Accueil', icon: '🏠', route: '/dashboard' },
-        { label: 'Utilisateur', icon: '👤', route: null, adminOnly: true, submenu: [
-          { label: 'Gestion Utilisateurs', route: '/admin/users' },
-          { label: 'Gestion Profils', route: '/admin/profiles' }
-        ]},
-        { label: 'Client VUE 360', icon: '🤝', route: '/dashboard' }
+        {
+          label: 'Utilisateur',
+          icon: '👤',
+          route: null,
+          adminOnly: true,
+          submenu: [
+            { label: 'Gestion Utilisateurs', route: '/admin/users' },
+            { label: 'Gestion Profils', route: '/admin/profiles' },
+          ],
+        },
+        { label: 'Client Vue 360°', icon: '🤝', route: '/vue360/recherche' },
+        { label: 'Vue ensemble CAF', icon: '📊', route: '/vue360/caf' },
       ],
-      showUserSubmenu: false
-    }
+      showUserSubmenu: false,
+    };
   },
   computed: {
     currentDate() {
@@ -115,21 +149,58 @@ export default {
     currentUserProfile() {
       return ProfileManager.getCurrentProfileData();
     },
+    userInitials() {
+      const name = this.currentUserName;
+      return name
+        .split(' ')
+        .slice(0, 2)
+        .map((p) => p[0])
+        .join('')
+        .toUpperCase() || 'U';
+    },
     isAdmin() {
       return ProfileManager.isAdmin();
     },
     visibleNavItems() {
-      return this.navItems.filter(item => {
-        if (item.adminOnly) {
-          return this.isAdmin;
-        }
-        return true;
-      });
-    }
+      const items = this.navItems.filter((item) => !item.adminOnly || this.isAdmin);
+      if (ProfileManager.isCAF()) {
+        return items
+          .filter((item) => item.route !== '/vue360/caf')
+          .map((item) => (
+            item.route === '/dashboard'
+              ? { ...item, route: '/vue360/caf' }
+              : item
+          ));
+      }
+      if (ProfileManager.isCC()) {
+        return items
+          .filter((item) => item.route === '/vue360/recherche' || (item.adminOnly && this.isAdmin));
+      }
+      return items;
+    },
   },
   methods: {
-    goHome() {
-      this.router.push('/');
+    isNavActive(item) {
+      if (!item.route) return false;
+      if (item.route === '/vue360/recherche') {
+        return this.$route.path.startsWith('/vue360/recherche')
+          || this.$route.path.startsWith('/vue360/clients');
+      }
+      if (item.route === '/vue360/caf') {
+        return this.$route.path.startsWith('/vue360/caf');
+      }
+      if (item.route === '/dashboard') {
+        return this.$route.path === '/dashboard' || this.$route.path.startsWith('/dashboard/');
+      }
+      return this.$route.path === item.route || this.$route.path.startsWith(`${item.route}/`);
+    },
+    searchClient() {
+      const query = this.clientName.trim();
+      if (!query) {
+        this.router.push('/vue360/recherche');
+        return;
+      }
+      this.router.push({ path: '/vue360/recherche', query: { q: query } });
     },
     async logout() {
       try {
@@ -142,164 +213,216 @@ export default {
         localStorage.removeItem('userProfile');
         this.router.push('/');
       }
-    }
-  }
-}
+    },
+  },
+};
 </script>
 
 <style scoped>
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
 .dashboard-header {
-  background: #6E8B7A;
-  color: white;
   display: flex;
   align-items: stretch;
   width: 100%;
-  min-height: 100px;
-  flex-wrap: wrap;
+  min-height: 88px;
+  background: linear-gradient(135deg, #1a4d3a 0%, #2d6a4f 55%, #3d7a5c 100%);
+  box-shadow: 0 2px 12px rgba(26, 77, 58, 0.2);
 }
 
-.header-left-section {
+/* ── Marque + utilisateur ── */
+.header-brand {
   display: flex;
   flex-direction: column;
-  width: 260px;
-  min-width: 260px;
+  width: var(--cofidash-sidebar-width);
+  min-width: var(--cofidash-sidebar-width);
+  max-width: var(--cofidash-sidebar-width);
   flex-shrink: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  box-sizing: border-box;
 }
 
 .logo-area {
-  background: rgb(255, 253, 253);
-  padding: 15px 20px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.logo-container {
-  display: flex;
-  align-items: center;
-  gap: 12px;
   flex: 1;
-}
-
-.logo-icon {
-  width: auto;
-  height: 110px;
-  max-width: 180px;
-  object-fit: contain;
-  border-radius: 4px;
-}
-
-.logo-text-container {
-  display: flex;
-  flex-direction: column;
-}
-
-.logo-main {
-  font-size: 16px;
-  font-weight: 600;
-  color: #000;
-  line-height: 1.2;
-}
-
-.logo-sub {
-  font-size: 11px;
-  color: #666;
-  font-weight: 400;
-  letter-spacing: 0.5px;
-}
-
-.user-bar {
-  background: hsl(0, 93%, 40%);
-  color: rgb(255, 255, 255);
-  padding: 12px 20px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 500;
-  font-size: 14px;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.calendar-icon {
-  font-size: 18px;
-}
-
-.red-arrow-button {
-  width: 32px;
-  height: 32px;
-  background: #DC2626;
-  border-radius: 50%;
+  min-height: 72px;
+  background: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-size: 18px;
-  font-weight: bold;
+  padding: 8px 12px;
+  box-sizing: border-box;
 }
 
-.header-center-section {
-  flex: 1;
-  min-width: 0;
-  background: #6E8B7A;
+.logo-icon {
+  height: 48px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.user-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--cofidash-rail-bar-height);
+  min-height: var(--cofidash-rail-bar-height);
+  max-height: var(--cofidash-rail-bar-height);
+  padding: 0 14px;
+  background: linear-gradient(90deg, #b91c1c 0%, #dc2626 100%);
+  color: #fff;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.user-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.user-details {
   display: flex;
   flex-direction: column;
-  padding: 12px 20px;
+  min-width: 0;
+  line-height: 1.25;
 }
 
-.accounting-date {
-  font-size: 14px;
-  color: white;
-  margin-bottom: 8px;
+.user-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-role {
+  font-size: 0.68rem;
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Centre : date + navigation ── */
+.header-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 24px;
+  gap: 10px;
+}
+
+.header-top-row {
+  display: flex;
+  align-items: center;
+}
+
+.date-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.date-chip strong {
+  font-weight: 600;
+  color: #fff;
+}
+
+.date-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.85;
 }
 
 .horizontal-nav {
   display: flex;
-  gap: 20px;
-  align-items: flex-end;
-  flex-wrap: wrap;
-}
-
-.nav-item {
-  color: white;
-  text-decoration: none;
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 8px 12px;
-  border-radius: 4px;
-  transition: background 0.2s;
-  min-width: 70px;
-  position: relative;
-}
-
-.nav-item:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.nav-item.router-link-active {
-  background: rgba(255, 255, 255, 0.15);
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .nav-item-wrapper {
   position: relative;
 }
 
+.nav-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+  white-space: nowrap;
+}
+
+.nav-pill:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.nav-pill--active {
+  background: #fff;
+  color: #1a4d3a;
+  border-color: #fff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  font-weight: 600;
+}
+
+.nav-pill-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.nav-pill-label {
+  line-height: 1.2;
+}
+
+.nav-chevron {
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+}
+
 .nav-submenu {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 8px);
   left: 0;
-  margin-top: 8px;
-  background: white;
-  border: 1px solid #DDD;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  min-width: 200px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.12);
+  min-width: 220px;
   z-index: 1000;
   overflow: hidden;
 }
@@ -307,11 +430,11 @@ export default {
 .nav-submenu-item {
   display: block;
   padding: 12px 16px;
-  color: #333;
+  color: #374151;
   text-decoration: none;
-  font-size: 14px;
-  transition: background 0.2s;
-  border-bottom: 1px solid #F0F0F0;
+  font-size: 0.875rem;
+  transition: background 0.15s;
+  border-bottom: 1px solid #f3f4f6;
 }
 
 .nav-submenu-item:last-child {
@@ -319,293 +442,180 @@ export default {
 }
 
 .nav-submenu-item:hover {
-  background: #F5F5F5;
+  background: #f9fafb;
 }
 
 .nav-submenu-item.router-link-active {
-  background: #E8F5E9;
-  color: #1A4D3A;
-  font-weight: 500;
+  background: #f0fdf4;
+  color: #1a4d3a;
+  font-weight: 600;
 }
 
-.nav-icon {
-  font-size: 24px;
-  margin-bottom: 2px;
-}
-
-.nav-text {
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.nav-arrow {
-  font-size: 9px;
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  color: white;
-}
-
-.header-right-section {
-  background: #6E8B7A;
+/* ── Recherche + déconnexion ── */
+.header-actions {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 12px 20px;
   flex-shrink: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.search-container {
+.search-box {
+  display: flex;
+  align-items: stretch;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  min-width: 280px;
+  max-width: 380px;
+}
+
+.search-field {
+  flex: 1;
   display: flex;
   align-items: center;
-  background: white;
-  border-radius: 4px;
-  overflow: hidden;
+  gap: 8px;
+  padding: 0 12px;
+  min-width: 0;
 }
 
-.search-label {
-  background: #F5F5F5;
-  padding: 8px 12px;
-  font-size: 13px;
-  color: #666;
-  border-right: 1px solid #E0E0E0;
+.search-field-icon {
+  width: 18px;
+  height: 18px;
+  color: #9ca3af;
+  flex-shrink: 0;
 }
 
 .client-input {
+  flex: 1;
   border: none;
   outline: none;
-  padding: 8px 12px;
-  font-size: 13px;
-  color: #333;
-  min-width: 120px;
+  padding: 11px 0;
+  font-size: 0.85rem;
+  color: #111827;
+  min-width: 0;
+  background: transparent;
 }
 
-.search-button {
-  background: #F97316;
+.client-input::placeholder {
+  color: #9ca3af;
+}
+
+.search-submit {
+  padding: 0 18px;
   border: none;
-  padding: 8px 12px;
-  color: white;
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.search-submit:hover {
+  opacity: 0.92;
 }
 
 .logout-button {
-  background: transparent;
-  border: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
   cursor: pointer;
-  padding: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.2s, opacity 0.2s;
-  border-radius: 4px;
+  transition: background 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+
+.logout-button svg {
+  width: 20px;
+  height: 20px;
 }
 
 .logout-button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  transform: scale(1.1);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
-.logout-button .icon {
-  font-size: 20px;
-  color: white;
-}
-
-/* Media Queries pour le responsive */
-
-/* Tablettes */
 @media (max-width: 1200px) {
-  .header-left-section {
-    width: 220px;
-    min-width: 220px;
-  }
-  
   .logo-icon {
-    height: 90px;
-    max-width: 150px;
+    height: 44px;
   }
-  
-  .horizontal-nav {
-    gap: 15px;
+
+  .search-box {
+    min-width: 220px;
+    max-width: 300px;
   }
-  
-  .nav-item {
-    min-width: 60px;
-    padding: 6px 10px;
-  }
-  
-  .nav-icon {
-    font-size: 20px;
-  }
-  
-  .nav-text {
-    font-size: 10px;
-  }
-  
-  .search-container {
-    min-width: 100px;
-  }
-  
-  .client-input {
-    min-width: 100px;
-    padding: 6px 10px;
+
+  .search-submit {
+    padding: 0 14px;
+    font-size: 0.75rem;
   }
 }
 
-/* Tablettes en mode portrait et petits écrans */
-@media (max-width: 768px) {
+@media (max-width: 992px) {
   .dashboard-header {
-    flex-direction: column;
-    min-height: auto;
-  }
-  
-  .header-left-section {
-    width: 100%;
-    min-width: 100%;
-  }
-  
-  .logo-area {
-    padding: 10px 15px;
-  }
-  
-  .logo-icon {
-    height: 70px;
-    max-width: 120px;
-  }
-  
-  .user-bar {
-    padding: 10px 15px;
-    font-size: 12px;
-  }
-  
-  .header-center-section {
-    padding: 10px 15px;
-  }
-  
-  .accounting-date {
-    font-size: 12px;
-    margin-bottom: 6px;
-  }
-  
-  .horizontal-nav {
-    gap: 10px;
     flex-wrap: wrap;
   }
-  
-  .nav-item {
-    min-width: 50px;
-    padding: 6px 8px;
-  }
-  
-  .nav-icon {
-    font-size: 18px;
-  }
-  
-  .nav-text {
-    font-size: 9px;
-  }
-  
-  .header-right-section {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-    padding: 10px 15px;
-  }
-  
-  .search-container {
+
+  .header-brand {
     width: 100%;
     min-width: 100%;
+    max-width: 100%;
+    flex-direction: row;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
-  
-  .search-label {
-    padding: 6px 10px;
-    font-size: 12px;
+
+  .logo-area {
+    flex: 0 0 auto;
+    min-height: 56px;
+    padding: 8px 16px;
   }
-  
-  .client-input {
+
+  .user-bar {
     flex: 1;
-    min-width: 0;
-    padding: 6px 10px;
-    font-size: 12px;
+    justify-content: flex-end;
+    max-width: none;
   }
-  
-  .search-button {
-    padding: 6px 10px;
-    font-size: 14px;
+
+  .header-actions {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    justify-content: stretch;
   }
-  
-  .logout-button {
-    align-self: flex-end;
+
+  .search-box {
+    flex: 1;
+    max-width: none;
   }
 }
 
-/* Petits mobiles */
-@media (max-width: 480px) {
-  .logo-area {
+@media (max-width: 640px) {
+  .header-main {
+    padding: 10px 14px;
+  }
+
+  .nav-pill {
     padding: 8px 12px;
+    font-size: 0.78rem;
   }
-  
-  .logo-icon {
-    height: 60px;
-    max-width: 100px;
-  }
-  
-  .user-bar {
-    padding: 8px 12px;
-    font-size: 11px;
-  }
-  
-  .calendar-icon {
-    font-size: 16px;
-  }
-  
-  .header-center-section {
-    padding: 8px 12px;
-  }
-  
-  .accounting-date {
-    font-size: 11px;
-    margin-bottom: 4px;
-  }
-  
-  .horizontal-nav {
+
+  .header-actions {
+    padding: 10px 14px;
     gap: 8px;
   }
-  
-  .nav-item {
-    min-width: 45px;
-    padding: 5px 6px;
-  }
-  
-  .nav-icon {
-    font-size: 16px;
-  }
-  
-  .nav-text {
-    font-size: 8px;
-  }
-  
-  .header-right-section {
-    padding: 8px 12px;
-  }
-  
-  .search-label {
-    padding: 5px 8px;
-    font-size: 11px;
-  }
-  
-  .client-input {
-    padding: 5px 8px;
-    font-size: 11px;
-  }
-  
-  .search-button {
-    padding: 5px 8px;
-    font-size: 12px;
+
+  .search-submit span {
+    display: none;
   }
 }
 </style>
-

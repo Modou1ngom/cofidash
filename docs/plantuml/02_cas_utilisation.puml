@@ -1,0 +1,67 @@
+@startuml cas_utilisation_cofidash
+!theme plain
+title Figure 3.2 — Diagramme de cas d'utilisation COFIdash
+
+skinparam shadowing false
+skinparam defaultFontName Arial
+left to right direction
+
+actor "Directeur Général\n(MD)" as MD
+actor "Directeur Général\nAdjoint (DGA)" as DGA
+actor "Responsable\nde zone" as RZ
+actor "Chef\nd'agence" as CA
+actor "CAF" as CAF
+actor "Service\nFinances" as FIN
+actor "Administrateur" as ADM
+
+rectangle "Système COFIdash" {
+  usecase "S'authentifier" as UC1
+  usecase "Consulter dashboard\nKPIs" as UC2
+  usecase "Consulter clients" as UC3
+  usecase "Consulter crédits" as UC4
+  usecase "Gérer objectifs" as UC5
+  usecase "Valider objectifs" as UC6
+  usecase "Consulter risques\net alertes" as UC7
+  usecase "Consulter reporting\nfinancier" as UC8
+  usecase "Synchroniser fiche\nclient C360" as UC9
+  usecase "Administrer\nutilisateurs" as UC10
+  usecase "Consulter\nopportunités" as UC11
+}
+
+MD --> UC1
+MD --> UC2
+MD --> UC6
+
+DGA --> UC1
+DGA --> UC2
+DGA --> UC5
+DGA --> UC6
+
+RZ --> UC1
+RZ --> UC2
+RZ --> UC3
+RZ --> UC5
+RZ --> UC6
+
+CA --> UC1
+CA --> UC2
+CA --> UC3
+CA --> UC5
+
+CAF --> UC1
+CAF --> UC3
+CAF --> UC4
+CAF --> UC7
+CAF --> UC9
+CAF --> UC11
+
+FIN --> UC1
+FIN --> UC8
+
+ADM --> UC10
+
+UC2 ..> UC1 : <<include>>
+UC5 ..> UC6 : <<extend>>
+UC3 ..> UC9 : <<extend>>\n(mobile)
+
+@enduml

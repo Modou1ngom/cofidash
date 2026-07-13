@@ -1,0 +1,48 @@
+@startuml architecture_generale_cofidash
+!theme plain
+title Figure 3.1 — Architecture générale de COFIdash
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam packageStyle rectangle
+
+package "Couche Présentation" #E8F4FD {
+  [Dashboard Web\nVue 3 + Vite + TailwindCSS\nChart.js / Plotly] as WEB
+  [Application Mobile\nCOFINA Client Vue 360\nFlutter iOS / Android / Web] as MOBILE
+}
+
+package "Couche Applicative" #FFF8E1 {
+  [API Laravel 10\nSanctum + MySQL\nGuzzle HTTP] as LARAVEL
+  [Microservice FastAPI\nPort 8001\noracledb + pandas + Plotly] as PYTHON
+}
+
+package "Couche Données" #E8F5E9 {
+  database "MySQL\n(gouvernance)" as MYSQL
+  database "Oracle REPORT_GROUPE\nTables DASH_*" as ORA_DASH
+  database "Oracle Flexcube\nCFSFCUBS145" as ORA_FC
+  database "SQLite\nc360_cache.sqlite" as SQLITE
+}
+
+WEB --> LARAVEL : /api/*
+MOBILE --> LARAVEL : /api/v1/*
+LARAVEL --> PYTHON : HTTP REST
+LARAVEL --> MYSQL
+PYTHON --> ORA_DASH
+PYTHON --> ORA_FC
+PYTHON --> SQLITE
+
+note right of LARAVEL
+  OracleService
+  Vue360ApiService
+  Vue360ScopeService
+end note
+
+note right of PYTHON
+  /api/oracle
+  /api/vue360
+  /api/c360
+  /api/charts
+end note
+
+@enduml

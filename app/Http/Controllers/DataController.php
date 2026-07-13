@@ -1744,5 +1744,112 @@ class DataController extends Controller
             return response()->json(['data' => []]);
         }
     }
+
+    /**
+     * C360 — synchronise un client depuis Oracle vers le cache local.
+     */
+    public function syncC360Customer(Request $request): JsonResponse
+    {
+        try {
+            $customerNo = $request->input('customer_no');
+            if (!$customerNo) {
+                return response()->json(['error' => 'customer_no requis'], 400);
+            }
+
+            $result = $this->oracleService->syncC360Customer(
+                (string) $customerNo,
+                (int) $request->input('ecritures_limit', 10),
+                filter_var($request->input('sync_remboursements', true), FILTER_VALIDATE_BOOLEAN),
+                $request->input('prets')
+            );
+
+            if ($result['success']) {
+                return response()->json($result['data']);
+            }
+
+            return response()->json([
+                'error' => $result['error'],
+                'message' => $result['message'],
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Erreur sync C360: ' . $e->getMessage());
+            return response()->json(['error' => 'Erreur interne', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getC360Client(Request $request, string $customerNo): JsonResponse
+    {
+        return $this->c360JsonResponse(
+            $this->oracleService->getC360Client(
+                $customerNo,
+                filter_var($request->input('refresh', false), FILTER_VALIDATE_BOOLEAN),
+                (int) $request->input('ecritures_limit', 10)
+            )
+        );
+    }
+
+    public function getC360Kyc(Request $request, string $customerNo): JsonResponse
+    {
+        return $this->c360JsonResponse(
+            $this->oracleService->getC360Kyc(
+                $customerNo,
+                filter_var($request->input('refresh', false), FILTER_VALIDATE_BOOLEAN)
+            ),
+            404
+        );
+    }
+
+    public function getC360Comptes(Request $request, string $customerNo): JsonResponse
+    {
+        return $this->c360JsonResponse(
+            $this->oracleService->getC360Comptes(
+                $customerNo,
+                filter_var($request->input('refresh', false), FILTER_VALIDATE_BOOLEAN)
+            )
+        );
+    }
+
+    public function getC360Ecritures(Request $request, string $accountNo): JsonResponse
+    {
+        return $this->c360JsonResponse(
+            $this->oracleService->getC360Ecritures(
+                $accountNo,
+                (int) $request->input('limit', 10),
+                filter_var($request->input('refresh', false), FILTER_VALIDATE_BOOLEAN)
+            )
+        );
+    }
+
+    public function getC360Remboursements(Request $request, string $noPret): JsonResponse
+    {
+        return $this->c360JsonResponse(
+            $this->oracleService->getC360Remboursements(
+                $noPret,
+                $request->input('customer_no'),
+                filter_var($request->input('refresh', false), FILTER_VALIDATE_BOOLEAN)
+            )
+        );
+    }
+
+    public function getC360SyncStatus(string $customerNo): JsonResponse
+    {
+        return $this->c360JsonResponse(
+            $this->oracleService->getC360SyncStatus($customerNo)
+        );
+    }
+
+    protected function c360JsonResponse(array $result, int $notFoundStatus = 500): JsonResponse
+    {
+        if ($result['success']) {
+            return response()->json($result['data']);
+        }
+
+        $status = str_contains(strtolower($result['message'] ?? ''), 'introuvable') ? $notFoundStatus : 500;
+
+        return response()->json([
+            'error' => $result['error'],
+            'message' => $result['message'],
+        ], $status);
+    }
 }
 

@@ -5,7 +5,11 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List
 import logging
 from datetime import datetime
-from database.oracle import get_oracle_connection
+from database.oracle import (
+    get_oracle_connection,
+    get_oracle_connection_cofina,
+    get_oracle_connection_flexcube,
+)
 from services.clients_service import get_clients_data
 from services.production_service import get_production_nombre_data, get_production_volume_data, get_encours_credit_data
 from services.collection_service import get_collection_data
@@ -32,9 +36,62 @@ router = APIRouter(prefix="/api/oracle", tags=["oracle"])
 
 @router.get("/test")
 async def test_oracle_connection():
-    """Teste la connexion à Oracle"""
+    """Teste la connexion Oracle Flexcube (compatibilité historique)."""
     try:
-        conn = get_oracle_connection()
+        conn = get_oracle_connection_flexcube()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM DUAL")
+        result = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        return {
+            "status": "success",
+            "database": "flexcube",
+            "message": "Connexion Oracle Flexcube réussie",
+            "result": result[0],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_message = str(e) if str(e) else repr(e)
+        logger.error(f"Erreur test Flexcube: {error_message}", exc_info=True)
+        raise HTTPException(status_code=500, detail=error_message)
+
+
+@router.get("/test-connections")
+async def test_both_oracle_connections():
+    """Teste les deux connexions Oracle : DASH (REPORT_GROUPE) et Flexcube."""
+    results = {}
+
+    for name, connect_fn in (
+        ("cofina_dash", get_oracle_connection_cofina),
+        ("flexcube", get_oracle_connection_flexcube),
+    ):
+        try:
+            conn = connect_fn()
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 FROM DUAL")
+            row = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            results[name] = {"status": "ok", "result": row[0] if row else None}
+        except HTTPException as exc:
+            results[name] = {"status": "error", "detail": exc.detail}
+        except Exception as exc:
+            results[name] = {"status": "error", "detail": str(exc) or repr(exc)}
+
+    all_ok = all(r.get("status") == "ok" for r in results.values())
+    return {
+        "status": "ok" if all_ok else "partial",
+        "connections": results,
+    }
+
+
+@router.get("/test-cofina")
+async def test_cofina_connection():
+    """Teste la connexion Oracle DASH (REPORT_GROUPE)."""
+    try:
+        conn = get_oracle_connection_cofina()
         cursor = conn.cursor()
         cursor.execute("SELECT 1 FROM DUAL")
         result = cursor.fetchone()

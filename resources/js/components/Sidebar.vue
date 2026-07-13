@@ -2,7 +2,7 @@
   <aside class="sidebar">
     <nav class="sidebar-nav">
       <div class="nav-section">
-        <div class="nav-section-header" @click.stop="toggleClient" :class="{ active: activeSection === 'client' || activeSection === 'performance-client' }">
+        <div class="nav-section-header" @click.stop="toggleClient" :class="{ active: activeSection === 'client' || activeSection === 'vue360' || activeSection === 'caf-overview' || activeSection === 'performance-client' }">
           <span class="nav-title">
             <span class="nav-icon">👤</span>
             <span class="nav-label">RELATION</span>
@@ -247,7 +247,7 @@ export default {
   },
   watch: {
     activeSection(newVal) {
-      if (newVal === 'client' || newVal === 'performance-client') {
+      if (newVal === 'client' || newVal === 'vue360' || newVal === 'caf-overview' || newVal === 'performance-client') {
         this.clientExpanded = true;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
@@ -328,7 +328,7 @@ export default {
   },
   mounted() {
     // Initialiser l'état selon la section active
-    if (this.activeSection === 'client' || this.activeSection === 'performance-client') {
+    if (this.activeSection === 'client' || this.activeSection === 'vue360' || this.activeSection === 'caf-overview' || this.activeSection === 'performance-client') {
       this.clientExpanded = true;
       this.objectivesExpanded = false;
       this.managementExpanded = false;
@@ -644,7 +644,9 @@ export default {
 
 <style scoped>
 .sidebar {
-  width: 260px;
+  width: var(--cofidash-sidebar-width);
+  min-width: var(--cofidash-sidebar-width);
+  max-width: var(--cofidash-sidebar-width);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -656,13 +658,14 @@ export default {
   min-height: 0;
   overflow: hidden;
   box-shadow: 2px 0 8px rgba(15, 23, 42, 0.06);
+  box-sizing: border-box;
 }
 
 .sidebar-nav {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px 0 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -670,13 +673,15 @@ export default {
 }
 
 .nav-section {
-  margin-top: 4px;
+  margin-top: 0;
 }
 
 .nav-section-header {
-  padding: 10px 20px;
-  font-size: 0.8rem; /* ~13px */
-  font-weight: 500;
+  min-height: var(--cofidash-rail-bar-height);
+  height: var(--cofidash-rail-bar-height);
+  padding: 0 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: #4b5563;
   cursor: pointer;
   display: flex;
@@ -688,6 +693,8 @@ export default {
   pointer-events: auto;
   position: relative;
   z-index: 1;
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .nav-title {
@@ -708,6 +715,8 @@ export default {
 .nav-section-header.indent {
   padding-left: 35px;
   font-size: 0.78rem;
+  height: auto;
+  min-height: 42px;
 }
 
 .nav-section-header:hover {
@@ -715,9 +724,11 @@ export default {
 }
 
 .nav-section-header.active {
-  background-color: #1A4D3A !important;
+  background-color: #1a4d3a !important;
   color: #ffffff !important;
   box-shadow: inset 4px 0 0 #34d399;
+  min-height: var(--cofidash-rail-bar-height);
+  height: var(--cofidash-rail-bar-height);
 }
 
 .toggle-icon {
@@ -829,16 +840,12 @@ export default {
 
 /* Tablettes */
 @media (max-width: 1200px) {
-  .sidebar {
-    width: 220px;
-  }
-  
   .sidebar-nav {
     padding-bottom: 0;
   }
-  
+
   .nav-section-header {
-    padding: 10px 15px;
+    padding: 0 14px;
     font-size: 0.75rem;
   }
   
@@ -858,13 +865,8 @@ export default {
 
 /* Tablettes en mode portrait et petits écrans */
 @media (max-width: 768px) {
-  .sidebar {
-    width: 200px;
-    min-width: 200px;
-  }
-  
   .nav-section-header {
-    padding: 10px 15px;
+    padding: 0 12px;
     font-size: 0.75rem;
   }
   

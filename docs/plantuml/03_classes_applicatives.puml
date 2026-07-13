@@ -1,0 +1,89 @@
+@startuml classes_applicatives_cofidash
+!theme plain
+title Figure 3.3 — Diagramme de classes (couche applicative Laravel)
+
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam classAttributeIconSize 0
+
+class User {
+  +id : Long
+  +email : String
+  +password : String
+  +profile_id : Long
+  +territory_id : Long
+  +agency_id : Long
+  --
+  +hasPermission(permission) : Boolean
+}
+
+class Profile {
+  +id : Long
+  +code : String
+  +name : String
+  +permissions : JSON
+  +is_active : Boolean
+}
+
+class Territory {
+  +id : Long
+  +name : String
+  +code : String
+  +responsible_user_id : Long
+}
+
+class Agency {
+  +id : Long
+  +branch_code : String
+  +name : String
+  +territory_id : Long
+  +manager_user_id : Long
+}
+
+class Objective {
+  +id : Long
+  +type : String
+  +category : String
+  +value : Decimal
+  +period : String
+  +status : String
+  +created_by : Long
+  +validated_by : Long
+}
+
+class OracleService {
+  -pythonBaseUrl : String
+  -cacheTtl : Int
+  --
+  +getPythonGetCached(endpoint, params) : Array
+  +getC360Data(endpoint) : Array
+}
+
+class Vue360ApiService {
+  +clients(branchCodes) : Array
+  +credits(branchCodes) : Array
+  +dashboardKpis(branchCodes) : Array
+  +risks(branchCodes) : Array
+}
+
+class Vue360ScopeService {
+  +resolveBranchCodes(user) : Array
+  +formatAuthUser(user) : Array
+  +mapRole(profileCode) : String
+}
+
+User "1" --> "1" Profile : possède >
+User "0..1" --> "1" Territory : rattaché à >
+User "0..1" --> "1" Agency : rattaché à >
+Agency "n" --> "1" Territory : appartient à >
+Objective "n" --> "1" User : créé par >
+OracleService ..> Vue360ScopeService : utilise
+Vue360ApiService ..> Vue360ScopeService : utilise
+
+note bottom of Profile
+  Codes : MD, DGA, RESPONSABLE_ZONE,
+  CHEF_AGENCE, CAF, ADMIN,
+  FINANCES, EXPLOITATIONS
+end note
+
+@enduml

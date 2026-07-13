@@ -81,6 +81,16 @@ class ProfileSeeder extends Seeder
                 'is_active' => true
             ],
             [
+                'code' => 'CC',
+                'name' => 'Conseiller Client',
+                'description' => 'Accès à la consultation Client Vue 360°',
+                'permissions' => [
+                    'VIEW_VUE360',
+                    'VIEW_CLIENT'
+                ],
+                'is_active' => true
+            ],
+            [
                 'code' => 'ADMIN',
                 'name' => 'Administrateur',
                 'description' => 'Accès complet - Peut tout faire',

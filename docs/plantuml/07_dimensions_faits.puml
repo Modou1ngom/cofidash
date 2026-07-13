@@ -1,0 +1,114 @@
+@startuml dimensions_faits_decisionnel
+!theme plain
+title Figure 3.7 — Modèle conceptuel dimensions et faits (base décisionnelle)
+
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam classAttributeIconSize 0
+
+class "DimTemps" as DT <<dimension>> {
+  snapshot_date
+  month_year
+  annee
+  mois
+  trimestre
+}
+
+class "DimAgence" as DA <<dimension>> {
+  branch_code
+  nom_agence
+  territoire
+  zone
+}
+
+class "DimClient" as DC <<dimension>> {
+  customer_no
+  nom_complet
+  type_client
+  segment
+  date_ouverture
+}
+
+class "DimProduit" as DP <<dimension>> {
+  code_produit
+  libelle_produit
+  famille
+  categorie
+}
+
+class "DimCAF" as DCAF <<dimension>> {
+  code_caf
+  nom_caf
+  branch_code
+}
+
+class "FaitProduction" as FP <<fait>> {
+  volume_production
+  nombre_production
+  encours
+  migration_datetime
+}
+
+class "FaitCollecte" as FCO <<fait>> {
+  montant_collecte
+  montant_exigible
+  montant_tombe
+  migration_datetime
+}
+
+class "FaitRisque" as FR <<fait>> {
+  encours_par
+  taux_par30
+  taux_par90
+  nb_entrees_par
+  migration_datetime
+}
+
+class "FaitEpargne" as FE <<fait>> {
+  encours_epargne
+  encours_dat
+  depot_garantie
+  migration_datetime
+}
+
+class "FaitTransfert" as FT <<fait>> {
+  operateur
+  montant_envoi
+  montant_paiement
+  nombre_operations
+  migration_datetime
+}
+
+DT "1" -- "n" FP
+DA "1" -- "n" FP
+DC "1" -- "n" FP
+DP "1" -- "n" FP
+DCAF "1" -- "n" FP
+
+DT "1" -- "n" FCO
+DA "1" -- "n" FCO
+
+DT "1" -- "n" FR
+DA "1" -- "n" FR
+DCAF "1" -- "n" FR
+
+DT "1" -- "n" FE
+DA "1" -- "n" FE
+
+DT "1" -- "n" FT
+DA "1" -- "n" FT
+
+note bottom of FP
+  Tables Oracle :
+  DASH_PRODUCTION_VOLUME
+  DASH_PRODUCTION_NOMBRE
+  DASH_EVOLUTION_ENCOURS
+end note
+
+note bottom of FR
+  Tables Oracle :
+  DASH_PAR_GLOBAL
+  DASH_ENTREE_PAR
+end note
+
+@enduml

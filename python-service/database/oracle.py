@@ -4,7 +4,7 @@ Gestion de la connexion à la base de données Oracle
 from fastapi import HTTPException
 import socket
 import logging
-from config.settings import ORACLE_COFINA_CONFIG
+from config.settings import ORACLE_COFINA_CONFIG, ORACLE_FLEXCUBE_CONFIG, ORACLE_CONNECT_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +26,17 @@ def _oracle_connect(config: dict):
     password = config.get('password') or ''
 
     try:
+        connect_kwargs = {"tcp_connect_timeout": ORACLE_CONNECT_TIMEOUT}
         try:
             dsn = oracledb.makedsn(host, port, service_name=service_name)
-            return oracledb.connect(user=username, password=password, dsn=dsn)
+            return oracledb.connect(
+                user=username, password=password, dsn=dsn, **connect_kwargs
+            )
         except AttributeError:
             dsn = f"{host}:{port}/{service_name}"
-            return oracledb.connect(user=username, password=password, dsn=dsn)
+            return oracledb.connect(
+                user=username, password=password, dsn=dsn, **connect_kwargs
+            )
     except Exception as e:
         error_str = str(e) if str(e) else repr(e)
         error_type = type(e).__name__
@@ -111,44 +116,72 @@ def _oracle_connect(config: dict):
         raise HTTPException(status_code=500, detail=error_msg)
 
 
-def get_oracle_connection():
-    """Connexion Oracle (Cofina / REPORT_GROUPE). Alias de get_oracle_connection_cofina."""
-    return get_oracle_connection_cofina()
-
-
-def get_oracle_connection_cofina():
-    """
-    Connexion Oracle Cofina (REPORT_GROUPE).
-    Définir ORACLE_COFINA_PASSWORD dans l'environnement (ou .env chargé au démarrage).
-    """
-    cfg = ORACLE_COFINA_CONFIG
+def _require_password(cfg: dict, env_var: str, label: str):
     if not (cfg.get('password') or '').strip():
         raise HTTPException(
             status_code=500,
             detail=(
-                "Mot de passe Oracle Cofina manquant. Définissez la variable "
-                "d'environnement ORACLE_COFINA_PASSWORD (fichier .env du service Python)."
+                f"Mot de passe Oracle {label} manquant. Définissez {env_var} "
+                "(fichier .env du service Python)."
             ),
         )
+
+
+def _check_host_reachable(cfg: dict, label: str):
+    host = cfg['host']
+    port = int(cfg['port'])
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        result = sock.connect_ex((cfg['host'], int(cfg['port'])))
+        sock.settimeout(ORACLE_CONNECT_TIMEOUT)
+        result = sock.connect_ex((host, port))
         sock.close()
         if result != 0:
             raise HTTPException(
                 status_code=500,
-                detail=(
-                    f"Serveur Oracle Cofina inaccessible: {cfg['host']}:{cfg['port']} (code {result})"
-                ),
+                detail=f"Serveur Oracle {label} inaccessible: {host}:{port} (code {result})",
             )
     except socket.gaierror:
         raise HTTPException(
             status_code=500,
-            detail=f"Impossible de résoudre l'hôte Oracle Cofina: {cfg['host']}",
+            detail=f"Impossible de résoudre l'hôte Oracle {label}: {host}",
         )
     except HTTPException:
         raise
     except Exception:
         pass
+
+
+def get_oracle_connection():
+    """Connexion Oracle Flexcube (CFSFCUBS145)."""
+    return get_oracle_connection_flexcube()
+
+
+def get_oracle_connection_cofina():
+    """
+    Connexion Oracle Cofina (REPORT_GROUPE / tables DASH).
+    Définir ORACLE_COFINA_PASSWORD dans l'environnement (ou .env chargé au démarrage).
+    """
+    cfg = ORACLE_COFINA_CONFIG
+    _require_password(cfg, "ORACLE_COFINA_PASSWORD", "Cofina (DASH)")
+    _check_host_reachable(cfg, "Cofina (DASH)")
+    return _oracle_connect(cfg)
+
+
+def get_oracle_connection_flexcube():
+    """
+    Connexion Oracle Flexcube (CFSFCUBS145).
+    Définir ORACLE_FLEXCUBE_PASSWORD ou ORACLE_PASSWORD dans .env.
+    """
+    cfg = ORACLE_FLEXCUBE_CONFIG
+    if not (cfg.get('host') or '').strip():
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Oracle Flexcube non configuré. Définissez ORACLE_FLEXCUBE_HOST "
+                "ou ORACLE_HOST dans python-service/.env"
+            ),
+        )
+    _require_password(cfg, "ORACLE_FLEXCUBE_PASSWORD ou ORACLE_PASSWORD", "Flexcube")
+    _check_host_reachable(cfg, "Flexcube")
     return _oracle_connect(cfg)
 

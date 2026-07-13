@@ -1,0 +1,44 @@
+@startuml deploiement_cofidash
+!theme plain
+title Figure 3.9 — Diagramme de déploiement COFIdash
+
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam nodeStyle rectangle
+
+node "Poste utilisateur" as PC {
+  [Navigateur Web\nDashboard Vue 3] as BROWSER
+}
+
+node "Appareil mobile" as PHONE {
+  [Flutter Vue 360\niOS / Android] as APP
+}
+
+node "Serveur applicatif" as APP_SRV {
+  [Laravel 10\nPHP-FPM / Nginx\nPort 8000] as LARAVEL
+  database "MySQL\nBase métier" as MYSQL
+}
+
+node "Serveur microservice" as PY_SRV {
+  [FastAPI + Uvicorn\nPort 8001] as PYTHON
+  database "SQLite\nCache C360" as SQLITE
+}
+
+cloud "Data Warehouse" as DWH_CLOUD {
+  database "MySQL\nREPORT_GROUPE\nTables DASH_*" as MYSQL_DWH
+}
+
+BROWSER --> LARAVEL : HTTPS /api/*
+APP --> LARAVEL : HTTPS /api/v1/*
+LARAVEL --> MYSQL
+LARAVEL --> PYTHON : HTTP interne
+PYTHON --> MYSQL_DWH : MySQL (pool)\nReporting décisionnel
+PYTHON --> SQLITE
+
+note right of MYSQL_DWH
+  Entrepôt de données REPORT_GROUPE
+  Tables DASH_* (production, collecte,
+  risque, transferts…)
+end note
+
+@enduml

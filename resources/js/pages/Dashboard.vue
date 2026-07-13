@@ -113,20 +113,15 @@
 import { defineAsyncComponent } from 'vue';
 import DashboardHeader from '../components/DashboardHeader.vue';
 import Sidebar from '../components/Sidebar.vue';
+import SectionAsyncLoading from '../components/SectionAsyncLoading.vue';
 import { ProfileManager } from '../utils/profiles.js';
 
 /** Chargement paresseux des sections : un chunk JS par section, chargé à la navigation. */
-const SectionLoader = {
-  name: 'SectionAsyncLoading',
-  template:
-    '<div class="section-async-loading" role="status" aria-live="polite">Chargement de la section…</div>'
-};
-
 function lazySection(loader) {
   return defineAsyncComponent({
     loader,
     delay: 80,
-    loadingComponent: SectionLoader
+    loadingComponent: SectionAsyncLoading
   });
 }
 
@@ -193,12 +188,22 @@ export default {
     if (!this.isAdmin && (this.activeSection === 'management' || this.activeSection === 'environments' || this.activeSection === 'performance-management')) {
       this.activeSection = 'client';
     }
+    const pendingSection = sessionStorage.getItem('dashboardSection');
+    if (pendingSection) {
+      sessionStorage.removeItem('dashboardSection');
+      sessionStorage.removeItem('dashboardSubSection');
+      this.handleSectionSelected(pendingSection);
+    }
   },
   methods: {
     handleZoneSelected(zone) {
       this.selectedZone = zone;
     },
     handleSectionSelected(section) {
+      if (section === 'vue360') {
+        this.$router.push('/vue360/recherche');
+        return;
+      }
       if ((section === 'management' || section === 'environments' || section === 'performance-management') && !ProfileManager.isAdmin()) {
         return;
       }
@@ -446,15 +451,6 @@ export default {
   .section-placeholder p {
     font-size: 13px;
   }
-}
-</style>
-
-<style>
-/* Utilisé par SectionLoader (composant inline, hors scope du SFC) */
-.section-async-loading {
-  padding: 1.5rem;
-  color: #6b7280;
-  font-size: 14px;
 }
 </style>
 

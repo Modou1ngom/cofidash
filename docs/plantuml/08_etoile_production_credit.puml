@@ -1,0 +1,75 @@
+@startuml etoile_production_credit
+!theme plain
+title Figure 3.8 — Schéma en étoile : domaine Production Crédit
+
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam linetype ortho
+
+entity "DIM_TEMPS" as dt {
+  * snapshot_date : DATE <<PK>>
+  --
+  month_year : VARCHAR
+  annee : INT
+  mois : INT
+  trimestre : INT
+}
+
+entity "DIM_AGENCE" as da {
+  * branch_code : VARCHAR <<PK>>
+  --
+  nom_agence : VARCHAR
+  territoire : VARCHAR
+  zone : VARCHAR
+}
+
+entity "DIM_CLIENT" as dc {
+  * customer_no : VARCHAR <<PK>>
+  --
+  nom_complet : VARCHAR
+  segment : VARCHAR
+  date_ouverture : DATE
+}
+
+entity "DIM_PRODUIT" as dp {
+  * code_produit : VARCHAR <<PK>>
+  --
+  libelle : VARCHAR
+  famille : VARCHAR
+}
+
+entity "DIM_CAF" as dcaf {
+  * code_caf : VARCHAR <<PK>>
+  --
+  nom_caf : VARCHAR
+  branch_code : VARCHAR <<FK>>
+}
+
+entity "FAIT_PRODUCTION" as fp {
+  * migration_datetime : DATE <<FK>>
+  * branch_code : VARCHAR <<FK>>
+  * customer_no : VARCHAR <<FK>>
+  * code_produit : VARCHAR <<FK>>
+  * code_caf : VARCHAR <<FK>>
+  --
+  volume_production : DECIMAL
+  nombre_production : INT
+  encours : DECIMAL
+}
+
+dt ||--o{ fp
+da ||--o{ fp
+dc ||--o{ fp
+dp ||--o{ fp
+dcaf ||--o{ fp
+da ||--o{ dcaf
+
+note bottom of fp
+  Source Oracle REPORT_GROUPE :
+  DASH_PRODUCTION_VOLUME
+  DASH_PRODUCTION_NOMBRE
+  DASH_EVOLUTION_ENCOURS
+  Filtre : MIGRATION_DATETIME = dernier snapshot du mois
+end note
+
+@enduml

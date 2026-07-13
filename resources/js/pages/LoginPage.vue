@@ -8,6 +8,7 @@ import Checkbox from '@/components/ui/checkbox.vue';
 import Input from '@/components/ui/input.vue';
 import Label from '@/components/ui/label.vue';
 import { store } from '@/routes/login';
+import { ProfileManager } from '@/utils/profiles.js';
 import { request } from '@/routes/password';
 import LoaderCircle from '@/components/icons/LoaderCircle.vue';
 import LogIn from '@/components/icons/LogIn.vue';
@@ -46,8 +47,8 @@ const handleSubmit = async (e: Event) => {
       localStorage.setItem('userProfile', response.data.user.profile.code);
     }
 
-    // Rediriger vers le dashboard
-    router.push('/dashboard');
+    // Rediriger vers la page d'accueil du profil
+    router.push(ProfileManager.getHomeRoute());
   } catch (error: any) {
     if (error.response?.status === 422) {
       errors.value = error.response.data.errors || {};

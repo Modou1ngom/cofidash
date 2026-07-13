@@ -14,6 +14,7 @@
             <th>Nom</th>
             <th>Email</th>
             <th>Profil</th>
+            <th>Code gestionnaire</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -26,6 +27,10 @@
                 {{ user.profile.name }}
               </span>
               <span v-else class="no-profile">Aucun profil</span>
+            </td>
+            <td>
+              <span v-if="user.manager_code" class="manager-code">{{ user.manager_code }}</span>
+              <span v-else class="no-profile">—</span>
             </td>
             <td>
               <button @click="editUser(user)" class="btn-edit">Modifier</button>
@@ -71,7 +76,17 @@
               </option>
             </select>
           </div>
-          <div class="modal-actions">
+          <div class="form-group" v-if="isCafProfile">
+            <label>Code gestionnaire (Flexcube)</label>
+            <input
+              v-model="form.manager_code"
+              placeholder="ex: GP-M0856"
+              maxlength="32"
+            />
+            <p class="field-hint">
+              Code LOV GESTION_PRET (FIELD_CHAR_2). Obligatoire pour afficher le portefeuille CAF.
+            </p>
+          </div>
             <button type="button" @click="closeModal" class="btn-cancel">Annuler</button>
             <button type="submit" class="btn-save">Enregistrer</button>
           </div>
@@ -96,8 +111,15 @@ export default {
         name: '',
         email: '',
         password: '',
-        profile_id: ''
+        profile_id: '',
+        manager_code: ''
       }
+    }
+  },
+  computed: {
+    isCafProfile() {
+      const profile = this.profiles.find(p => String(p.id) === String(this.form.profile_id));
+      return profile?.code === 'CAF';
     }
   },
   async mounted() {
@@ -130,12 +152,16 @@ export default {
         name: user.name,
         email: user.email,
         password: '',
-        profile_id: user.profile_id
+        profile_id: user.profile_id,
+        manager_code: user.manager_code || ''
       };
     },
     async saveUser() {
       try {
         const formData = { ...this.form };
+        if (!this.isCafProfile) {
+          formData.manager_code = null;
+        }
         if (this.editingUser && !formData.password) {
           delete formData.password;
         }
@@ -169,7 +195,8 @@ export default {
         name: '',
         email: '',
         password: '',
-        profile_id: ''
+        profile_id: '',
+        manager_code: ''
       };
     }
   }
@@ -318,6 +345,19 @@ export default {
   border: 1px solid #DDD;
   border-radius: 4px;
   box-sizing: border-box;
+}
+
+.manager-code {
+  font-family: monospace;
+  font-size: 13px;
+  color: #1A4D3A;
+}
+
+.field-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #666;
+  line-height: 1.4;
 }
 
 .modal-actions {

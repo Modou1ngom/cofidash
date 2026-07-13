@@ -1,0 +1,54 @@
+@startuml activite_validation_objectifs
+!theme plain
+title Figure 3.6 — Activité : workflow de validation des objectifs
+
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+
+start
+
+:Profil créateur ?;
+
+if (Profil ?) then (DGA)
+  :Créer objectif zone;
+elseif (Resp. Zone) then
+  :Créer objectif agence;
+elseif (Chef Agence) then
+  :Créer objectif CAF;
+else (Admin)
+  :Créer objectif direct;
+  :Statut = validated;
+  stop
+endif
+
+:Statut = pending_validation;
+:Notifier le validateur;
+
+repeat
+  if (Décision validateur ?) then (Validation)
+    :Statut = validated;
+    break
+  elseif (Rejet) then
+    :Statut = rejected;
+    :Enregistrer motif de rejet;
+    stop
+  else (En attente)
+    :Attente validateur;
+  endif
+repeat while (En attente ?) is (Oui)
+->Non;
+
+:Objectif actif;
+:Comparaison KPI vs réalisé;
+
+stop
+
+note right
+  Chaîne de validation :
+  DGA → MD
+  Resp. Zone → DGA
+  Chef Agence → Resp. Zone
+end note
+
+@enduml

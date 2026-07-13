@@ -57,6 +57,99 @@ def _inner_sql_fragment(mode: str) -> str:
     return _SQL_INNER_MONTH
 
 
+def fetch_dash_production_nombre_rows_for_month(
+    month: int,
+    year: int,
+) -> list[dict]:
+    """Snapshot production nombre pour un mois calendaire (sans bascule jour/M-1)."""
+    binds = {"month_year": f"{int(month):02d}/{int(year)}"}
+    sql = f"""
+SELECT
+    CODE_AGENCE,
+    AGENCE,
+    CHARGE_AFFAIRE,
+    FIELD_CHAR_2,
+    NB_CRED_DECAISSES_M,
+    NB_CRED_DECAISSES_M_1,
+    VARIATION_POURCENT,
+    MIGRATION_DATE,
+    MIGRATION_DATETIME,
+    MIGRATION_DATE_MINUS1
+FROM DASH_PRODUCTION_NOMBRE
+WHERE MIGRATION_DATETIME = (
+    SELECT MAX(MIGRATION_DATETIME)
+    FROM DASH_PRODUCTION_NOMBRE d
+    WHERE {_SQL_INNER_MONTH}
+)
+ORDER BY CODE_AGENCE, AGENCE, CHARGE_AFFAIRE
+"""
+    conn = get_oracle_connection_cofina()
+    try:
+        cur = conn.cursor()
+        cur.execute(sql, binds)
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+        logger.info(
+            "📊 DASH_PRODUCTION_NOMBRE month=%02d/%d lignes=%s",
+            month,
+            year,
+            len(rows),
+        )
+        return rows
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def fetch_dash_production_volume_rows_for_month(
+    month: int,
+    year: int,
+) -> list[dict]:
+    """Snapshot production volume pour un mois calendaire (sans bascule jour/M-1)."""
+    binds = {"month_year": f"{int(month):02d}/{int(year)}"}
+    sql = f"""
+SELECT
+    CODE_AGENCE,
+    AGENCE,
+    CHARGE_AFFAIRE,
+    CODE_GESTION_PRET,
+    VOLUME_DEBLOQUE_M,
+    VOLUME_DEBLOQUE_M_1,
+    VARIATION_VOLUME,
+    VARIATION_PCT,
+    MIGRATION_DATE,
+    MIGRATION_DATETIME,
+    MIGRATION_DATE_MINUS1
+FROM DASH_PRODUCTION_VOLUME
+WHERE MIGRATION_DATETIME = (
+    SELECT MAX(MIGRATION_DATETIME)
+    FROM DASH_PRODUCTION_VOLUME d
+    WHERE {_SQL_INNER_MONTH}
+)
+ORDER BY CODE_AGENCE, AGENCE, CHARGE_AFFAIRE
+"""
+    conn = get_oracle_connection_cofina()
+    try:
+        cur = conn.cursor()
+        cur.execute(sql, binds)
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+        logger.info(
+            "📊 DASH_PRODUCTION_VOLUME month=%02d/%d lignes=%s",
+            month,
+            year,
+            len(rows),
+        )
+        return rows
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 def fetch_dash_production_nombre_rows(
     period: str,
     month: Optional[int],

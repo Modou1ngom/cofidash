@@ -1,0 +1,40 @@
+@startuml sequence_vue360_clients
+!theme plain
+title Figure 3.10 — Séquence : consultation liste clients Vue 360 mobile
+
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+actor "CAF / Chef Agence" as U
+participant "Flutter\nVue 360" as F
+participant "Laravel API\n/api/v1" as L
+participant "Vue360ScopeService" as S
+participant "Vue360ApiService" as A
+participant "FastAPI\n/api/vue360" as P
+database "Oracle\nCUSTOMERS / DASH" as ORA
+
+U -> F : Ouvre écran Clients
+F -> L : GET /api/v1/clients\nAuthorization: Bearer token
+activate L
+L -> L : Vérifie Sanctum
+L -> S : resolveBranchCodes(user)
+activate S
+S --> L : branch_codes = ["501"]
+deactivate S
+L -> A : clients(branch_codes)
+activate A
+A -> P : GET /api/vue360/clients?branch_codes=501
+activate P
+P -> ORA : SELECT clients filtrés\npar BRANCH_CODE
+activate ORA
+ORA --> P : Lignes clients
+deactivate ORA
+P --> A : JSON { data: [...] }
+deactivate P
+A --> L : Liste clients
+deactivate A
+L --> F : JSON réponse API v1
+deactivate L
+F --> U : Affichage liste clients
+
+@enduml

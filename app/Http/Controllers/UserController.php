@@ -40,7 +40,8 @@ class UserController extends Controller
             'password' => 'required|string|min:8',
             'profile_id' => 'required|exists:profiles,id',
             'territory_id' => 'nullable|exists:territories,id',
-            'agency_id' => 'nullable|exists:agencies,id'
+            'agency_id' => 'nullable|exists:agencies,id',
+            'manager_code' => 'nullable|string|max:32',
         ]);
 
         $validated['password'] = Hash::make($validated['password']);
@@ -63,7 +64,8 @@ class UserController extends Controller
             'password' => 'nullable|string|min:8',
             'profile_id' => 'required|exists:profiles,id',
             'territory_id' => 'nullable|exists:territories,id',
-            'agency_id' => 'nullable|exists:agencies,id'
+            'agency_id' => 'nullable|exists:agencies,id',
+            'manager_code' => 'nullable|string|max:32',
         ]);
 
         if (isset($validated['password'])) {

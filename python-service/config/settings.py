@@ -10,13 +10,22 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / '.env')
 
 
-# Oracle Cofina (REPORT_GROUPE) — mot de passe uniquement via ORACLE_COFINA_PASSWORD (fichier .env local, non versionné)
+# Oracle Cofina (REPORT_GROUPE / tables DASH) — ORACLE_COFINA_* dans .env
 ORACLE_COFINA_CONFIG = {
     'host': os.getenv('ORACLE_COFINA_HOST', ''),
     'port': os.getenv('ORACLE_COFINA_PORT', ''),
     'service_name': os.getenv('ORACLE_COFINA_SERVICE_NAME', ''),
     'username': os.getenv('ORACLE_COFINA_USERNAME', ''),
     'password': os.getenv('ORACLE_COFINA_PASSWORD', ''),
+}
+
+# Oracle Flexcube (CFSFCUBS145) — ORACLE_FLEXCUBE_* ou alias ORACLE_* (schéma opérationnel)
+ORACLE_FLEXCUBE_CONFIG = {
+    'host': os.getenv('ORACLE_FLEXCUBE_HOST') or os.getenv('ORACLE_HOST', ''),
+    'port': os.getenv('ORACLE_FLEXCUBE_PORT') or os.getenv('ORACLE_PORT', ''),
+    'service_name': os.getenv('ORACLE_FLEXCUBE_SERVICE_NAME') or os.getenv('ORACLE_SERVICE_NAME', ''),
+    'username': os.getenv('ORACLE_FLEXCUBE_USERNAME') or os.getenv('ORACLE_USERNAME', ''),
+    'password': os.getenv('ORACLE_FLEXCUBE_PASSWORD') or os.getenv('ORACLE_PASSWORD', ''),
 }
 
 # Domiciliation de flux (collecte) — tables DASH vues par ORACLE_COFINA_USERNAME.
@@ -40,4 +49,11 @@ ORACLE_DASH_EXIGIBLE_TABLE = _dash_domiciliation_table("ORACLE_DASH_EXIGIBLE_TAB
 ORACLE_DOMICILIATION_ORA942_EMPTY = os.getenv(
     "ORACLE_DOMICILIATION_ORA942_EMPTY", "1"
 ).strip().lower() in ("1", "true", "yes", "on")
+
+# Base SQLite locale C360 (cache pour l'application mobile)
+_default_c360_db = Path(__file__).resolve().parent.parent / "data" / "c360_cache.sqlite"
+C360_LOCAL_DB_PATH = os.getenv("C360_LOCAL_DB_PATH", str(_default_c360_db))
+
+# Délai max (secondes) pour joindre Oracle au démarrage et à la connexion
+ORACLE_CONNECT_TIMEOUT = max(1, int(os.getenv("ORACLE_CONNECT_TIMEOUT", "5")))
 

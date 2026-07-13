@@ -781,5 +781,148 @@ class OracleService
             'Agences DASH_RELATION'
         );
     }
+
+    /**
+     * C360 — synchronise un client Oracle → cache SQLite local.
+     */
+    public function syncC360Customer(
+        string $customerNo,
+        int $ecrituresLimit = 10,
+        bool $syncRemboursements = true,
+        ?array $prets = null
+    ): array {
+        $body = [
+            'customer_no' => $customerNo,
+            'ecritures_limit' => $ecrituresLimit,
+            'sync_remboursements' => $syncRemboursements,
+        ];
+        if ($prets !== null) {
+            $body['prets'] = $prets;
+        }
+
+        return $this->getPythonPostDirect('/api/c360/sync', $body, 'C360 sync');
+    }
+
+    /**
+     * C360 — vue client (KYC + comptes) depuis le cache local.
+     */
+    public function getC360Client(string $customerNo, bool $refresh = false, int $ecrituresLimit = 10): array
+    {
+        return $this->getPythonGetDirect('/api/c360/client/'.$customerNo, [
+            'refresh' => $refresh ? 'true' : 'false',
+            'ecritures_limit' => $ecrituresLimit,
+        ], 'C360 client');
+    }
+
+    public function getC360Kyc(string $customerNo, bool $refresh = false): array
+    {
+        return $this->getPythonGetDirect('/api/c360/kyc/'.$customerNo, [
+            'refresh' => $refresh ? 'true' : 'false',
+        ], 'C360 KYC');
+    }
+
+    public function getC360Comptes(string $customerNo, bool $refresh = false): array
+    {
+        return $this->getPythonGetDirect('/api/c360/comptes/'.$customerNo, [
+            'refresh' => $refresh ? 'true' : 'false',
+        ], 'C360 comptes');
+    }
+
+    public function getC360Ecritures(string $accountNo, int $limit = 10, bool $refresh = false): array
+    {
+        return $this->getPythonGetDirect('/api/c360/ecritures/'.$accountNo, [
+            'limit' => $limit,
+            'refresh' => $refresh ? 'true' : 'false',
+        ], 'C360 écritures');
+    }
+
+    public function getC360Remboursements(string $noPret, ?string $customerNo = null, bool $refresh = false): array
+    {
+        $params = ['refresh' => $refresh ? 'true' : 'false'];
+        if ($customerNo) {
+            $params['customer_no'] = $customerNo;
+        }
+
+        return $this->getPythonGetDirect('/api/c360/remboursements/'.$noPret, $params, 'C360 remboursements');
+    }
+
+    public function getC360SyncStatus(string $customerNo): array
+    {
+        return $this->getPythonGetDirect('/api/c360/sync/status/'.$customerNo, [], 'C360 sync status');
+    }
+
+    /**
+     * GET vers Python sans cache Laravel (données déjà en cache SQLite côté Python).
+     */
+    protected function getPythonGetDirect(string $path, array $params, string $logContext): array
+    {
+        try {
+            $response = $this->pythonHttp()->get("{$this->pythonServiceUrl}{$path}", $params);
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'data' => $response->json(),
+                ];
+            }
+
+            Log::error('Erreur API Python GET ['.$logContext.']', [
+                'path' => $path,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => 'Erreur du service Python',
+                'message' => $response->body(),
+            ];
+        } catch (\Exception $e) {
+            Log::error('Exception API Python GET ['.$logContext.']: '.$e->getMessage());
+
+            return [
+                'success' => false,
+                'error' => 'Service Python indisponible',
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * POST vers Python sans cache Laravel.
+     */
+    protected function getPythonPostDirect(string $path, array $body, string $logContext): array
+    {
+        try {
+            $response = $this->pythonHttp()->post("{$this->pythonServiceUrl}{$path}", $body);
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'data' => $response->json(),
+                ];
+            }
+
+            Log::error('Erreur API Python POST ['.$logContext.']', [
+                'path' => $path,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => 'Erreur du service Python',
+                'message' => $response->body(),
+            ];
+        } catch (\Exception $e) {
+            Log::error('Exception API Python POST ['.$logContext.']: '.$e->getMessage());
+
+            return [
+                'success' => false,
+                'error' => 'Service Python indisponible',
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
 }
 

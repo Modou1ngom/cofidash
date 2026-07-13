@@ -82,7 +82,7 @@ def get_volume_dat_data(period: str = "month", zone: Optional[str] = None,
     logger.info(f"📅 Dates calculées: M fin={m_end_str}, M-1 fin={m1_end_str}")
     
     # Utiliser le pool de connexions et le cache
-    from database.oracle_pool import get_pool
+    from database.oracle_pool import get_pool_flexcube
     from services.cache_service import get_cache, set_cache, generate_cache_key
     
     # Générer une clé de cache basée sur les paramètres
@@ -94,7 +94,7 @@ def get_volume_dat_data(period: str = "month", zone: Optional[str] = None,
         logger.info("✅ Données Volume DAT récupérées depuis le cache")
         return cached_result
     
-    pool = get_pool()
+    pool = get_pool_flexcube()
     with pool.get_connection_context() as conn:
         cursor = conn.cursor()
         

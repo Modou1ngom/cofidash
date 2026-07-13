@@ -3,7 +3,7 @@ Service pour la gestion des données de ventes de cartes prépayées (CofiCarte)
 """
 import logging
 from typing import Optional
-from database.oracle_pool import get_pool
+from database.oracle_pool import get_pool_flexcube
 from services.utils import (
     calculate_period_dates, 
     get_territory_from_agency, 
@@ -93,7 +93,7 @@ def get_prepaid_card_sales_data(period: str = "month", zone: Optional[str] = Non
         logger.error(f"❌ Erreur lors du calcul des dates: {e}", exc_info=True)
         raise ValueError(f"Erreur lors du calcul des dates: {e}")
     
-    pool = get_pool()
+    pool = get_pool_flexcube()
     with pool.get_connection_context() as conn:
         cursor = conn.cursor()
         

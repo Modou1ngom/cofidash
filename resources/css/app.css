@@ -2,3 +2,19 @@
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
+:root {
+  --cofidash-sidebar-width: 260px;
+  --cofidash-rail-bar-height: 50px;
+}
+
+@media (max-width: 1200px) {
+  :root {
+    --cofidash-sidebar-width: 220px;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --cofidash-sidebar-width: 200px;
+  }
+}

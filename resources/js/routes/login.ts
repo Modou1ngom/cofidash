@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { ProfileManager } from '../utils/profiles.js';
 
 export const store = {
   form: () => ({
@@ -26,8 +27,8 @@ export const store = {
           localStorage.setItem('userProfile', response.data.user.profile.code);
         }
         
-        // Rediriger vers le dashboard
-        window.location.href = '/dashboard';
+        // Rediriger vers la page d'accueil du profil
+        window.location.href = ProfileManager.getHomeRoute();
       } catch (error: any) {
         if (error.response?.status === 422) {
           this.errors = error.response.data.errors || {};

@@ -1,0 +1,50 @@
+@startuml sequence_kpi_dashboard
+!theme plain
+title Figure 3.4 — Séquence : consultation KPI Dashboard (production crédit)
+
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam sequenceMessageAlign center
+
+actor "Utilisateur" as U
+participant "Vue Dashboard" as V
+participant "Laravel API\nDataController" as L
+participant "OracleService" as O
+participant "FastAPI\n/api/oracle" as P
+database "Data Warehouse Oracle\nREPORT_GROUPE\n(table DASH_PRODUCTION_VOLUME)" as DWH
+
+U -> V : Sélectionne période / agence
+V -> L : GET /api/oracle/data/production-volume\nAuthorization: Bearer token
+activate L
+L -> L : Vérifie Sanctum + permissions
+L -> O : getPythonGetCached(endpoint, params)
+activate O
+
+alt Cache Laravel (hit, TTL 300s)
+  O --> L : Données en cache
+else Cache miss
+  O -> P : GET /api/oracle/data/production-volume
+  activate P
+  P -> P : Vérifie cache Python (TTL 300s)
+  P -> DWH : SELECT DASH_PRODUCTION_VOLUME\nWHERE MIGRATION_DATETIME = snapshot
+  activate DWH
+  DWH --> P : Lignes agrégées (snapshot mensuel)
+  deactivate DWH
+  P --> O : JSON { data: [...] }
+  deactivate P
+  O -> O : Mise en cache Laravel
+end
+
+O --> L : Données KPI
+deactivate O
+L --> V : JSON KPI + métadonnées
+deactivate L
+V --> U : Affichage graphiques Chart.js
+
+note over DWH
+  REPORT_GROUPE = entrepôt de données (DWH)
+  Tables DASH_* : faits pré-agrégés
+  Filtre sur le dernier snapshot du mois (MIGRATION_DATETIME)
+end note
+
+@enduml
