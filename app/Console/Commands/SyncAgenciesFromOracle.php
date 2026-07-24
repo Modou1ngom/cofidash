@@ -53,14 +53,33 @@ class SyncAgenciesFromOracle extends Command
                 return 1;
             }
 
-            $agencies = $result['data'] ?? [];
-            if (! is_array($agencies)) {
+            $payload = $result['data'] ?? [];
+            // Endpoint Python : {"data": [ {code, name, ...}, ... ] }
+            // Ancien format (liste nue) encore accepté.
+            if (is_array($payload) && array_is_list($payload)) {
+                $agencies = $payload;
+            } elseif (is_array($payload) && isset($payload['data']) && is_array($payload['data'])) {
+                $agencies = $payload['data'];
+            } else {
                 $this->error('❌ Réponse invalide du service Python (attendu: tableau d\'agences).');
+                Log::error('Sync agences: payload invalide', [
+                    'keys' => is_array($payload) ? array_keys($payload) : gettype($payload),
+                ]);
 
                 return 1;
             }
 
+            if (! array_is_list($agencies)) {
+                $agencies = array_values(array_filter($agencies, 'is_array'));
+            }
+
             $this->info('📊 '.count($agencies).' agence(s) reçue(s)');
+
+            if (count($agencies) === 0) {
+                $this->error('❌ Aucune agence renvoyée par Oracle/DASH_RELATION. Vérifiez PYTHON_SERVICE_URL et l’endpoint /api/oracle/data/agencies-from-dash.');
+
+                return 1;
+            }
 
             $synced = 0;
             $updated = 0;

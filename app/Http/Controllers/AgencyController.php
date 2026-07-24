@@ -100,18 +100,38 @@ class AgencyController extends Controller
     public function syncFromOracle()
     {
         try {
-            \Artisan::call('agencies:sync-from-oracle');
-            $output = \Artisan::output();
-            
+            $exitCode = \Artisan::call('agencies:sync-from-oracle');
+            $output = trim(\Artisan::output());
+            $count = Agency::count();
+
+            if ($exitCode !== 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Échec de la synchronisation des agences depuis Oracle',
+                    'output' => $output,
+                    'count' => $count,
+                ], 500);
+            }
+
+            if ($count === 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Synchronisation terminée mais aucune agence en base. Vérifiez le service Python et DASH_RELATION (CODE_BUREAU).',
+                    'output' => $output,
+                    'count' => 0,
+                ], 502);
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => 'Synchronisation des agences terminée',
-                'output' => $output
+                'message' => "Synchronisation terminée ({$count} agence(s) en base)",
+                'output' => $output,
+                'count' => $count,
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la synchronisation: ' . $e->getMessage()
+                'message' => 'Erreur lors de la synchronisation: '.$e->getMessage(),
             ], 500);
         }
     }

@@ -44,6 +44,11 @@ def _dash_domiciliation_table(env_explicit: str, short_name: str) -> str:
 ORACLE_DASH_ETAT_CPT_TABLE = _dash_domiciliation_table("ORACLE_DASH_ETAT_CPT_TABLE", "DASH_ETAT_CPT")
 ORACLE_DASH_TOMBE_MOIS_TABLE = _dash_domiciliation_table("ORACLE_DASH_TOMBE_MOIS_TABLE", "DASH_TOMBE_MOIS")
 ORACLE_DASH_EXIGIBLE_TABLE = _dash_domiciliation_table("ORACLE_DASH_EXIGIBLE_TABLE", "DASH_EXIGIBLE")
+# Clients / agences — DASH_RELATION. Surcharge explicite uniquement (ne pas hériter
+# ORACLE_DASH_SCHEMA, souvent réservé aux tables de domiciliation).
+ORACLE_DASH_RELATION_TABLE = (
+    os.getenv("ORACLE_DASH_RELATION_TABLE", "").strip() or "DASH_RELATION"
+)
 
 # Si 1 : en ORA-00942 (table absente), retourner 200 + data vide au lieu de 500 (dashboard utilisable).
 ORACLE_DOMICILIATION_ORA942_EMPTY = os.getenv(

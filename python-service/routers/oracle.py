@@ -245,7 +245,11 @@ async def get_agencies_from_dash_endpoint(
     Par défaut (scope=latest) : MAX(MIGRATION_DATETIME) sur toute la table.
     """
     try:
-        return fetch_agencies_from_dash_relation(month=month, year=year, scope=scope)
+        rows = fetch_agencies_from_dash_relation(month=month, year=year, scope=scope)
+        # Envelopper pour cohérence avec les autres endpoints Oracle ({"data": ...})
+        return {"data": rows}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Erreur agencies-from-dash: %s", e, exc_info=True)
         raise HTTPException(

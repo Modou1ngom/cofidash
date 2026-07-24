@@ -80,12 +80,16 @@ def _rows_to_dicts(cursor) -> List[Dict[str, Any]]:
     return rows
 
 
-def _execute_flexcube(query: str, params: Optional[dict] = None) -> List[Dict[str, Any]]:
+def _execute_flexcube(
+    query: str,
+    params: Optional[dict] = None,
+    timeout_ms: int = 90_000,
+) -> List[Dict[str, Any]]:
     pool = get_pool_flexcube()
     with pool.get_connection_context() as conn:
         cursor = conn.cursor()
         try:
-            cursor.callTimeout = 120_000
+            cursor.callTimeout = timeout_ms
             cursor.execute(query, params or {})
             return _rows_to_dicts(cursor)
         finally:
@@ -639,6 +643,42 @@ def _append_where(sql: str, conditions: List[str]) -> str:
     return f"{sql}\nWHERE {clause}"
 
 
+def _inject_early_caf_filter(sql: str, caf_code: Optional[str]) -> str:
+    """
+    Pousse le filtre CODE_GESTION_PRET (FIELD_CHAR_2) dans les CTE Flexcube.
+    Sans ça, les requêtes scannent tout le portefeuille puis filtrent à la fin → timeouts prod.
+    """
+    code = str(caf_code or "").strip()
+    if not code:
+        return sql
+
+    # CTE NOMBRE_DOSSIER : FROM CLTB_ACCOUNT_MASTER p GROUP BY ...
+    sql = re.sub(
+        r"(FROM\s+CFSFCUBS145\.CLTB_ACCOUNT_MASTER\s+p)\s*\n(\s*)GROUP BY",
+        r"\1\n\2WHERE p.FIELD_CHAR_2 = :caf_code\n\2GROUP BY",
+        sql,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+
+    # Filtres ACCOUNT_STATUS déjà présents (p / c / C)
+    for alias in ("p", "c", "C"):
+        pattern = (
+            rf"(AND\s+{alias}\.ACCOUNT_STATUS\s+NOT\s+IN\s*\(\s*'L'\s*,\s*'V'\s*\))"
+        )
+        repl = rf"\1\n      AND {alias}.FIELD_CHAR_2 = :caf_code"
+        sql = re.sub(pattern, repl, sql, flags=re.IGNORECASE)
+
+    # Échéances IMPY (jointure p)
+    sql = re.sub(
+        r"(AND\s+CLS\.SCH_STATUS\s*=\s*'IMPY')",
+        r"\1\n      AND p.FIELD_CHAR_2 = :caf_code",
+        sql,
+        flags=re.IGNORECASE,
+    )
+    return sql
+
+
 def _scoped_portefeuille_query(
     branch_code: Optional[str],
     caf_code: Optional[str],
@@ -647,6 +687,7 @@ def _scoped_portefeuille_query(
     conditions: List[str] = []
     params: dict = {}
     if caf_code:
+        sql = _inject_early_caf_filter(sql, caf_code)
         conditions.append("PM.CODE_GESTION_PRET = :caf_code")
         params["caf_code"] = caf_code
     elif branch_code:
@@ -667,6 +708,7 @@ def _scoped_top_encours_query(
     conditions: List[str] = []
     params: dict = {}
     if caf_code:
+        sql = _inject_early_caf_filter(sql, caf_code)
         conditions.append("CODE_GESTION_PRET = :caf_code")
         params["caf_code"] = caf_code
     if charge_affaire:
@@ -796,7 +838,7 @@ def _fetch_entrees_par_live(par_key: str, caf_code: str) -> List[Dict[str, Any]]
     if entry_day is None or not code:
         return []
 
-    sql = _load_query("entre_par.sql")
+    sql = _inject_early_caf_filter(_load_query("entre_par.sql"), code)
     sql = sql.replace(
         "WHERE NBRE_JOUR_RETARD = :par_entry_day",
         "WHERE NBRE_JOUR_RETARD = :par_entry_day\n  AND CODE_GESTION_PRET = :caf_code",
@@ -877,6 +919,8 @@ def _count_encours_par_dossiers(
         return 0
 
     sql = _load_query(filename)
+    if caf_code:
+        sql = _inject_early_caf_filter(sql, caf_code)
     ctes, _, _ = sql.partition("SELECT *")
     if not ctes.strip():
         return 0
@@ -912,9 +956,15 @@ def get_top_encours_par(
     if not filename:
         raise ValueError(f"Palier PAR inconnu : {par_key}")
     amount_key = f"encours_{par_key}"
-    sql, params = _scoped_top_encours_query(par_key, filename, caf_code, charge_affaire)
-    rows = _execute_flexcube(sql, params)
-    return [_normalize_top_encours_row(r, amount_key) for r in rows]
+    try:
+        sql, params = _scoped_top_encours_query(
+            par_key, filename, caf_code, charge_affaire
+        )
+        rows = _execute_flexcube(sql, params)
+        return [_normalize_top_encours_row(r, amount_key) for r in rows]
+    except Exception as exc:
+        logger.warning("Top encours %s indisponible: %s", par_key, exc)
+        return []
 
 
 def _append_caf_filter_after_rn(sql: str, conditions: List[str]) -> str:
@@ -940,6 +990,7 @@ def get_top_provisions(
     conditions: List[str] = []
     params: dict = {}
     if caf_code:
+        sql = _inject_early_caf_filter(sql, caf_code)
         conditions.append("CODE_GESTION_PRET = :caf_code")
         params["caf_code"] = caf_code
     if charge_affaire:
@@ -947,8 +998,12 @@ def get_top_provisions(
         params["charge_affaire"] = charge_affaire.strip()
     if conditions:
         sql = _append_caf_filter_after_rn(sql, conditions)
-    rows = _execute_flexcube(sql, params)
-    return [_normalize_provision_row(r) for r in rows]
+    try:
+        rows = _execute_flexcube(sql, params)
+        return [_normalize_provision_row(r) for r in rows]
+    except Exception as exc:
+        logger.warning("Top provisions CAF indisponible: %s", exc)
+        return []
 
 
 def get_caf_vue_ensemble(
@@ -961,16 +1016,41 @@ def get_caf_vue_ensemble(
     """
     Agrège les données vue d'ensemble CAF pour l'écran mobile.
 
-    - portefeuille : portefeuille_caf.sql (Flexcube live) si mois courant + caf_code,
-      sinon snapshot DASH_PAR_GLOBAL du mois sélectionné
+    - portefeuille : DASH_PAR_GLOBAL ; enrichi Flexcube live si mois courant + caf_code
     - production : DASH_PRODUCTION_VOLUME / DASH_PRODUCTION_NOMBRE du mois
-    - top_encours : top 20 dossiers (Flexcube live, mois courant uniquement)
-    - top_provisions : top 20 montants à provisionner (mois courant uniquement)
-    - entrees_par : dossiers entrés en PAR 0/30/90/180/360 (Flexcube live si mois courant,
-      sinon DASH_ENTREE_PAR du mois sélectionné)
+    - top_encours / top_provisions / entrees_par live : mois courant uniquement
     """
     branch_code = branch_codes[0] if branch_codes else None
     selected_month, selected_year = _resolve_month_year(month, year)
+    try:
+        return _build_caf_vue_ensemble(
+            branch_code=branch_code,
+            caf_code=caf_code,
+            charge_affaire=charge_affaire,
+            selected_month=selected_month,
+            selected_year=selected_year,
+        )
+    except Exception as exc:
+        logger.error(
+            "vue ensemble CAF échouée (mois=%s/%s, caf=%s): %s",
+            selected_month,
+            selected_year,
+            caf_code,
+            exc,
+            exc_info=True,
+        )
+        return _empty_caf_vue_ensemble(
+            branch_code, caf_code, charge_affaire, selected_month, selected_year
+        )
+
+
+def _build_caf_vue_ensemble(
+    branch_code: Optional[str],
+    caf_code: Optional[str],
+    charge_affaire: Optional[str],
+    selected_month: int,
+    selected_year: int,
+) -> Dict[str, Any]:
     if _is_future_month(selected_month, selected_year):
         return _empty_caf_vue_ensemble(
             branch_code, caf_code, charge_affaire, selected_month, selected_year
@@ -981,7 +1061,7 @@ def get_caf_vue_ensemble(
     month_year_prev = _month_year_label(prev_m, prev_y)
     current_month = _is_current_month(selected_month, selected_year)
 
-    with ThreadPoolExecutor(max_workers=6) as pool:
+    with ThreadPoolExecutor(max_workers=4) as pool:
         fut_dash_m = pool.submit(_fetch_dash_par_rows, month_year)
         fut_dash_m1 = pool.submit(_fetch_dash_par_rows, month_year_prev)
         fut_production = pool.submit(
@@ -1022,6 +1102,7 @@ def get_caf_vue_ensemble(
         _normalize_dash_portefeuille_row(dash_row_m1) if dash_row_m1 else None
     )
 
+    # Live Flexcube : best-effort (filtre CAF tôt). Ne bloque pas si DASH a déjà les KPI.
     if current_month and caf_code:
         try:
             live_rows = get_portefeuille_caf(branch_code, caf_code)
@@ -1048,9 +1129,50 @@ def get_caf_vue_ensemble(
     par_dossier_counts: Dict[str, int] = {}
     top_provisions: List[Dict[str, Any]] = []
     entrees_par: Dict[str, List[Dict[str, Any]]] = {}
-    if caf_code:
+
+    # Live tops / entrées : mois courant uniquement (sinon DASH pour les entrées).
+    if caf_code and current_month:
         try:
-            with ThreadPoolExecutor(max_workers=6) as pool:
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                entree_futs = {
+                    key: pool.submit(
+                        get_entrees_par,
+                        key,
+                        branch_code,
+                        caf_code,
+                        charge_affaire,
+                        selected_month,
+                        selected_year,
+                    )
+                    for key in _ENTREES_PAR_BUCKETS
+                }
+                entrees_par = {key: fut.result() for key, fut in entree_futs.items()}
+        except Exception as exc:
+            logger.warning("Entrées PAR live CAF indisponibles: %s", exc)
+
+        try:
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                top_futs = {
+                    key: pool.submit(
+                        get_top_encours_par, key, branch_code, caf_code, charge_affaire
+                    )
+                    for key in _TOP_ENCOURS_FILES
+                }
+                count_futs = {
+                    key: pool.submit(_count_encours_par_dossiers, key, caf_code)
+                    for key in _TOP_ENCOURS_FILES
+                }
+                fut_provisions = pool.submit(get_top_provisions, caf_code, charge_affaire)
+                top_encours = {key: fut.result() for key, fut in top_futs.items()}
+                par_dossier_counts = {
+                    key: fut.result() for key, fut in count_futs.items()
+                }
+                top_provisions = fut_provisions.result()
+        except Exception as exc:
+            logger.warning("Top encours / provisions CAF indisponibles: %s", exc)
+    elif caf_code and not current_month:
+        try:
+            with ThreadPoolExecutor(max_workers=3) as pool:
                 entree_futs = {
                     key: pool.submit(
                         get_entrees_par,
@@ -1066,35 +1188,6 @@ def get_caf_vue_ensemble(
                 entrees_par = {key: fut.result() for key, fut in entree_futs.items()}
         except Exception as exc:
             logger.warning("Entrées PAR DASH CAF indisponibles: %s", exc)
-
-    if caf_code:
-        try:
-            def fetch_provisions():
-                return get_top_provisions(caf_code, charge_affaire)
-
-            with ThreadPoolExecutor(max_workers=10) as pool:
-                top_futs = {
-                    key: pool.submit(
-                        get_top_encours_par, key, branch_code, caf_code, charge_affaire
-                    )
-                    for key in _TOP_ENCOURS_FILES
-                }
-                count_futs = {
-                    key: pool.submit(_count_encours_par_dossiers, key, caf_code)
-                    for key in _TOP_ENCOURS_FILES
-                }
-                fut_provisions = (
-                    pool.submit(fetch_provisions) if current_month else None
-                )
-                top_encours = {key: fut.result() for key, fut in top_futs.items()}
-                par_dossier_counts = {
-                    key: fut.result() for key, fut in count_futs.items()
-                }
-                top_provisions = (
-                    fut_provisions.result() if fut_provisions is not None else []
-                )
-        except Exception as exc:
-            logger.warning("Top encours / provisions CAF indisponibles: %s", exc)
 
     return {
         "branch_code": branch_code,

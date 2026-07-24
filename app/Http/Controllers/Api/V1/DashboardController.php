@@ -42,7 +42,16 @@ class DashboardController extends Controller
         );
 
         if (!$result['success']) {
-            return response()->json(['message' => $result['message'] ?? 'Erreur serveur'], 500);
+            $message = $result['message'] ?? 'Erreur serveur';
+            if (is_array($message)) {
+                $message = $message['detail'] ?? json_encode($message, JSON_UNESCAPED_UNICODE);
+            }
+
+            return response()->json([
+                'message' => is_string($message) && $message !== ''
+                    ? $message
+                    : 'Impossible de charger le portefeuille CAF.',
+            ], $result['status'] ?? 500);
         }
 
         $payload = $result['data'];
