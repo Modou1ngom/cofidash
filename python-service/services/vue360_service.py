@@ -1,36 +1,26 @@
 """
-Service Vue 360 mobile — agrégation Oracle Flexcube.
+Service Vue 360 mobile — agrégation Oracle Flexcube uniquement.
 """
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
-from database.oracle_pool import get_pool, get_pool_flexcube
+from database.oracle_pool import get_pool_flexcube
 from services.c360_oracle_service import fetch_remboursements_from_oracle
 from services.c360_sync_service import sync_customer_c360
 from services.vue360_kpi_queries import (
     AGENCY_STATS_FLEXCUBE,
-    DASH_ENCOURS_12M,
-    DASH_ENCOURS_12M_BY_AGENCY,
-    DASH_NETWORK_PRODUCTION_BY_BRANCH,
-    DASH_PAR_12M_BY_BRANCH,
-    DASH_PRODUCTION_BY_AGENCY,
-)
-from services.vue360_dash_queries import (
-    CUSTOMERS_LIST_DASH,
-    CREDITS_DASH_LIST,
-    CUSTOMER_BY_ID_DASH,
-    CUSTOMER_BY_ID_FLEX_ONLY,
-    KYC_DASH_FLEX_ONLY,
-    KYC_DASH_QUERY,
 )
 from services.encours_repartition_query import (
     ENCOURS_REPARTITION_DETAIL,
     aggregate_encours_repartition_rows,
 )
 from services.vue360_queries import (
+    CLIENTS_BY_BRANCHES,
     CLIENTS_SEARCH_FLEX,
+    CLIENTS_SEARCH_FLEX_ID_UNION,
     CLIENTS_SEARCH_FLEX_PHONE_UNION,
     CREDIT_AMORTIZATION_SCHEDULE,
     CREDIT_BY_ID,
@@ -77,15 +67,8 @@ def _rows_to_dicts(cursor) -> List[Dict[str, Any]]:
 
 
 def _execute_query(query: str, params: dict) -> List[Dict[str, Any]]:
-    pool = get_pool()
-    with pool.get_connection_context() as conn:
-        cursor = conn.cursor()
-        try:
-            cursor.callTimeout = 20_000
-            cursor.execute(query, params)
-            return _rows_to_dicts(cursor)
-        finally:
-            cursor.close()
+    """Alias historique — Vue 360 utilise exclusivement Flexcube."""
+    return _execute_query_flexcube(query, params)
 
 
 def _execute_query_flexcube(query: str, params: dict) -> List[Dict[str, Any]]:
@@ -368,18 +351,36 @@ def _infer_search_mode(term: str, field: Optional[str] = None) -> str:
             "first_name": "first_name",
             "last_name": "name",
             "name": "name",
+            "cni": "id_document",
+            "national_id": "id_document",
+            "p_national_id": "id_document",
+            "passport": "id_document",
+            "passeport": "id_document",
+            "passport_no": "id_document",
+            "piece": "id_document",
+            "piece_identite": "id_document",
+            "id_document": "id_document",
+            "unique_id": "id_document",
         }
         if normalized in aliases:
             return aliases[normalized]
 
     cleaned = term.strip()
     digits = "".join(ch for ch in cleaned if ch.isdigit())
+    compact = re.sub(r"[\s\-./]", "", cleaned)
 
-    if cleaned.isdigit():
+    # Numérique pur (espaces / tirets ignorés) — téléphone, compte, CNI, matricule
+    if compact.isdigit():
         if len(digits) == 9 and digits.startswith(("77", "78", "76", "70", "75")):
             return "phone"
-        if len(digits) >= 10:
+        # Comptes Flexcube courants / épargne…
+        if len(digits) >= 10 and digits.startswith(("251", "252", "253", "254")):
             return "account"
+        if len(digits) == 8 and digits.startswith(("251", "252", "253", "254")):
+            return "account"
+        # CNI / pièce numérique longue (hors téléphone / compte)
+        if 9 <= len(digits) <= 20:
+            return "id_document"
         if len(digits) == 8:
             return "account"
         # Matricule Flexcube (CUSTOMER_NO) — typiquement 4 à 7 chiffres.
@@ -388,13 +389,76 @@ def _infer_search_mode(term: str, field: Optional[str] = None) -> str:
         if len(digits) == 9:
             return "phone"
 
-    if cleaned.isalnum() and " " not in cleaned:
-        if any(ch.isalpha() for ch in cleaned) and any(ch.isdigit() for ch in cleaned):
-            return "customer_id"
+    # Passeport / pièce alphanumérique (ex. A1234567, CNI mixte)
+    if compact.isalnum() and " " not in cleaned:
+        if any(ch.isalpha() for ch in compact) and any(ch.isdigit() for ch in compact):
+            return "id_document"
         if any(ch.isalpha() for ch in cleaned):
             return "matricule"
 
     return "name"
+
+
+def _normalize_id_search_term(term: str) -> str:
+    """Normalise une pièce d'identité pour la comparaison (sans espaces / tirets)."""
+    return re.sub(r"[\s\-./]", "", (term or "").strip())
+
+
+def _should_search_id_document(mode: str, search_term: str) -> bool:
+    if mode == "id_document":
+        return True
+    compact = _normalize_id_search_term(search_term)
+    if len(compact) < 5:
+        return False
+    # N° long saisi sans champ explicite : tenter aussi la pièce (compte / matricule)
+    if mode in ("customer_id", "account") and len(compact) >= 9:
+        return True
+    # Un seul jeton compact (pas un nom composé) : CNI/passeport possible
+    cleaned = (search_term or "").strip()
+    if mode in ("name", "matricule") and " " not in cleaned and compact.isalnum() and len(compact) >= 6:
+        return True
+    return False
+
+
+def _name_search_tokens(term: str, max_tokens: int = 6) -> List[str]:
+    """Découpe un nom en mots (ordre indifférent, casse ignorée)."""
+    tokens = [t for t in re.split(r"\s+", (term or "").strip()) if t]
+    # Dédupliquer en conservant l'ordre
+    seen = set()
+    unique: List[str] = []
+    for tok in tokens:
+        key = tok.upper()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(tok)
+        if len(unique) >= max_tokens:
+            break
+    return unique
+
+
+def _customer_name_filter(mode: str, search_term: str) -> Tuple[str, dict]:
+    """
+    Filtre nom Flexcube.
+    - mode name : chaque mot doit apparaître dans CUSTOMER_NAME1 (ordre libre, sans casse)
+    - mode id_document : désactive la branche nom (gérée par id_union)
+    - autres modes : préfixe classique (n° client / compte via les autres branches UNION)
+    """
+    if mode == "id_document":
+        return "1 = 0", {}
+    if mode == "name":
+        tokens = _name_search_tokens(search_term)
+        if not tokens:
+            return "1 = 0", {}
+        conditions: List[str] = []
+        params: dict = {}
+        for i, tok in enumerate(tokens):
+            key = f"ntok{i}"
+            conditions.append(f"UPPER(c.CUSTOMER_NAME1) LIKE UPPER(:{key})")
+            params[key] = f"%{tok}%"
+        return " AND ".join(conditions), params
+
+    return "c.CUSTOMER_NAME1 LIKE :query_prefix", {}
 
 
 def _search_clients_flexcube(
@@ -404,8 +468,7 @@ def _search_clients_flexcube(
     limit: int,
 ) -> List[Dict[str, Any]]:
     """
-    Recherche client Flexcube — UNION nom / n° client / n° compte
-    (requête CLIENT + exclusion compte staff).
+    Recherche client Flexcube — UNION nom / n° client / n° compte / téléphone / pièce d'identité.
     """
     branch_filter_customer, branch_params = _branch_filter_flex_customer(branch_codes)
     branch_filter_account, _ = _branch_filter_flex_account(branch_codes)
@@ -416,19 +479,38 @@ def _search_clients_flexcube(
             branch_filter_customer=branch_filter_customer
         )
         query_prefix = f"%{search_term.strip()}%"
+    elif mode == "id_document":
+        # Évite les faux positifs nom/compte quand on cherche une pièce
+        query_prefix = f"__NOMATCH_{search_term.strip()}__%"
     else:
         query_prefix = f"{search_term.strip()}%"
 
+    id_union = ""
+    query_id = f"%{_normalize_id_search_term(search_term)}%"
+    if _should_search_id_document(mode, search_term):
+        id_union = CLIENTS_SEARCH_FLEX_ID_UNION.format(
+            branch_filter_customer=branch_filter_customer
+        )
+
+    name_filter, name_params = _customer_name_filter(mode, search_term)
+
     sql = CLIENTS_SEARCH_FLEX.format(
+        customer_name_filter=name_filter,
         branch_filter_customer=branch_filter_customer,
         branch_filter_account=branch_filter_account,
         phone_union=phone_union,
+        id_union=id_union,
     )
     params: dict = {
         "query_prefix": query_prefix,
+        "query_id": query_id,
         "limit": limit,
         **branch_params,
+        **name_params,
     }
+    # Oracle exige tous les binds présents dans le SQL ; query_id seulement si id_union.
+    if not id_union:
+        params.pop("query_id", None)
     return _execute_query_flexcube(sql, params)
 
 
@@ -452,11 +534,11 @@ def _enrich_clients_sc_customer_no(clients: List[Dict[str, Any]]) -> List[Dict[s
     params = {f"m{i}": value for i, value in enumerate(unique_matricules)}
     sql = f"""
 SELECT EXT_REF_NO, CUSTOMER_NO
-FROM TMP_CLIENTS_FLEX
+FROM CFSFCUBS145.STTM_CUSTOMER
 WHERE EXT_REF_NO IN ({placeholders})
 """
     try:
-        rows = _execute_query(sql, params)
+        rows = _execute_query_flexcube(sql, params)
     except Exception as exc:
         logger.warning("Enrichissement SC_CUSTOMER_NO indisponible: %s", exc)
         return clients
@@ -497,9 +579,9 @@ def list_clients(
         if not branch_codes:
             return []
         placeholders, branch_params = _branch_placeholders(branch_codes)
-        sql = CUSTOMERS_LIST_DASH.format(branch_placeholders=placeholders)
+        sql = CLIENTS_BY_BRANCHES.format(branch_placeholders=placeholders)
         params.update(branch_params)
-        rows = _execute_query(sql, params)
+        rows = _execute_query_flexcube(sql, params)
 
     clients = [_transform_client(r) for r in rows]
     if search_term:
@@ -597,6 +679,18 @@ def _net_balance_from_compte_row(row: Dict[str, Any]) -> float:
             "solde_net_disponible",
         )
     )
+
+
+def _amount_due_from_compte_row(row: Dict[str, Any]) -> float:
+    from services.c360_oracle_service import compte_field
+
+    return _to_float(
+        compte_field(row, "MONTANT_DUE", "montant_due", "MONTANT DUE", "amount_due")
+    )
+
+
+def _accounts_amount_due_total(comptes_rows: Optional[List[Dict[str, Any]]]) -> float:
+    return round(sum(_amount_due_from_compte_row(r) for r in comptes_rows or []), 2)
 
 
 def _courant_account_numbers(comptes_rows: List[Dict[str, Any]]) -> List[str]:
@@ -885,6 +979,19 @@ def _build_client_summary(
     else:
         breakdown_totals = _zero_repartition_totals()
         repartition_source = "unavailable"
+
+    # Fallback : montant dû compte (CSTB_AUTO_SETTLE) si la répartition crédit est vide
+    # (client sans prêt mais avec charges / FTC / ACS, etc.).
+    accounts_due = _accounts_amount_due_total(comptes_rows)
+    if not _repartition_has_data(breakdown_totals) and accounts_due > 0:
+        breakdown_totals = {
+            **_zero_repartition_totals(),
+            "ftc_due": accounts_due,
+            "total_charge": accounts_due,
+            "total_due_amount": accounts_due,
+        }
+        repartition_source = "accounts_due"
+
     encours_breakdown = _encours_breakdown_items(breakdown_totals)
     total_due_amount = round(_to_float(breakdown_totals.get("total_due_amount")), 2)
     total_exigible_query = round(_to_float(breakdown_totals.get("total_exigible")), 2)
@@ -893,6 +1000,8 @@ def _build_client_summary(
         credit_encours_global = total_due_amount
     elif total_exigible_query > 0 or total_charge_query > 0:
         credit_encours_global = round(total_exigible_query + total_charge_query, 2)
+    elif accounts_due > 0:
+        credit_encours_global = accounts_due
     else:
         credit_encours_global = 0.0
 
@@ -914,13 +1023,17 @@ def _build_client_summary(
         eligibility_label = "À étudier"
     else:
         eligibility_label = _eligibility_label(eligibility)
-    # KPI « Exigible » = échéances exigibles à date (crédits), pas le total auto-settle.
+    # KPI « Exigible » : échéances crédit, sinon montant dû des comptes (auto-settle).
     total_exigible = round(
         sum(_to_float(c.get("due_amount")) for c in active_credit_rows), 2
     )
     if total_exigible <= 0:
         total_exigible = round(
             sum(_to_float(c.get("unpaid_amount")) for c in active_credit_rows), 2
+        )
+    if total_exigible <= 0:
+        total_exigible = round(
+            max(total_exigible_query + total_charge_query, accounts_due), 2
         )
 
     last_movement = _last_credit_movement(comptes_rows)
@@ -1011,15 +1124,7 @@ def get_client(
     customer_no = _normalize_customer_id(client_id)
 
     def resolve_client_rows() -> List[Dict[str, Any]]:
-        rows = _fetch_client_from_flexcube(customer_no, branch_codes)
-        if not rows:
-            rows = _execute_query(CUSTOMER_BY_ID_FLEX_ONLY, {"customer_no": customer_no})
-        if not rows:
-            branch_clause, branch_params = _branch_filter_customers(branch_codes)
-            sql = CUSTOMER_BY_ID_DASH.format(branch_filter=branch_clause)
-            params = {"customer_no": customer_no, **branch_params}
-            rows = _execute_query(sql, params)
-        return rows
+        return _fetch_client_from_flexcube(customer_no, branch_codes)
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         fut_rows = pool.submit(resolve_client_rows)
@@ -1138,19 +1243,7 @@ def get_kyc(
     except Exception as exc:
         logger.warning("KYC Flexcube indisponible pour %s: %s", lookup, exc)
 
-    branch_clause, branch_params = _branch_filter_customers(branch_codes)
-    sql = KYC_DASH_QUERY.format(branch_filter=branch_clause)
-    params = {"customer_no": lookup, **branch_params}
-    rows = _execute_query(sql, params)
-    if not rows:
-        rows = _execute_query(
-            KYC_DASH_FLEX_ONLY,
-            {"customer_no": lookup},
-        )
-    if not rows:
-        return None
-
-    return _transform_kyc(rows[0])
+    return None
 
 
 _ACCOUNT_CODE_TO_TYPE = {
@@ -1540,8 +1633,6 @@ def list_credits(
     limit = max(1, min(limit, 200))
     customer_no = _normalize_customer_id(client_id) if client_id else ""
     credits = _fetch_credits_flexcube(branch_codes, client_id, limit)
-    if not credits and client_id:
-        credits = _fetch_credits_dash(branch_codes, client_id, limit)
     if customer_no:
         for credit in credits:
             credit["client_id"] = f"CLT-{customer_no}"
@@ -1590,26 +1681,8 @@ def _fetch_credits_dash(
     client_id: Optional[str] = None,
     limit: int = DEFAULT_LIMIT,
 ) -> List[Dict[str, Any]]:
-    if client_id:
-        branch_clause, branch_params = "", {}
-    else:
-        branch_clause, branch_params = _branch_filter_pret(branch_codes)
-    client_filter = ""
-    params: dict = {"limit": limit, **branch_params}
-
-    if client_id:
-        customer_no = _normalize_customer_id(client_id)
-        client_filter = "AND (f.CUSTOMER_NO = :customer_no OR p.CR_PROD_AC LIKE :customer_like)"
-        params["customer_no"] = customer_no
-        params["customer_like"] = f"%{customer_no}%"
-
-    sql = CREDITS_DASH_LIST.format(client_filter=client_filter, branch_filter=branch_clause)
-    try:
-        rows = _execute_query(sql, params)
-        return [_transform_credit(r) for r in rows]
-    except Exception as exc:
-        logger.warning("Crédits DASH_PRET indisponibles: %s", exc)
-        return []
+    """Deprecated — Vue 360 n'utilise plus DASH_PRET."""
+    return []
 
 
 def get_credit(
@@ -1875,109 +1948,24 @@ def _fetch_flexcube_agency_stats(branch_codes: List[str]) -> Dict[str, Dict[str,
 
 
 def _fetch_production_by_agency(branch_codes: List[str]) -> Dict[str, Dict[str, float]]:
-    if not branch_codes:
-        return {}
-    placeholders, params = _branch_placeholders(branch_codes)
-    params["month_year"] = _current_month_year()
-    sql = DASH_PRODUCTION_BY_AGENCY.format(branch_placeholders=placeholders)
-    try:
-        rows = _execute_query(sql, params)
-    except Exception as exc:
-        logger.warning("DASH production agences indisponible: %s", exc)
-        return {}
-    out: Dict[str, Dict[str, float]] = {}
-    for row in rows:
-        code = str(row.get("CODE_AGENCE", "")).strip()
-        out[code] = {
-            "monthly_production": _to_float(row.get("MONTHLY_PRODUCTION")),
-            "monthly_production_prev": _to_float(row.get("MONTHLY_PRODUCTION_PREV")),
-        }
-    return out
+    """Sans DASH : production mensuelle non disponible (stats live via AGENCY_STATS_FLEXCUBE)."""
+    return {}
 
 
 def _fetch_network_production(branch_codes: Optional[List[str]]) -> Dict[str, float]:
-    codes = _normalize_branch_codes(branch_codes)
-    params: dict = {"month_year": _current_month_year()}
-    try:
-        if codes:
-            placeholders, branch_params = _branch_placeholders(codes)
-            sql = DASH_NETWORK_PRODUCTION_BY_BRANCH.format(
-                branch_placeholders=placeholders,
-            )
-            params.update(branch_params)
-        else:
-            from services.vue360_kpi_queries import DASH_NETWORK_PRODUCTION
-            sql = DASH_NETWORK_PRODUCTION.format(branch_filter="")
-        rows = _execute_query(sql, params)
-        row = rows[0] if rows else {}
-        return {
-            "monthly_production": _to_float(row.get("MONTHLY_PRODUCTION")),
-            "monthly_production_prev": _to_float(row.get("MONTHLY_PRODUCTION_PREV")),
-        }
-    except Exception as exc:
-        logger.warning("DASH production réseau indisponible: %s", exc)
-        return {"monthly_production": 0.0, "monthly_production_prev": 0.0}
+    """Sans DASH : production réseau mensuelle non disponible."""
+    return {"monthly_production": 0.0, "monthly_production_prev": 0.0}
 
 
 def _fetch_charts_12m(branch_codes: Optional[List[str]]) -> Dict[str, List[float]]:
-    codes = _normalize_branch_codes(branch_codes)
-    encours = [0.0] * 12
-    par = [0.0] * 12
-    if not codes:
-        return {"encours": encours, "par": par}
-    placeholders, params = _branch_placeholders(codes)
-    try:
-        enc_rows = _execute_query(
-            DASH_ENCOURS_12M.format(branch_placeholders=placeholders),
-            params,
-        )
-        encours = [_to_float(r.get("PTF_M")) / 1_000_000 for r in enc_rows]
-        while len(encours) < 12:
-            encours.insert(0, 0.0)
-        encours = encours[-12:]
-    except Exception as exc:
-        logger.warning("DASH encours 12M indisponible: %s", exc)
-
-    try:
-        par_rows = _execute_query(
-            DASH_PAR_12M_BY_BRANCH.format(branch_placeholders=placeholders),
-            params,
-        )
-        par = [_to_float(r.get("PAR30")) for r in par_rows]
-        while len(par) < 12:
-            par.insert(0, 0.0)
-        par = par[-12:]
-    except Exception as exc:
-        logger.warning("DASH PAR 12M indisponible: %s", exc)
-
-    return {"encours": encours, "par": par}
+    """Séries 12 mois historiques indisponibles sans DASH."""
+    return {"encours": [0.0] * 12, "par": [0.0] * 12}
 
 
 def _fetch_encours_evolution_by_agency(branch_codes: List[str]) -> Dict[str, List[float]]:
+    """Séries 12 mois historiques indisponibles sans DASH."""
     codes = _normalize_branch_codes(branch_codes)
-    result = {code: [0.0] * 12 for code in codes}
-    if not codes:
-        return result
-    placeholders, params = _branch_placeholders(codes)
-    try:
-        rows = _execute_query(
-            DASH_ENCOURS_12M_BY_AGENCY.format(branch_placeholders=placeholders),
-            params,
-        )
-        by_agency: Dict[str, List[float]] = {code: [] for code in codes}
-        for row in rows:
-            code = str(row.get("CODE_AGENCE", "")).strip()
-            if code not in by_agency:
-                by_agency[code] = []
-            by_agency[code].append(_to_float(row.get("PTF_M")) / 1_000_000)
-        for code in codes:
-            series = by_agency.get(code, [])
-            while len(series) < 12:
-                series.insert(0, 0.0)
-            result[code] = series[-12:]
-    except Exception as exc:
-        logger.warning("DASH encours par agence indisponible: %s", exc)
-    return result
+    return {code: [0.0] * 12 for code in codes}
 
 
 def get_agencies_kpis(

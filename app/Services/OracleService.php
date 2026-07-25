@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\UserFacingError;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
@@ -16,6 +17,23 @@ class OracleService
     public function __construct()
     {
         $this->pythonServiceUrl = env('PYTHON_SERVICE_URL', 'http://localhost:8001');
+    }
+
+    /**
+     * Échec API → message utilisateur + détail technique uniquement dans les logs.
+     */
+    private function failure(string $label, mixed $technical, string $logPrefix = 'Erreur API Python'): array
+    {
+        $technicalText = is_string($technical)
+            ? $technical
+            : (json_encode($technical, JSON_UNESCAPED_UNICODE) ?: '');
+        Log::error($logPrefix.' ['.$label.']', ['detail' => $technicalText]);
+
+        return [
+            'success' => false,
+            'error' => 'Service temporairement indisponible',
+            'message' => UserFacingError::from($technical),
+        ];
     }
 
     /**
@@ -81,25 +99,9 @@ class OracleService
                     ];
                 }
 
-                Log::error('Erreur API Python ['.$label.']', [
-                    'path' => $path,
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                ]);
-
-                return [
-                    'success' => false,
-                    'error' => 'Erreur du service Python',
-                    'message' => $response->body(),
-                ];
+                return $this->failure($label, $response->body());
             } catch (\Exception $e) {
-                Log::error('Erreur HTTP Python ['.$label.']: '.$e->getMessage());
-
-                return [
-                    'success' => false,
-                    'error' => 'Erreur interne',
-                    'message' => $e->getMessage(),
-                ];
+                return $this->failure($label, $e->getMessage(), 'Erreur HTTP Python');
             }
         });
     }
@@ -122,25 +124,9 @@ class OracleService
                     ];
                 }
 
-                Log::error('Erreur API Python POST ['.$label.']', [
-                    'path' => $path,
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                ]);
-
-                return [
-                    'success' => false,
-                    'error' => 'Erreur du service Python',
-                    'message' => $response->body(),
-                ];
+                return $this->failure($label, $response->body());
             } catch (\Exception $e) {
-                Log::error('Erreur HTTP Python POST ['.$label.']: '.$e->getMessage());
-
-                return [
-                    'success' => false,
-                    'error' => 'Erreur interne',
-                    'message' => $e->getMessage(),
-                ];
+                return $this->failure($label, $e->getMessage(), 'Erreur HTTP Python POST');
             }
         });
     }
@@ -160,19 +146,11 @@ class OracleService
                 ];
             }
 
-            return [
-                'success' => false,
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
-            ];
+            return $this->failure('oracle', $response->body());
 
         } catch (\Exception $e) {
             Log::error('Erreur lors du test de connexion Oracle: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
+            return $this->failure('oracle', $e->getMessage(), 'Erreur HTTP Python');
         }
     }
 
@@ -191,19 +169,11 @@ class OracleService
                 ];
             }
 
-            return [
-                'success' => false,
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
-            ];
+            return $this->failure('oracle', $response->body());
 
         } catch (\Exception $e) {
             Log::error('Erreur lors de la récupération des tables: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
+            return $this->failure('oracle', $e->getMessage(), 'Erreur HTTP Python');
         }
     }
 
@@ -226,19 +196,11 @@ class OracleService
                 ];
             }
 
-            return [
-                'success' => false,
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
-            ];
+            return $this->failure('oracle', $response->body());
 
         } catch (\Exception $e) {
             Log::error('Erreur lors de l\'exécution de la requête: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
+            return $this->failure('oracle', $e->getMessage(), 'Erreur HTTP Python');
         }
     }
 
@@ -503,11 +465,7 @@ class OracleService
             ];
         } catch (\Exception $e) {
             Log::error('Erreur lors de la création de la table OBJECTIFS: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
+            return $this->failure('oracle', $e->getMessage(), 'Erreur HTTP Python');
         }
     }
 
@@ -549,11 +507,7 @@ class OracleService
             return $this->query($sql);
         } catch (\Exception $e) {
             Log::error('Erreur lors de l\'insertion de l\'objectif: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
+            return $this->failure('oracle', $e->getMessage(), 'Erreur HTTP Python');
         }
     }
 
@@ -580,11 +534,7 @@ class OracleService
             return $this->query($sql);
         } catch (\Exception $e) {
             Log::error('Erreur lors de la mise à jour de l\'objectif: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
+            return $this->failure('oracle', $e->getMessage(), 'Erreur HTTP Python');
         }
     }
 
@@ -598,11 +548,7 @@ class OracleService
             return $this->query($sql);
         } catch (\Exception $e) {
             Log::error('Erreur lors de la suppression de l\'objectif: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
+            return $this->failure('oracle', $e->getMessage(), 'Erreur HTTP Python');
         }
     }
 
@@ -636,11 +582,7 @@ class OracleService
             return $this->query($sql);
         } catch (\Exception $e) {
             Log::error('Erreur lors de la récupération des objectifs: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
-            ];
+            return $this->failure('oracle', $e->getMessage(), 'Erreur HTTP Python');
         }
     }
 
@@ -872,19 +814,9 @@ class OracleService
                 'body' => $response->body(),
             ]);
 
-            return [
-                'success' => false,
-                'error' => 'Erreur du service Python',
-                'message' => $response->body(),
-            ];
+            return $this->failure($logContext, $response->body());
         } catch (\Exception $e) {
-            Log::error('Exception API Python GET ['.$logContext.']: '.$e->getMessage());
-
-            return [
-                'success' => false,
-                'error' => 'Service Python indisponible',
-                'message' => $e->getMessage(),
-            ];
+            return $this->failure($logContext, $e->getMessage(), 'Exception API Python GET');
         }
     }
 
@@ -909,19 +841,9 @@ class OracleService
                 'body' => $response->body(),
             ]);
 
-            return [
-                'success' => false,
-                'error' => 'Erreur du service Python',
-                'message' => $response->body(),
-            ];
+            return $this->failure($logContext, $response->body());
         } catch (\Exception $e) {
-            Log::error('Exception API Python POST ['.$logContext.']: '.$e->getMessage());
-
-            return [
-                'success' => false,
-                'error' => 'Service Python indisponible',
-                'message' => $e->getMessage(),
-            ];
+            return $this->failure($logContext, $e->getMessage(), 'Exception API Python POST');
         }
     }
 }

@@ -5,6 +5,7 @@ namespace App\Services\Vue360;
 use App\Models\Agency;
 use App\Models\Territory;
 use App\Models\User;
+use App\Support\UserFacingError;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -49,12 +50,18 @@ class Vue360ApiService
             return [
                 'success' => false,
                 'status' => $response->status(),
-                'message' => $response->json('detail') ?? $response->body(),
+                'message' => UserFacingError::from(
+                    $response->json('detail') ?? $response->body()
+                ),
             ];
         } catch (\Throwable $e) {
             Log::error('Vue360 Python GET exception: '.$e->getMessage());
 
-            return ['success' => false, 'status' => 503, 'message' => $e->getMessage()];
+            return [
+                'success' => false,
+                'status' => 503,
+                'message' => UserFacingError::from($e->getMessage()),
+            ];
         }
     }
 
@@ -260,12 +267,18 @@ class Vue360ApiService
             return [
                 'success' => false,
                 'status' => $response->status(),
-                'message' => $response->json('detail') ?? $response->body(),
+                'message' => UserFacingError::from(
+                    $response->json('detail') ?? $response->body()
+                ),
             ];
         } catch (\Throwable $e) {
             Log::error('Vue360 Python POST exception: '.$e->getMessage());
 
-            return ['success' => false, 'status' => 503, 'message' => $e->getMessage()];
+            return [
+                'success' => false,
+                'status' => 503,
+                'message' => UserFacingError::from($e->getMessage()),
+            ];
         }
     }
 

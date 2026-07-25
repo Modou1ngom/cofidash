@@ -1,7 +1,8 @@
 """
-Vue d'ensemble CAF (mobile) — exécution des requêtes Flexcube production.
+Vue d'ensemble CAF (mobile) — exécution des requêtes Flexcube uniquement.
 
 Requêtes SQL : python-service/requete mobile/caf_vue_ensemble/
+Pas de dépendance aux tables DASH_* (REPORT_GROUPE).
 """
 from __future__ import annotations
 
@@ -12,15 +13,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from database.oracle import get_oracle_connection_cofina
 from database.oracle_pool import get_pool_flexcube
-from services.portefeuille_risque_global_query import PORTEFEUILLE_GLOBAL_QUERY
-from services.production_dash_service import (
-    fetch_dash_production_nombre_rows,
-    fetch_dash_production_nombre_rows_for_month,
-    fetch_dash_production_volume_rows,
-    fetch_dash_production_volume_rows_for_month,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -226,74 +219,26 @@ def _fetch_caf_encours_evolution_12m(
     month: int,
     year: int,
 ) -> List[float]:
-    """12 snapshots DASH_PAR_GLOBAL alignés sur les mois glissants (fin = mois sélectionné)."""
-    code = str(caf_code or "").strip()
-    if not code:
-        return [0.0] * 12
-
-    rolling = _rolling_month_years(month, year, 12)
-    month_labels = [_month_year_label(m, y) for m, y in rolling]
-
-    placeholders = ", ".join(f":m{i}" for i in range(len(month_labels)))
-    params: Dict[str, Any] = {"caf_code": code}
-    for i, label in enumerate(month_labels):
-        params[f"m{i}"] = label
-
-    sql = f"""
-    SELECT
-        TO_CHAR(d.MIGRATION_DATE_MINUS1, 'MM/YYYY') AS MONTH_YEAR,
-        NVL(SUM(d.ENCOURS_TOTAL), 0) AS ENCOURS_TOTAL
-    FROM DASH_PAR_GLOBAL d
-    WHERE d.MIGRATION_DATETIME = (
-        SELECT MAX(x.MIGRATION_DATETIME)
-        FROM DASH_PAR_GLOBAL x
-        WHERE TO_CHAR(x.MIGRATION_DATE_MINUS1, 'MM/YYYY') = TO_CHAR(d.MIGRATION_DATE_MINUS1, 'MM/YYYY')
-    )
-      AND TRIM(d.CODE_GESTION_PRET) = :caf_code
-      AND TO_CHAR(d.MIGRATION_DATE_MINUS1, 'MM/YYYY') IN ({placeholders})
-    GROUP BY TO_CHAR(d.MIGRATION_DATE_MINUS1, 'MM/YYYY')
     """
-
-    conn = get_oracle_connection_cofina()
+    Série 12 mois : Flexcube ne conserve pas de snapshot mensuel historique.
+    On place l'encours live sur le mois courant (dernier point), le reste à 0.
+    """
+    code = str(caf_code or "").strip()
+    series = [0.0] * 12
+    if not code or not _is_current_month(month, year):
+        return series
     try:
-        cursor = conn.cursor()
-        cursor.execute(sql, params)
-        columns = [str(col[0]).lower() for col in cursor.description]
-        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
-        by_month = {
-            str(row.get("month_year") or "").strip(): _to_float(row.get("encours_total"))
-            for row in rows
-        }
-        return [
-            round(by_month.get(label, 0.0) / 1_000_000, 3) for label in month_labels
-        ]
+        rows = get_portefeuille_caf(branch_code, code)
+        if rows:
+            series[-1] = round(_to_float(rows[0].get("encours_total")) / 1_000_000, 3)
     except Exception as exc:
-        logger.warning(
-            "Évolution encours 12M CAF indisponible pour %s: %s", code, exc
-        )
-        return [0.0] * 12
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        logger.warning("Évolution encours CAF (Flexcube) indisponible pour %s: %s", code, exc)
+    return series
 
 
 def _fetch_dash_par_rows(month_year: str) -> List[Dict[str, Any]]:
-    conn = get_oracle_connection_cofina()
-    try:
-        cursor = conn.cursor()
-        cursor.execute(PORTEFEUILLE_GLOBAL_QUERY, {"month_year": month_year})
-        columns = [str(col[0]).lower() for col in cursor.description]
-        return [dict(zip(columns, row)) for row in cursor.fetchall()]
-    except Exception as exc:
-        logger.warning("DASH_PAR_GLOBAL indisponible pour %s: %s", month_year, exc)
-        return []
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+    """Conservé pour compatibilité — Vue 360 CAF n'utilise plus DASH."""
+    return []
 
 
 def _pick_caf_dash_row(
@@ -301,57 +246,11 @@ def _pick_caf_dash_row(
     caf_code: Optional[str],
     branch_code: Optional[str],
 ) -> Optional[Dict[str, Any]]:
-    code = str(caf_code or "").strip()
-    if not code:
-        return None
-
-    matches = [
-        row
-        for row in rows
-        if str(row.get("code_gestion_pret") or "").strip() == code
-    ]
-    if branch_code:
-        branch_matches = [
-            row
-            for row in matches
-            if str(row.get("branch_code") or row.get("code_agence") or "").strip()
-            == str(branch_code).strip()
-        ]
-        if branch_matches:
-            matches = branch_matches
-
-    if not matches:
-        return None
-    if len(matches) == 1:
-        return matches[0]
-
-    return max(matches, key=lambda row: _to_float(row.get("encours_total")))
+    return None
 
 
 def _normalize_dash_portefeuille_row(row: Dict[str, Any]) -> Dict[str, Any]:
-    return _normalize_portefeuille_row(
-        {
-            "charge_affaire": row.get("charge_affaire"),
-            "branch_name": row.get("branch_name"),
-            "code_gestion_pret": row.get("code_gestion_pret"),
-            "encours_total": row.get("encours_total"),
-            "encours_impaye": row.get("encours_impaye"),
-            "nombre_dossier": row.get("nombre_dossier"),
-            "ratio_encours_impaye": row.get("ratio_encours_impaye"),
-            "ratio_nombre_impaye": row.get("ratio_nombre_impaye"),
-            "provision_total": row.get("provision_total"),
-            "encours_par_0": row.get("encours_par_0"),
-            "par_0": row.get("par_0"),
-            "encours_par_30": row.get("encours_par_30"),
-            "par_30": row.get("par_30"),
-            "encours_par_90": row.get("encours_par_90"),
-            "par_90": row.get("par_90"),
-            "encours_par_180": row.get("encours_par_180"),
-            "par_180": row.get("par_180"),
-            "encours_par_360": row.get("encours_par_360"),
-            "par_360": row.get("par_360"),
-        }
-    )
+    return _normalize_portefeuille_row(row)
 
 
 def _par_global_rate(portefeuille: Optional[Dict[str, Any]]) -> float:
@@ -418,7 +317,7 @@ def _fetch_caf_production_live(
     year: int,
     caf_code: str,
 ) -> Dict[str, float]:
-    """Décaissements réels Flexcube du mois (fallback si DASH absent ou à 0)."""
+    """Décaissements réels Flexcube du mois (et du mois précédent pour MoM)."""
     import calendar
 
     code = str(caf_code or "").strip()
@@ -578,6 +477,7 @@ def _fetch_caf_production(
     year: int,
     caf_code: Optional[str],
 ) -> Dict[str, float]:
+    """Production mensuelle — Flexcube uniquement (décaissements du mois)."""
     code = str(caf_code or "").strip()
     if not code:
         return {
@@ -586,36 +486,7 @@ def _fetch_caf_production(
             "monthly_volume": 0.0,
             "monthly_volume_prev": 0.0,
         }
-
-    try:
-        volume_rows = fetch_dash_production_volume_rows_for_month(month, year)
-        nombre_rows = fetch_dash_production_nombre_rows_for_month(month, year)
-    except Exception as exc:
-        logger.warning("CAF production DASH (mois) indisponible: %s", exc)
-        volume_rows = []
-        nombre_rows = []
-
-    result = _production_totals_from_dash_rows(volume_rows, nombre_rows, code)
-
-    live = _fetch_caf_production_live(month, year, code)
-    if live["loan_count"] > 0 or live["monthly_volume"] > 0:
-        result = live
-    elif result["loan_count"] <= 0 and result["monthly_volume"] <= 0 and _is_current_month(
-        month, year
-    ):
-        try:
-            volume_rows_day = fetch_dash_production_volume_rows("month", month, year, None)
-            nombre_rows_day = fetch_dash_production_nombre_rows("month", month, year, None)
-            result_day = _production_totals_from_dash_rows(
-                volume_rows_day, nombre_rows_day, code
-            )
-            if result_day["loan_count"] > 0 or result_day["monthly_volume"] > 0:
-                result = result_day
-        except Exception as exc:
-            logger.warning("CAF production DASH (jour) indisponible: %s", exc)
-
-    return result
-
+    return _fetch_caf_production_live(month, year, code)
 
 def _normalize_provision_row(row: Dict[str, Any]) -> Dict[str, Any]:
     return {
@@ -867,37 +738,16 @@ def get_entrees_par(
     year: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Dossiers entrés dans une tranche PAR.
-
-    - Mois courant : Flexcube live (entre_par.sql, NBRE_JOUR_RETARD = 1/31/91/181/361)
-    - Mois passé : snapshot DASH_ENTREE_PAR
+    Dossiers entrés dans une tranche PAR — Flexcube live uniquement.
     """
-    from services.entrees_par_service import get_entrees_par_data
-
     par_bucket = _ENTREES_PAR_BUCKETS.get(par_key)
     if par_bucket is None:
         raise ValueError(f"Palier entrées PAR inconnu : {par_key}")
 
-    selected_month, selected_year = _resolve_month_year(month, year)
     code = str(caf_code or "").strip()
-    if _is_current_month(selected_month, selected_year) and code:
-        return _fetch_entrees_par_live(par_key, code)
-
-    try:
-        rows = get_entrees_par_data(
-            month=selected_month, year=selected_year, par_bucket=par_bucket
-        )
-    except Exception as exc:
-        logger.warning("Entrées PAR DASH indisponibles (%s): %s", par_key, exc)
+    if not code:
         return []
-
-    scoped = _filter_dash_entrees_for_caf(
-        rows, caf_code, charge_affaire, branch_code
-    )
-    normalized = [_normalize_dash_entree_par_row(r) for r in scoped]
-    normalized.sort(key=lambda row: _to_float(row.get("outstanding")), reverse=True)
-    return normalized
-
+    return _fetch_entrees_par_live(par_key, code)
 
 _PAR_AMOUNT_COLUMNS = {
     "par_0": "ENCOURS_PAR_0",
@@ -1014,11 +864,10 @@ def get_caf_vue_ensemble(
     year: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
-    Agrège les données vue d'ensemble CAF pour l'écran mobile.
+    Agrège les données vue d'ensemble CAF — Flexcube uniquement.
 
-    - portefeuille : DASH_PAR_GLOBAL ; enrichi Flexcube live si mois courant + caf_code
-    - production : DASH_PRODUCTION_VOLUME / DASH_PRODUCTION_NOMBRE du mois
-    - top_encours / top_provisions / entrees_par live : mois courant uniquement
+    - portefeuille / tops / entrées PAR : live Flexcube (snapshot courant)
+    - production : décaissements Flexcube du mois sélectionné
     """
     branch_code = branch_codes[0] if branch_codes else None
     selected_month, selected_year = _resolve_month_year(month, year)
@@ -1056,14 +905,12 @@ def _build_caf_vue_ensemble(
             branch_code, caf_code, charge_affaire, selected_month, selected_year
         )
 
-    month_year = _month_year_label(selected_month, selected_year)
-    prev_m, prev_y = _prev_month(selected_month, selected_year)
-    month_year_prev = _month_year_label(prev_m, prev_y)
     current_month = _is_current_month(selected_month, selected_year)
 
     with ThreadPoolExecutor(max_workers=4) as pool:
-        fut_dash_m = pool.submit(_fetch_dash_par_rows, month_year)
-        fut_dash_m1 = pool.submit(_fetch_dash_par_rows, month_year_prev)
+        fut_portefeuille = (
+            pool.submit(get_portefeuille_caf, branch_code, caf_code) if caf_code else None
+        )
         fut_production = pool.submit(
             _fetch_caf_production, selected_month, selected_year, caf_code
         )
@@ -1084,32 +931,16 @@ def _build_caf_vue_ensemble(
             selected_month,
             selected_year,
         )
-        dash_rows_m = fut_dash_m.result()
-        dash_rows_m1 = fut_dash_m1.result()
+        live_rows = fut_portefeuille.result() if fut_portefeuille is not None else []
         production = fut_production.result()
         production_loans = (
             fut_production_loans.result() if fut_production_loans is not None else []
         )
         encours_evolution = fut_encours_evo.result()
 
-    dash_row_m = _pick_caf_dash_row(dash_rows_m, caf_code, branch_code)
-    dash_row_m1 = _pick_caf_dash_row(dash_rows_m1, caf_code, branch_code)
-
-    portefeuille = (
-        _normalize_dash_portefeuille_row(dash_row_m) if dash_row_m else None
-    )
-    portefeuille_prev = (
-        _normalize_dash_portefeuille_row(dash_row_m1) if dash_row_m1 else None
-    )
-
-    # Live Flexcube : best-effort (filtre CAF tôt). Ne bloque pas si DASH a déjà les KPI.
-    if current_month and caf_code:
-        try:
-            live_rows = get_portefeuille_caf(branch_code, caf_code)
-            if live_rows:
-                portefeuille = live_rows[0]
-        except Exception as exc:
-            logger.warning("Portefeuille live CAF indisponible: %s", exc)
+    portefeuille = live_rows[0] if live_rows else None
+    # Sans snapshot historique Flexcube : pas de portefeuille M-1 fiable.
+    portefeuille_prev = None
 
     if caf_code and production_loans:
         production = {
@@ -1130,7 +961,7 @@ def _build_caf_vue_ensemble(
     top_provisions: List[Dict[str, Any]] = []
     entrees_par: Dict[str, List[Dict[str, Any]]] = {}
 
-    # Live tops / entrées : mois courant uniquement (sinon DASH pour les entrées).
+    # Tops / entrées PAR : snapshot live Flexcube (utile surtout pour le mois courant).
     if caf_code and current_month:
         try:
             with ThreadPoolExecutor(max_workers=3) as pool:
@@ -1170,24 +1001,6 @@ def _build_caf_vue_ensemble(
                 top_provisions = fut_provisions.result()
         except Exception as exc:
             logger.warning("Top encours / provisions CAF indisponibles: %s", exc)
-    elif caf_code and not current_month:
-        try:
-            with ThreadPoolExecutor(max_workers=3) as pool:
-                entree_futs = {
-                    key: pool.submit(
-                        get_entrees_par,
-                        key,
-                        branch_code,
-                        caf_code,
-                        charge_affaire,
-                        selected_month,
-                        selected_year,
-                    )
-                    for key in _ENTREES_PAR_BUCKETS
-                }
-                entrees_par = {key: fut.result() for key, fut in entree_futs.items()}
-        except Exception as exc:
-            logger.warning("Entrées PAR DASH CAF indisponibles: %s", exc)
 
     return {
         "branch_code": branch_code,

@@ -284,6 +284,7 @@
 </template>
 
 <script>
+import { userFacingError } from '../utils/userFacingError.js';
 import PythonChart from './charts/PythonChart.vue';
 import AgencyPerformanceSection from './AgencyPerformanceSection.vue';
 
@@ -994,16 +995,16 @@ export default {
         if (error.response && error.response.data) {
           const errorData = error.response.data;
           if (errorData.error) {
-            this.errorMessage = `Erreur: ${errorData.error}. ${errorData.message || ''}`;
+            this.errorMessage = userFacingError(error);
           } else if (errorData.message) {
-            this.errorMessage = errorData.message;
+            this.errorMessage = userFacingError(error);
           } else {
-            this.errorMessage = 'Erreur lors du chargement des données depuis Oracle. Veuillez réessayer.';
+            this.errorMessage = userFacingError(error, 'Les données n\'ont pas pu être chargées. Veuillez réessayer.');
           }
         } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-          this.errorMessage = 'La requête a pris trop de temps. Veuillez réessayer ou vérifier la connexion au serveur Oracle.';
+          this.errorMessage = 'Le chargement a pris trop de temps. Veuillez réessayer.';
         } else {
-          this.errorMessage = 'Erreur de connexion. Veuillez vérifier que le service Oracle est accessible.';
+          this.errorMessage = userFacingError(error, 'Impossible de se connecter au service. Veuillez réessayer plus tard.');
         }
       } finally {
         this.loading = false;

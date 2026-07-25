@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\UserFacingError;
+
 use App\Services\OracleService;
 use App\Models\Objective;
 use Illuminate\Http\Request;
@@ -897,7 +899,7 @@ class DataController extends Controller
 
             return response()->json([
                 'error' => 'Erreur lors de la récupération des données',
-                'detail' => $result['message'] ?? '',
+                'detail' => UserFacingError::from($result['message'] ?? ''),
                 'status' => 500,
             ], 500);
 
@@ -909,7 +911,7 @@ class DataController extends Controller
             
             return response()->json([
                 'error' => 'Erreur de connexion au service Python',
-                'detail' => $e->getMessage()
+                'detail' => UserFacingError::from($e->getMessage())
             ], 500);
         }
     }
@@ -966,7 +968,7 @@ class DataController extends Controller
 
             return response()->json([
                 'error' => 'Erreur lors de la récupération des données',
-                'detail' => $result['message'] ?? '',
+                'detail' => UserFacingError::from($result['message'] ?? ''),
                 'status' => 500,
             ], 500);
 
@@ -978,7 +980,7 @@ class DataController extends Controller
             
             return response()->json([
                 'error' => 'Erreur de connexion au service Python',
-                'detail' => $e->getMessage()
+                'detail' => UserFacingError::from($e->getMessage())
             ], 500);
         }
     }
@@ -1030,7 +1032,7 @@ class DataController extends Controller
 
             return response()->json([
                 'error' => 'Erreur lors de la récupération des données',
-                'detail' => $result['message'] ?? '',
+                'detail' => UserFacingError::from($result['message'] ?? ''),
                 'status' => 500,
             ], 500);
         } catch (\Exception $e) {
@@ -1041,7 +1043,7 @@ class DataController extends Controller
 
             return response()->json([
                 'error' => 'Erreur de connexion au service Python',
-                'detail' => $e->getMessage(),
+                'detail' => UserFacingError::from($e->getMessage()),
             ], 500);
         }
     }
@@ -1488,7 +1490,7 @@ class DataController extends Controller
 
             return response()->json([
                 'error' => 'Erreur lors de la récupération des données',
-                'detail' => $result['message'] ?? '',
+                'detail' => UserFacingError::from($result['message'] ?? ''),
                 'status' => 500,
             ], 500);
             
@@ -1500,7 +1502,7 @@ class DataController extends Controller
             
             return response()->json([
                 'error' => 'Erreur de connexion au service Python',
-                'detail' => $e->getMessage()
+                'detail' => UserFacingError::from($e->getMessage())
             ], 500);
         }
     }

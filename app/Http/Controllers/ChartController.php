@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Http;
+use App\Support\UserFacingError;
 use Illuminate\Support\Facades\Log;
 
 class ChartController extends Controller
@@ -46,15 +47,15 @@ class ChartController extends Controller
             }
 
             return response()->json([
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
+                'error' => 'Service temporairement indisponible',
+                'message' => UserFacingError::from($response->body())
             ], 500);
 
         } catch (\Exception $e) {
             Log::error('Erreur lors de la génération du graphique time series: ' . $e->getMessage());
             return response()->json([
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
+                'error' => 'Service temporairement indisponible',
+                'message' => UserFacingError::from($e->getMessage())
             ], 500);
         }
     }
@@ -77,15 +78,15 @@ class ChartController extends Controller
             }
 
             return response()->json([
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
+                'error' => 'Service temporairement indisponible',
+                'message' => UserFacingError::from($response->body())
             ], 500);
 
         } catch (\Exception $e) {
             Log::error('Erreur lors de la génération du graphique multi-séries: ' . $e->getMessage());
             return response()->json([
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
+                'error' => 'Service temporairement indisponible',
+                'message' => UserFacingError::from($e->getMessage())
             ], 500);
         }
     }
@@ -110,15 +111,15 @@ class ChartController extends Controller
             }
 
             return response()->json([
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
+                'error' => 'Service temporairement indisponible',
+                'message' => UserFacingError::from($response->body())
             ], 500);
 
         } catch (\Exception $e) {
             Log::error('Erreur lors de la génération du graphique en barres: ' . $e->getMessage());
             return response()->json([
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
+                'error' => 'Service temporairement indisponible',
+                'message' => UserFacingError::from($e->getMessage())
             ], 500);
         }
     }
@@ -142,15 +143,15 @@ class ChartController extends Controller
             }
 
             return response()->json([
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
+                'error' => 'Service temporairement indisponible',
+                'message' => UserFacingError::from($response->body())
             ], 500);
 
         } catch (\Exception $e) {
             Log::error('Erreur lors de la génération du graphique d\'évolution: ' . $e->getMessage());
             return response()->json([
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
+                'error' => 'Service temporairement indisponible',
+                'message' => UserFacingError::from($e->getMessage())
             ], 500);
         }
     }
@@ -173,15 +174,15 @@ class ChartController extends Controller
             }
 
             return response()->json([
-                'error' => 'Erreur du service Python',
-                'message' => $response->body()
+                'error' => 'Service temporairement indisponible',
+                'message' => UserFacingError::from($response->body())
             ], 500);
 
         } catch (\Exception $e) {
             Log::error('Erreur lors de la génération du graphique circulaire: ' . $e->getMessage());
             return response()->json([
-                'error' => 'Erreur interne',
-                'message' => $e->getMessage()
+                'error' => 'Service temporairement indisponible',
+                'message' => UserFacingError::from($e->getMessage())
             ], 500);
         }
     }

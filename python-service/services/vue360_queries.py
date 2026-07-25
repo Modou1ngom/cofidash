@@ -277,7 +277,7 @@ WITH CLIENT AS (
         CAST(NULL AS VARCHAR2(30)) AS PHONE
     FROM CFSFCUBS145.STTM_CUSTOMER c
     LEFT JOIN CFSFCUBS145.STTM_BRANCH b ON b.BRANCH_CODE = c.LOCAL_BRANCH
-    WHERE c.CUSTOMER_NAME1 LIKE :query_prefix
+    WHERE ({customer_name_filter})
       {branch_filter_customer}
     UNION
     SELECT
@@ -304,6 +304,7 @@ WITH CLIENT AS (
     WHERE a.CUST_AC_NO LIKE :query_prefix
       {branch_filter_account}
     {phone_union}
+    {id_union}
 )
 SELECT
     e.CUSTOMER_NO,
@@ -363,6 +364,41 @@ CLIENTS_SEARCH_FLEX_PHONE_UNION = """
         p.MOBILE_NUMBER LIKE :query_prefix
         OR p.TELEPHONE LIKE :query_prefix
     )
+      {branch_filter_customer}
+"""
+
+# Recherche pièce d'identité — CNI (P_NATIONAL_ID), passeport, UNIQUE_ID (autre type).
+CLIENTS_SEARCH_FLEX_ID_UNION = """
+    UNION
+    SELECT
+        p.CUSTOMER_NO,
+        c.CUSTOMER_NAME1,
+        b.BRANCH_CODE,
+        b.BRANCH_NAME,
+        CAST(NULL AS VARCHAR2(50)) AS ACCOUNT_NUMBER,
+        CAST(NULL AS VARCHAR2(30)) AS PHONE
+    FROM CFSFCUBS145.STTM_CUST_PERSONAL p
+    LEFT JOIN CFSFCUBS145.STTM_CUSTOMER c ON c.CUSTOMER_NO = p.CUSTOMER_NO
+    LEFT JOIN CFSFCUBS145.STTM_BRANCH b ON b.BRANCH_CODE = c.LOCAL_BRANCH
+    WHERE (
+        UPPER(REPLACE(REPLACE(REPLACE(REPLACE(NVL(p.P_NATIONAL_ID, ''), ' ', ''), '-', ''), '.', ''), '/', ''))
+            LIKE UPPER(:query_id)
+        OR UPPER(REPLACE(REPLACE(REPLACE(REPLACE(NVL(p.PASSPORT_NO, ''), ' ', ''), '-', ''), '.', ''), '/', ''))
+            LIKE UPPER(:query_id)
+    )
+      {branch_filter_customer}
+    UNION
+    SELECT
+        c.CUSTOMER_NO,
+        c.CUSTOMER_NAME1,
+        b.BRANCH_CODE,
+        b.BRANCH_NAME,
+        CAST(NULL AS VARCHAR2(50)) AS ACCOUNT_NUMBER,
+        CAST(NULL AS VARCHAR2(30)) AS PHONE
+    FROM CFSFCUBS145.STTM_CUSTOMER c
+    LEFT JOIN CFSFCUBS145.STTM_BRANCH b ON b.BRANCH_CODE = c.LOCAL_BRANCH
+    WHERE UPPER(REPLACE(REPLACE(REPLACE(REPLACE(NVL(c.UNIQUE_ID_VALUE, ''), ' ', ''), '-', ''), '.', ''), '/', ''))
+            LIKE UPPER(:query_id)
       {branch_filter_customer}
 """
 

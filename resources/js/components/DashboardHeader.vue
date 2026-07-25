@@ -55,7 +55,7 @@
             v-model="clientName"
             type="text"
             class="client-input"
-            placeholder="Nom, matricule, compte ou téléphone…"
+            placeholder="Nom, matricule, compte, téléphone, CNI ou passeport…"
             @keyup.enter="searchClient"
           />
         </div>

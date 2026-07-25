@@ -21,7 +21,7 @@
                 v-model="searchQuery"
                 type="text"
                 class="search-input"
-                placeholder="Nom, matricule, n° de compte ou téléphone…"
+                placeholder="Nom, matricule, compte, téléphone, CNI ou passeport…"
                 autofocus
               />
               <button
@@ -89,7 +89,7 @@
         <h3>Aucun client trouvé</h3>
         <p>
           Aucun résultat pour « <strong>{{ lastQuery }}</strong> ».
-          Vérifiez l'orthographe ou essayez un matricule / n° de compte.
+          Vérifiez l'orthographe ou essayez un matricule, n° de compte, CNI ou passeport.
         </p>
       </div>
 
@@ -182,7 +182,7 @@ export default {
     async runSearch() {
       const query = this.searchQuery.trim();
       if (!query) {
-        this.error = 'Saisissez un nom, matricule, numéro de compte ou téléphone.';
+        this.error = 'Saisissez un nom, matricule, compte, téléphone, CNI ou passeport.';
         return;
       }
 
