@@ -87,6 +87,7 @@
               Code LOV GESTION_PRET (FIELD_CHAR_2). Obligatoire pour afficher le portefeuille CAF.
             </p>
           </div>
+          <div class="form-actions">
             <button type="button" @click="closeModal" class="btn-cancel">Annuler</button>
             <button type="submit" class="btn-save">Enregistrer</button>
           </div>

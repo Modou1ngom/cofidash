@@ -29,11 +29,8 @@
           v-for="item in visibleNavItems"
           :key="item.label"
           class="nav-item-wrapper"
-          @mouseenter="item.submenu ? (showUserSubmenu = true) : null"
-          @mouseleave="item.submenu ? (showUserSubmenu = false) : null"
         >
           <router-link
-            v-if="item.route && !item.submenu"
             :to="item.route"
             class="nav-pill"
             :class="{ 'nav-pill--active': isNavActive(item) }"
@@ -41,30 +38,6 @@
             <span class="nav-pill-icon">{{ item.icon }}</span>
             <span class="nav-pill-label">{{ item.label }}</span>
           </router-link>
-          <button
-            v-else
-            type="button"
-            class="nav-pill"
-            :class="{ 'nav-pill--active': showUserSubmenu }"
-            @click.prevent
-          >
-            <span class="nav-pill-icon">{{ item.icon }}</span>
-            <span class="nav-pill-label">{{ item.label }}</span>
-            <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
-          <div v-if="item.submenu && showUserSubmenu" class="nav-submenu">
-            <router-link
-              v-for="subitem in item.submenu"
-              :key="subitem.label"
-              :to="subitem.route"
-              class="nav-submenu-item"
-              @click="showUserSubmenu = false"
-            >
-              {{ subitem.label }}
-            </router-link>
-          </div>
         </div>
       </nav>
     </div>
@@ -116,20 +89,9 @@ export default {
       clientName: '',
       navItems: [
         { label: 'Accueil', icon: '🏠', route: '/dashboard' },
-        {
-          label: 'Utilisateur',
-          icon: '👤',
-          route: null,
-          adminOnly: true,
-          submenu: [
-            { label: 'Gestion Utilisateurs', route: '/admin/users' },
-            { label: 'Gestion Profils', route: '/admin/profiles' },
-          ],
-        },
         { label: 'Client Vue 360°', icon: '🤝', route: '/vue360/recherche' },
         { label: 'Vue ensemble CAF', icon: '📊', route: '/vue360/caf' },
       ],
-      showUserSubmenu: false,
     };
   },
   computed: {
@@ -158,13 +120,9 @@ export default {
         .join('')
         .toUpperCase() || 'U';
     },
-    isAdmin() {
-      return ProfileManager.isAdmin();
-    },
     visibleNavItems() {
-      const items = this.navItems.filter((item) => !item.adminOnly || this.isAdmin);
       if (ProfileManager.isCAF()) {
-        return items
+        return this.navItems
           .filter((item) => item.route !== '/vue360/caf')
           .map((item) => (
             item.route === '/dashboard'
@@ -173,10 +131,9 @@ export default {
           ));
       }
       if (ProfileManager.isCC()) {
-        return items
-          .filter((item) => item.route === '/vue360/recherche' || (item.adminOnly && this.isAdmin));
+        return this.navItems.filter((item) => item.route === '/vue360/recherche');
       }
-      return items;
+      return this.navItems;
     },
   },
   methods: {
@@ -406,49 +363,6 @@ export default {
 
 .nav-pill-label {
   line-height: 1.2;
-}
-
-.nav-chevron {
-  width: 14px;
-  height: 14px;
-  opacity: 0.7;
-}
-
-.nav-submenu {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.12);
-  min-width: 220px;
-  z-index: 1000;
-  overflow: hidden;
-}
-
-.nav-submenu-item {
-  display: block;
-  padding: 12px 16px;
-  color: #374151;
-  text-decoration: none;
-  font-size: 0.875rem;
-  transition: background 0.15s;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.nav-submenu-item:last-child {
-  border-bottom: none;
-}
-
-.nav-submenu-item:hover {
-  background: #f9fafb;
-}
-
-.nav-submenu-item.router-link-active {
-  background: #f0fdf4;
-  color: #1a4d3a;
-  font-weight: 600;
 }
 
 /* ── Recherche + déconnexion ── */
