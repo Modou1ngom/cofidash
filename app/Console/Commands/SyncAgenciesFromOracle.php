@@ -39,12 +39,12 @@ class SyncAgenciesFromOracle extends Command
      */
     public function handle()
     {
-        $this->info('🔄 Synchronisation des agences depuis DASH_RELATION / CODE_BUREAU (via service Python)...');
+        $this->info('🔄 Synchronisation des agences depuis Flexcube / STTM_BRANCH (via service Python)...');
 
         try {
             $this->ensureCanonicalTerritoriesExist();
 
-            $result = $this->oracleService->getAgenciesFromDashProductionNombre();
+            $result = $this->oracleService->getAgenciesFromFlexcube();
 
             if (!$result['success']) {
                 $msg = $result['message'] ?? $result['error'] ?? 'Erreur inconnue';
@@ -76,7 +76,7 @@ class SyncAgenciesFromOracle extends Command
             $this->info('📊 '.count($agencies).' agence(s) reçue(s)');
 
             if (count($agencies) === 0) {
-                $this->error('❌ Aucune agence renvoyée par Oracle/DASH_RELATION. Vérifiez PYTHON_SERVICE_URL et l’endpoint /api/oracle/data/agencies-from-dash.');
+                $this->error('❌ Aucune agence renvoyée par Oracle/Flexcube. Vérifiez PYTHON_SERVICE_URL et l’endpoint /api/oracle/data/agencies-from-flexcube.');
 
                 return 1;
             }

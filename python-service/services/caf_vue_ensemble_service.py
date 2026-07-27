@@ -185,6 +185,10 @@ def _empty_caf_vue_ensemble(
             "loan_count_prev": 0.0,
             "monthly_volume": 0.0,
             "monthly_volume_prev": 0.0,
+            "loan_count_objective": 0.0,
+            "monthly_volume_objective": 0.0,
+            "loan_count_realization_pct": 0.0,
+            "monthly_volume_realization_pct": 0.0,
         },
         "comparison": {
             "encours_mom_pct": 0.0,
@@ -213,27 +217,157 @@ def _rolling_month_years(
     return months
 
 
-def _fetch_caf_encours_evolution_12m(
+def _fetch_caf_encours_as_of_flexcube(
+    caf_code: str,
+    as_of: date,
+    branch_code: Optional[str] = None,
+) -> float:
+    """
+    Encours CAF à une date donnée (Flexcube), aligné sur la logique portefeuille.
+
+    Somme (AMOUNT_DUE - AMOUNT_SETTLED) des échéances PRINCIPAL encore dues
+    après la date, pour les prêts mis en place au plus tard à cette date.
+    """
+    code = str(caf_code or "").strip()
+    if not code:
+        return 0.0
+
+    as_of_str = as_of.strftime("%Y-%m-%d")
+    # Même base que portefeuille_caf.sql (ENCOURS_CAF), bornée à as_of.
+    sql = """
+SELECT NVL(SUM(CLS.AMOUNT_DUE - CLS.AMOUNT_SETTLED), 0) AS ENCOURS_TOTAL
+FROM CFSFCUBS145.CLTB_ACCOUNT_SCHEDULES CLS
+JOIN CFSFCUBS145.CLTB_ACCOUNT_MASTER p
+  ON p.ACCOUNT_NUMBER = CLS.ACCOUNT_NUMBER
+WHERE CLS.COMPONENT_NAME IN ('PRINCIPAL')
+  AND TRIM(p.FIELD_CHAR_2) = :caf_code
+  AND p.ACCOUNT_STATUS NOT IN ('L', 'V')
+  AND TRUNC(COALESCE(p.VALUE_DATE, p.BOOK_DATE)) <= TO_DATE(:as_of, 'YYYY-MM-DD')
+  AND CLS.SCHEDULE_DUE_DATE > TO_DATE(:as_of, 'YYYY-MM-DD')
+"""
+    params: Dict[str, Any] = {"caf_code": code, "as_of": as_of_str}
+    if branch_code:
+        sql += "\n  AND TRIM(p.BRANCH_CODE) = :branch_code"
+        params["branch_code"] = str(branch_code).strip()
+
+    try:
+        rows = _execute_flexcube(sql, params, timeout_ms=120_000)
+    except Exception as exc:
+        logger.warning(
+            "Encours Flexcube as-of %s indisponible pour %s: %s", as_of_str, code, exc
+        )
+        return 0.0
+    if not rows:
+        return 0.0
+    return _to_float(rows[0].get("encours_total") or rows[0].get("ENCOURS_TOTAL"))
+
+
+def _align_encours_evolution_to_month(
+    series: List[float],
+    month: int,
+    live_encours_fcfa: float = 0.0,
+) -> List[float]:
+    """
+    Garantit une série Jan→Déc :
+    - valeur live sur le mois sélectionné (pas en dernier index)
+    - mois futurs à 0
+    """
+    out = list(series) if len(series) == 12 else [0.0] * 12
+    end_month = max(1, min(12, int(month)))
+
+    # Ancien bug / API distante : seul l'index 11 (Déc) était rempli.
+    nonzero = [i for i, v in enumerate(out) if v > 0]
+    if (
+        nonzero == [11]
+        and end_month != 12
+        and live_encours_fcfa <= 0
+    ):
+        out[end_month - 1] = out[11]
+        out[11] = 0.0
+
+    if live_encours_fcfa > 0:
+        out[end_month - 1] = round(live_encours_fcfa / 1_000_000, 3)
+
+    for i in range(end_month, 12):
+        out[i] = 0.0
+    return out
+
+
+def _fetch_caf_encours_evolution_year(
     caf_code: Optional[str],
     branch_code: Optional[str],
     month: int,
     year: int,
 ) -> List[float]:
     """
-    Série 12 mois : Flexcube ne conserve pas de snapshot mensuel historique.
-    On place l'encours live sur le mois courant (dernier point), le reste à 0.
+    Série Jan→Déc de l'année sélectionnée (M FCFA), 100 % Flexcube.
+    - mois passés : encours reconstruit à la fin de chaque mois
+    - mois sélectionné / courant : encours live portefeuille CAF
+    - mois futurs : 0
     """
+    import calendar
+
     code = str(caf_code or "").strip()
     series = [0.0] * 12
-    if not code or not _is_current_month(month, year):
+    if not code:
         return series
+
+    end_month = max(1, min(12, int(month)))
+    selected_year = int(year)
+    today = date.today()
+
+    # Mois passés uniquement (le mois sélectionné = live plus bas).
+    months_to_fetch: List[int] = []
+    for m in range(1, end_month):
+        if (selected_year, m) > (today.year, today.month):
+            continue
+        months_to_fetch.append(m)
+
+    def _month_encours(m: int) -> tuple[int, float]:
+        last_day = calendar.monthrange(selected_year, m)[1]
+        as_of = date(selected_year, m, last_day)
+        if as_of > today:
+            as_of = today
+        return m, _fetch_caf_encours_as_of_flexcube(code, as_of, branch_code)
+
+    if months_to_fetch:
+        workers = min(6, len(months_to_fetch))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for m, amount in pool.map(_month_encours, months_to_fetch):
+                series[m - 1] = round(amount / 1_000_000, 3)
+
+    # Mois sélectionné : toujours à l'index calendaire (end_month - 1), jamais [-1].
+    live_amount = 0.0
     try:
-        rows = get_portefeuille_caf(branch_code, code)
-        if rows:
-            series[-1] = round(_to_float(rows[0].get("encours_total")) / 1_000_000, 3)
+        if (selected_year, end_month) <= (today.year, today.month):
+            rows = get_portefeuille_caf(branch_code, code)
+            if rows:
+                live_amount = _to_float(rows[0].get("encours_total"))
+            if live_amount <= 0:
+                as_of = today if _is_current_month(end_month, selected_year) else date(
+                    selected_year,
+                    end_month,
+                    calendar.monthrange(selected_year, end_month)[1],
+                )
+                if as_of > today:
+                    as_of = today
+                live_amount = _fetch_caf_encours_as_of_flexcube(code, as_of, branch_code)
     except Exception as exc:
-        logger.warning("Évolution encours CAF (Flexcube) indisponible pour %s: %s", code, exc)
-    return series
+        logger.warning(
+            "Évolution encours live CAF indisponible pour %s: %s", code, exc
+        )
+
+    return _align_encours_evolution_to_month(series, end_month, live_amount)
+
+
+def _fetch_caf_encours_evolution_12m(
+    caf_code: Optional[str],
+    branch_code: Optional[str],
+    month: int,
+    year: int,
+) -> List[float]:
+    """Compat : délègue à la série année calendaire."""
+    return _fetch_caf_encours_evolution_year(caf_code, branch_code, month, year)
 
 
 def _fetch_dash_par_rows(month_year: str) -> List[Dict[str, Any]]:
@@ -472,12 +606,34 @@ ORDER BY TRUNC(COALESCE(d.SCHEDULE_LINKAGE, c.BOOK_DATE)) DESC, c.AMOUNT_FINANCE
         return []
 
 
+def _with_production_objectives(
+    production: Dict[str, float],
+    objectives: Dict[str, float],
+) -> Dict[str, float]:
+    """Calcule les taux de réalisation. Les objectifs viennent de Laravel (pas DASH)."""
+    loan_obj = _to_float(objectives.get("loan_count_objective"))
+    volume_obj = _to_float(objectives.get("monthly_volume_objective"))
+    loan_count = _to_float(production.get("loan_count"))
+    volume = _to_float(production.get("monthly_volume"))
+
+    loan_rate = round((loan_count / loan_obj) * 100, 1) if loan_obj > 0 else 0.0
+    volume_rate = round((volume / volume_obj) * 100, 1) if volume_obj > 0 else 0.0
+
+    return {
+        **production,
+        "loan_count_objective": loan_obj,
+        "monthly_volume_objective": volume_obj,
+        "loan_count_realization_pct": loan_rate,
+        "monthly_volume_realization_pct": volume_rate,
+    }
+
+
 def _fetch_caf_production(
     month: int,
     year: int,
     caf_code: Optional[str],
 ) -> Dict[str, float]:
-    """Production mensuelle — Flexcube uniquement (décaissements du mois)."""
+    """Production mensuelle Flexcube. Objectifs injectés côté Laravel (table locale)."""
     code = str(caf_code or "").strip()
     if not code:
         return {
@@ -485,8 +641,17 @@ def _fetch_caf_production(
             "loan_count_prev": 0.0,
             "monthly_volume": 0.0,
             "monthly_volume_prev": 0.0,
+            "loan_count_objective": 0.0,
+            "monthly_volume_objective": 0.0,
+            "loan_count_realization_pct": 0.0,
+            "monthly_volume_realization_pct": 0.0,
         }
-    return _fetch_caf_production_live(month, year, code)
+    live = _fetch_caf_production_live(month, year, code)
+    # Objectifs CA = table Laravel `objectives` (injectés après l'appel Python).
+    return _with_production_objectives(
+        live,
+        {"loan_count_objective": 0.0, "monthly_volume_objective": 0.0},
+    )
 
 def _normalize_provision_row(row: Dict[str, Any]) -> Dict[str, Any]:
     return {
@@ -925,7 +1090,7 @@ def _build_caf_vue_ensemble(
             else None
         )
         fut_encours_evo = pool.submit(
-            _fetch_caf_encours_evolution_12m,
+            _fetch_caf_encours_evolution_year,
             caf_code,
             branch_code,
             selected_month,
@@ -942,14 +1107,30 @@ def _build_caf_vue_ensemble(
     # Sans snapshot historique Flexcube : pas de portefeuille M-1 fiable.
     portefeuille_prev = None
 
+    # Aligner la courbe sur le mois calendaire + encours live (évite le pic en décembre).
+    live_encours = _to_float((portefeuille or {}).get("encours_total"))
+    encours_evolution = _align_encours_evolution_to_month(
+        encours_evolution,
+        selected_month,
+        live_encours if current_month else 0.0,
+    )
+
     if caf_code and production_loans:
-        production = {
-            **production,
-            "loan_count": float(len(production_loans)),
-            "monthly_volume": sum(
-                _to_float(loan.get("outstanding")) for loan in production_loans
-            ),
-        }
+        production = _with_production_objectives(
+            {
+                **production,
+                "loan_count": float(len(production_loans)),
+                "monthly_volume": sum(
+                    _to_float(loan.get("outstanding")) for loan in production_loans
+                ),
+            },
+            {
+                "loan_count_objective": production.get("loan_count_objective", 0),
+                "monthly_volume_objective": production.get(
+                    "monthly_volume_objective", 0
+                ),
+            },
+        )
 
     encours_m = _to_float((portefeuille or {}).get("encours_total"))
     encours_m1 = _to_float((portefeuille_prev or {}).get("encours_total"))

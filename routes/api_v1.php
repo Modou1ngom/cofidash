@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AgencyController;
+use App\Http\Controllers\Api\V1\AppVersionController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\ClientController;
 use App\Http\Controllers\Api\V1\CreditController;
@@ -16,6 +17,9 @@ use Illuminate\Support\Facades\Route;
 | COFINA CLIENT VUE 360 — API v1 (Flutter mobile)
 | Préfixe final : /api/v1
 */
+
+// Public — contrôle de version au démarrage (avant login)
+Route::get('/app/version', [AppVersionController::class, 'show']);
 
 Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);

@@ -116,7 +116,7 @@ class AgencyController extends Controller
             if ($count === 0) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Synchronisation terminée mais aucune agence en base. Vérifiez le service Python et DASH_RELATION (CODE_BUREAU).',
+                    'message' => 'Synchronisation terminée mais aucune agence en base. Vérifiez le service Python et Flexcube (STTM_BRANCH).',
                     'output' => $output,
                     'count' => 0,
                 ], 502);

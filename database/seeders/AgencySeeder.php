@@ -10,7 +10,7 @@ use Illuminate\Database\Seeder;
 class AgencySeeder extends Seeder
 {
     /**
-     * Par défaut aucune agence en seed : les codes officiels sont CODE_BUREAU / DASH_RELATION (Oracle),
+     * Par défaut aucune agence en seed : les codes officiels sont BRANCH_CODE / STTM_BRANCH (Flexcube),
      * synchronisés avec agencies:sync-from-oracle.
      *
      * Pour remplir config/cofi_agencies.php en dev uniquement (tableau de ['code','name','territory_code']).

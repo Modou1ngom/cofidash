@@ -122,8 +122,8 @@ PRINCIPAL_DUE AS (
 ),
 EXIGIBLE_1 AS (
     SELECT
-        ped.ACCOUNT_NO AS NO_COMPTE,
-        NVL(ped.CONTRACT_REF_NO, 0) AS NO_PRET,
+        COALESCE(pr.ACCOUNT_NO, ped.ACCOUNT_NO, id.ACCOUNT_NO) AS NO_COMPTE,
+        COALESCE(pr.CONTRACT_REF_NO, ped.CONTRACT_REF_NO, id.CONTRACT_REF_NO) AS NO_PRET,
         NVL(pr.CHARGE_DUE, 0) AS CHARGE_DUE_PRINC,
         NVL(ped.CHARGE_DUE, 0) AS CHARGE_DUE_PEN,
         NVL(id.CHARGE_DUE, 0) AS CHARGE_DUE_INT,
@@ -133,8 +133,12 @@ EXIGIBLE_1 AS (
     FROM PRINCIPAL_DUE pr
     FULL OUTER JOIN PENALITE_DUE ped
         ON ped.ACCOUNT_NO = pr.ACCOUNT_NO
+       AND NVL(ped.CONTRACT_REF_NO, 'X') = NVL(pr.CONTRACT_REF_NO, 'X')
     FULL OUTER JOIN INTERET_DUE id
-        ON id.ACCOUNT_NO = pr.ACCOUNT_NO
+        ON id.ACCOUNT_NO = COALESCE(pr.ACCOUNT_NO, ped.ACCOUNT_NO)
+       AND NVL(id.CONTRACT_REF_NO, 'X') = NVL(
+           COALESCE(pr.CONTRACT_REF_NO, ped.CONTRACT_REF_NO), 'X'
+       )
 ),
 EXIGIBLE AS (
     SELECT
@@ -230,4 +234,102 @@ def aggregate_encours_repartition_rows(rows: List[Dict[str, Any]]) -> Dict[str, 
         "total_exigible": round(total_exigible, 2),
         "total_charge": round(total_charge, 2),
         "total_due_amount": round(total_exigible + total_charge, 2),
+    }
+
+
+# Encours global = capital restant (PRINCIPAL échéancier)
+#               + intérêts/pénalités auto-settle (CHARGE_PRET)
+#               + charges compte (ACS, FOUV, COFC, FTEC)
+ENCOURS_GLOBAL_DETAIL = """
+WITH CHARGE AS (
+    SELECT
+        ACCOUNT_NO,
+        ACCOUNT_BR,
+        (SUM(AMOUNT_DUE) - SUM(AMOUNT_PAID)) AS CHARGE_DUE
+    FROM CFSFCUBS145.CSTB_AUTO_SETTLE_BLOCK b
+    WHERE STATUS <> 'P'
+      AND COMPONENT = 'CHARGE'
+      AND PRODUCT IN ('ASCP', 'ASSA', 'FOUV', 'COFC', 'FTEC')
+    GROUP BY ACCOUNT_NO, ACCOUNT_BR
+),
+CHARGE_PRET AS (
+    SELECT
+        ACCOUNT_NO,
+        ACCOUNT_BR,
+        CONTRACT_REF_NO,
+        (SUM(AMOUNT_DUE) - SUM(AMOUNT_PAID)) AS CHARGE_PRET_DUE
+    FROM CFSFCUBS145.CSTB_AUTO_SETTLE_BLOCK b
+    WHERE STATUS <> 'P'
+      AND b.COMPONENT IN (
+          'ODIN_PNTY', 'ODIN_PNTYT', 'ODPR_PNTY', 'ODPR_PNTYT', 'MAIN_INT'
+      )
+      AND ACCOUNT_NO LIKE '251%'
+    GROUP BY ACCOUNT_NO, ACCOUNT_BR, CONTRACT_REF_NO
+)
+SELECT
+    e.BRANCH_CODE,
+    c.CUSTOMER_ID,
+    c.PRIMARY_APPLICANT_NAME,
+    c.ACCOUNT_NUMBER,
+    c.DR_PROD_AC,
+    NVL(t.CHARGE_PRET_DUE, 0) AS CHARGE_PRET_DUE,
+    NVL(r.CHARGE_DUE, 0) AS CHARGE_DUE,
+    SUM(e.AMOUNT_DUE - e.AMOUNT_SETTLED) AS ENCOURS_TOTAL,
+    (
+        NVL(t.CHARGE_PRET_DUE, 0)
+        + NVL(r.CHARGE_DUE, 0)
+        + SUM(e.AMOUNT_DUE - e.AMOUNT_SETTLED)
+    ) AS ENCOURS_GLOBAL
+FROM CFSFCUBS145.CLTB_ACCOUNT_SCHEDULES e
+LEFT JOIN CFSFCUBS145.CLTB_ACCOUNT_MASTER c
+    ON c.ACCOUNT_NUMBER = e.ACCOUNT_NUMBER
+LEFT JOIN CHARGE r
+    ON r.ACCOUNT_NO = c.DR_PROD_AC
+LEFT JOIN CHARGE_PRET t
+    ON t.CONTRACT_REF_NO = c.ACCOUNT_NUMBER
+WHERE e.COMPONENT_NAME = 'PRINCIPAL'
+  AND c.ACCOUNT_STATUS NOT IN ('L', 'V')
+  AND c.CUSTOMER_ID = :customer_no
+GROUP BY
+    c.ACCOUNT_NUMBER,
+    e.BRANCH_CODE,
+    c.CUSTOMER_ID,
+    c.PRIMARY_APPLICANT_NAME,
+    c.DR_PROD_AC,
+    t.CHARGE_PRET_DUE,
+    r.CHARGE_DUE
+"""
+
+
+def aggregate_encours_global_rows(rows: List[Dict[str, Any]]) -> Dict[str, float]:
+    """
+    Agrège l'encours global client.
+    Les charges compte (FTC/ACS/…) sont dédupliquées par DR_PROD_AC
+    pour éviter le double comptage multi-prêts.
+    """
+    if not rows:
+        return {
+            "encours_total": 0.0,
+            "charge_pret_due": 0.0,
+            "charge_due": 0.0,
+            "encours_global": 0.0,
+        }
+
+    encours_total = 0.0
+    charge_pret = 0.0
+    charges_by_account: dict[str, float] = {}
+
+    for row in rows:
+        encours_total += _to_float(row.get("ENCOURS_TOTAL"))
+        charge_pret += _to_float(row.get("CHARGE_PRET_DUE"))
+        dr_ac = str(row.get("DR_PROD_AC") or "").strip()
+        if dr_ac and dr_ac not in charges_by_account:
+            charges_by_account[dr_ac] = _to_float(row.get("CHARGE_DUE"))
+
+    charge_due = sum(charges_by_account.values())
+    return {
+        "encours_total": round(encours_total, 2),
+        "charge_pret_due": round(charge_pret, 2),
+        "charge_due": round(charge_due, 2),
+        "encours_global": round(encours_total + charge_pret + charge_due, 2),
     }

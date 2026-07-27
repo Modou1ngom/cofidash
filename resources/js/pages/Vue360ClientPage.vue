@@ -63,8 +63,8 @@
 
         <section class="synthese-section">
           <div class="section-head">
-            <h3 class="section-title">Répartition encours global</h3>
-            <span class="section-total">{{ formatMoney(summary.credit_encours_global || summary.encours_global || summary.encours_credit) }}</span>
+            <h3 class="section-title">Répartition montant dû</h3>
+            <span class="section-total">{{ formatMoney(repartitionTotal) }}</span>
           </div>
           <div
             v-if="encoursRepartition.length"
@@ -630,6 +630,14 @@ export default {
         || this.summary?.outstanding_distribution
         || [];
       return raw.length ? raw : DEFAULT_ENCOURS_REPARTITION;
+    },
+    repartitionTotal() {
+      const due = Number(this.summary?.total_due_amount ?? 0);
+      if (due > 0) return due;
+      return this.encoursRepartition.reduce(
+        (sum, item) => sum + (Number(item.amount) || 0),
+        0,
+      );
     },
     encoursRepartitionWithAmount() {
       return this.encoursRepartition.filter((item) => (item.amount || 0) > 0);

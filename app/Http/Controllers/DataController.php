@@ -78,12 +78,12 @@ class DataController extends Controller
     }
 
     /**
-     * Liste des agences depuis DASH_RELATION (CODE_BUREAU, AGENCE) — même source que php artisan agencies:sync-from-oracle.
+     * Liste des agences depuis Flexcube STTM_BRANCH — même source que php artisan agencies:sync-from-oracle.
      */
-    public function getAgenciesFromDashData(): JsonResponse
+    public function getAgenciesFromFlexcubeData(): JsonResponse
     {
         try {
-            $result = $this->oracleService->getAgenciesFromDashProductionNombre();
+            $result = $this->oracleService->getAgenciesFromFlexcube();
             if ($result['success']) {
                 return response()->json($result['data']);
             }
@@ -93,10 +93,18 @@ class DataController extends Controller
                 'message' => $result['message'] ?? '',
             ], 500);
         } catch (\Exception $e) {
-            Log::error('getAgenciesFromDashData: '.$e->getMessage());
+            Log::error('getAgenciesFromFlexcubeData: '.$e->getMessage());
 
             return response()->json(['message' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * @deprecated Utiliser getAgenciesFromFlexcubeData()
+     */
+    public function getAgenciesFromDashData(): JsonResponse
+    {
+        return $this->getAgenciesFromFlexcubeData();
     }
 
     /**

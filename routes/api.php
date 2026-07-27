@@ -31,7 +31,8 @@ Route::prefix('oracle')->group(function () {
     Route::post('/query', [DataController::class, 'executeQuery']);
     Route::get('/table/{tableName}', [DataController::class, 'getTableData']);
     Route::get('/data/clients', [DataController::class, 'getClientsData']);
-    Route::get('/data/agencies-from-dash', [DataController::class, 'getAgenciesFromDashData']);
+    Route::get('/data/agencies-from-flexcube', [DataController::class, 'getAgenciesFromFlexcubeData']);
+    Route::get('/data/agencies-from-dash', [DataController::class, 'getAgenciesFromDashData']); // alias → Flexcube
     Route::get('/data/production', [DataController::class, 'getProductionData']);
     Route::get('/data/production-volume', [DataController::class, 'getProductionVolumeData']);
     Route::get('/data/encours-credit', [DataController::class, 'getEncoursCreditData']);

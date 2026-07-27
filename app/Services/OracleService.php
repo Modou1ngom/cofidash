@@ -712,16 +712,24 @@ class OracleService
     }
 
     /**
-     * Liste des agences depuis DASH_RELATION (CODE_BUREAU, service Python) pour la synchro Laravel.
+     * Liste des agences depuis Flexcube STTM_BRANCH (BRANCH_CODE, service Python) pour la synchro Laravel.
+     */
+    public function getAgenciesFromFlexcube(): array
+    {
+        return $this->getPythonGetCached(
+            'agencies_flexcube_sttm_branch',
+            '/api/oracle/data/agencies-from-flexcube',
+            [],
+            'Agences Flexcube STTM_BRANCH'
+        );
+    }
+
+    /**
+     * @deprecated Utiliser getAgenciesFromFlexcube()
      */
     public function getAgenciesFromDashProductionNombre(): array
     {
-        return $this->getPythonGetCached(
-            'agencies_dash_relation',
-            '/api/oracle/data/agencies-from-dash',
-            ['scope' => 'latest'],
-            'Agences DASH_RELATION'
-        );
+        return $this->getAgenciesFromFlexcube();
     }
 
     /**

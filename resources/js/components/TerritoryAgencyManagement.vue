@@ -39,6 +39,8 @@
         </div>
         <div class="toolbar-meta">
           <span class="result-count">{{ currentResultCount }} résultat{{ currentResultCount > 1 ? 's' : '' }}</span>
+          <button v-if="activeTab === 'territories'" type="button" class="btn btn-primary" @click="openCreateTerritoryModal">Nouveau territoire</button>
+          <button v-if="activeTab === 'agencies'" type="button" class="btn btn-primary" @click="openCreateAgencyModal">Nouvelle agence</button>
           <button v-if="activeTab === 'users'" type="button" class="btn btn-primary" @click="openCreateUserModal">Nouvel utilisateur</button>
           <button v-if="activeTab === 'profiles'" type="button" class="btn btn-primary" @click="openCreateProfileModal">Nouveau profil</button>
         </div>
@@ -61,7 +63,7 @@
               <tr v-if="filteredTerritories.length === 0">
                 <td colspan="5" class="empty-cell">Aucun territoire trouvé</td>
               </tr>
-              <tr v-for="territory in filteredTerritories" :key="territory.id">
+              <tr v-for="territory in paginatedTerritories" :key="territory.id">
                 <td><code class="mono">{{ territory.code || '—' }}</code></td>
                 <td class="strong">{{ territory.name || '—' }}</td>
                 <td class="muted">{{ territory.description || '—' }}</td>
@@ -76,9 +78,11 @@
                   <span v-else class="tag tag-warn">Non assigné</span>
                 </td>
                 <td class="col-actions">
+                  <button type="button" class="btn-link" @click="openEditTerritoryModal(territory)">Modifier</button>
                   <button type="button" class="btn-link" @click="openAssignResponsibleModal(territory)">
-                    {{ territory.responsible ? 'Modifier' : 'Assigner' }}
+                    {{ territory.responsible ? 'Responsable' : 'Assigner' }}
                   </button>
+                  <button type="button" class="btn-link danger" @click="confirmDeleteTerritory(territory)">Supprimer</button>
                 </td>
               </tr>
             </tbody>
@@ -90,7 +94,7 @@
       <div v-else-if="activeTab === 'agencies'" class="tam-body" role="tabpanel">
         <div v-if="agencies.length === 0" class="info-banner">
           <strong>Aucune agence synchronisée.</strong>
-          Utilisez « Synchroniser les agences » pour importer les codes depuis <code>DASH_RELATION</code> (<code>CODE_BUREAU</code>).
+          Utilisez « Synchroniser les agences » pour importer les codes depuis Flexcube (<code>STTM_BRANCH</code> / <code>BRANCH_CODE</code>).
           Pour purger les anciennes lignes : <code>php artisan agencies:sync-from-oracle --prune</code>.
         </div>
         <div class="table-wrap">
@@ -108,7 +112,7 @@
               <tr v-if="filteredAgencies.length === 0">
                 <td colspan="5" class="empty-cell">Aucune agence à afficher</td>
               </tr>
-              <tr v-for="agency in filteredAgencies" :key="agency.id">
+              <tr v-for="agency in paginatedAgencies" :key="agency.id">
                 <td><code class="mono">{{ agency.code }}</code></td>
                 <td class="strong">{{ agency.name }}</td>
                 <td>
@@ -126,9 +130,11 @@
                   <span v-else class="tag tag-warn">Non assigné</span>
                 </td>
                 <td class="col-actions">
+                  <button type="button" class="btn-link" @click="openEditAgencyModal(agency)">Modifier</button>
                   <button type="button" class="btn-link" @click="openAssignChefAgenceModal(agency)">
-                    {{ (agency.chefAgence || agency.chef_agence) ? 'Modifier' : 'Assigner' }}
+                    {{ (agency.chefAgence || agency.chef_agence) ? 'Chef' : 'Assigner' }}
                   </button>
+                  <button type="button" class="btn-link danger" @click="confirmDeleteAgency(agency)">Supprimer</button>
                 </td>
               </tr>
             </tbody>
@@ -154,7 +160,7 @@
               <tr v-if="filteredUsers.length === 0">
                 <td colspan="6" class="empty-cell">Aucun utilisateur trouvé</td>
               </tr>
-              <tr v-for="user in filteredUsers" :key="user.id">
+              <tr v-for="user in paginatedUsers" :key="user.id">
                 <td>
                   <div class="person">
                     <span class="avatar">{{ initials(user.name) }}</span>
@@ -199,7 +205,7 @@
               <tr v-if="filteredProfiles.length === 0">
                 <td colspan="6" class="empty-cell">Aucun profil trouvé</td>
               </tr>
-              <tr v-for="profile in filteredProfiles" :key="profile.id">
+              <tr v-for="profile in paginatedProfiles" :key="profile.id">
                 <td><code class="mono">{{ profile.code }}</code></td>
                 <td class="strong">{{ profile.name }}</td>
                 <td class="muted">{{ profile.description || '—' }}</td>
@@ -223,7 +229,114 @@
           </table>
         </div>
       </div>
+
+      <div v-if="currentResultCount > 0" class="tam-pagination">
+        <div class="pagination-info">
+          {{ pageStart }}–{{ pageEnd }} sur {{ currentResultCount }}
+        </div>
+        <div class="pagination-size">
+          <label for="page-size">Par page</label>
+          <select id="page-size" v-model.number="pageSize" class="page-size-select">
+            <option :value="10">10</option>
+            <option :value="25">25</option>
+            <option :value="50">50</option>
+            <option :value="100">100</option>
+          </select>
+        </div>
+        <div class="pagination-controls">
+          <button type="button" class="pagination-btn" :disabled="currentPage <= 1" @click="goToPage(currentPage - 1)">
+            Précédent
+          </button>
+          <button
+            v-for="(page, idx) in visiblePages"
+            :key="'p-' + idx + '-' + page"
+            type="button"
+            class="pagination-btn"
+            :class="{ active: page === currentPage, ellipsis: page === '…' }"
+            :disabled="page === '…'"
+            @click="page !== '…' && goToPage(page)"
+          >
+            {{ page }}
+          </button>
+          <button type="button" class="pagination-btn" :disabled="currentPage >= totalPages" @click="goToPage(currentPage + 1)">
+            Suivant
+          </button>
+        </div>
+      </div>
     </section>
+
+    <!-- Modal territoire -->
+    <div v-if="showTerritoryModal" class="modal-overlay" @click="closeTerritoryModal">
+      <div class="modal" @click.stop>
+        <div class="modal-head">
+          <h2>{{ editingTerritory ? 'Modifier le territoire' : 'Nouveau territoire' }}</h2>
+          <button type="button" class="icon-btn" aria-label="Fermer" @click="closeTerritoryModal">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field">
+              <label for="territory-code">Code *</label>
+              <input id="territory-code" v-model="territoryForm.code" type="text" class="control" required placeholder="DAKAR_VILLE…" />
+            </div>
+            <div class="field">
+              <label for="territory-name">Nom *</label>
+              <input id="territory-name" v-model="territoryForm.name" type="text" class="control" required />
+            </div>
+            <div class="field full">
+              <label for="territory-description">Description</label>
+              <textarea id="territory-description" v-model="territoryForm.description" class="control" rows="3"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button type="button" class="btn btn-ghost" @click="closeTerritoryModal">Annuler</button>
+          <button type="button" class="btn btn-primary" :disabled="savingTerritory" @click="saveTerritory">
+            {{ savingTerritory ? 'Enregistrement…' : 'Enregistrer' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal agence -->
+    <div v-if="showAgencyModal" class="modal-overlay" @click="closeAgencyModal">
+      <div class="modal" @click.stop>
+        <div class="modal-head">
+          <h2>{{ editingAgency ? 'Modifier l’agence' : 'Nouvelle agence' }}</h2>
+          <button type="button" class="icon-btn" aria-label="Fermer" @click="closeAgencyModal">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field">
+              <label for="agency-code">Code *</label>
+              <input id="agency-code" v-model="agencyForm.code" type="text" class="control" required placeholder="501…" />
+            </div>
+            <div class="field">
+              <label for="agency-name">Nom *</label>
+              <input id="agency-name" v-model="agencyForm.name" type="text" class="control" required />
+            </div>
+            <div class="field full">
+              <label for="agency-territory">Territoire</label>
+              <select id="agency-territory" v-model="agencyForm.territory_id" class="control">
+                <option value="">Aucun</option>
+                <option v-for="territory in territories" :key="territory.id" :value="territory.id">
+                  {{ territory.name }} ({{ territory.code }})
+                </option>
+              </select>
+            </div>
+            <div class="field full">
+              <label for="agency-description">Description</label>
+              <textarea id="agency-description" v-model="agencyForm.description" class="control" rows="3"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button type="button" class="btn btn-ghost" @click="closeAgencyModal">Annuler</button>
+          <button type="button" class="btn btn-primary" :disabled="savingAgency" @click="saveAgency">
+            {{ savingAgency ? 'Enregistrement…' : 'Enregistrer' }}
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Modal utilisateur -->
     <div v-if="showUserModal" class="modal-overlay" @click="closeUserModal">
@@ -415,6 +528,23 @@ export default {
       selectedResponsibleId: '',
       selectedChefAgenceId: '',
       assigning: false,
+      showTerritoryModal: false,
+      editingTerritory: null,
+      territoryForm: {
+        code: '',
+        name: '',
+        description: ''
+      },
+      savingTerritory: false,
+      showAgencyModal: false,
+      editingAgency: null,
+      agencyForm: {
+        code: '',
+        name: '',
+        description: '',
+        territory_id: ''
+      },
+      savingAgency: false,
       users: [],
       profiles: [],
       showUserModal: false,
@@ -439,7 +569,9 @@ export default {
       },
       savingProfile: false,
       availablePermissions: [],
-      searchQuery: ''
+      searchQuery: '',
+      currentPage: 1,
+      pageSize: 10
     }
   },
   computed: {
@@ -483,6 +615,55 @@ export default {
       if (this.activeTab === 'users') return this.filteredUsers.length;
       return this.filteredProfiles.length;
     },
+    totalPages() {
+      return Math.max(1, Math.ceil(this.currentResultCount / this.pageSize));
+    },
+    pageStart() {
+      if (this.currentResultCount === 0) return 0;
+      return (this.currentPage - 1) * this.pageSize + 1;
+    },
+    pageEnd() {
+      return Math.min(this.currentPage * this.pageSize, this.currentResultCount);
+    },
+    paginatedTerritories() {
+      return this.slicePage(this.filteredTerritories);
+    },
+    paginatedAgencies() {
+      return this.slicePage(this.filteredAgencies);
+    },
+    paginatedUsers() {
+      return this.slicePage(this.filteredUsers);
+    },
+    paginatedProfiles() {
+      return this.slicePage(this.filteredProfiles);
+    },
+    visiblePages() {
+      const total = this.totalPages;
+      const current = this.currentPage;
+      if (total <= 7) {
+        return Array.from({ length: total }, (_, i) => i + 1);
+      }
+      const pages = new Set([1, total, current, current - 1, current + 1]);
+      if (current <= 3) {
+        pages.add(2);
+        pages.add(3);
+        pages.add(4);
+      }
+      if (current >= total - 2) {
+        pages.add(total - 1);
+        pages.add(total - 2);
+        pages.add(total - 3);
+      }
+      const sorted = [...pages].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
+      const withEllipsis = [];
+      let prev = 0;
+      for (const p of sorted) {
+        if (prev && p - prev > 1) withEllipsis.push('…');
+        withEllipsis.push(p);
+        prev = p;
+      }
+      return withEllipsis;
+    },
     searchPlaceholder() {
       const map = {
         territories: 'Rechercher un territoire…',
@@ -496,6 +677,18 @@ export default {
   watch: {
     activeTab() {
       this.searchQuery = '';
+      this.currentPage = 1;
+    },
+    searchQuery() {
+      this.currentPage = 1;
+    },
+    pageSize() {
+      this.currentPage = 1;
+    },
+    currentResultCount() {
+      if (this.currentPage > this.totalPages) {
+        this.currentPage = this.totalPages;
+      }
     }
   },
   mounted() {
@@ -504,6 +697,15 @@ export default {
   methods: {
     setTab(tab) {
       this.activeTab = tab;
+    },
+    slicePage(list) {
+      const start = (this.currentPage - 1) * this.pageSize;
+      return list.slice(start, start + this.pageSize);
+    },
+    goToPage(page) {
+      const p = Number(page);
+      if (!Number.isFinite(p) || p < 1 || p > this.totalPages) return;
+      this.currentPage = p;
     },
     matchesSearch(q, values) {
       return values.some((v) => String(v || '').toLowerCase().includes(q));
@@ -624,6 +826,170 @@ export default {
         setTimeout(() => {
           this.syncMessage = '';
         }, 12000);
+      }
+    },
+    openCreateTerritoryModal() {
+      this.editingTerritory = null;
+      this.territoryForm = { code: '', name: '', description: '' };
+      this.showTerritoryModal = true;
+    },
+    openEditTerritoryModal(territory) {
+      this.editingTerritory = territory;
+      this.territoryForm = {
+        code: territory.code || '',
+        name: territory.name || '',
+        description: territory.description || ''
+      };
+      this.showTerritoryModal = true;
+    },
+    closeTerritoryModal() {
+      this.showTerritoryModal = false;
+      this.editingTerritory = null;
+      this.territoryForm = { code: '', name: '', description: '' };
+    },
+    async saveTerritory() {
+      if (!this.territoryForm.code?.trim() || !this.territoryForm.name?.trim()) {
+        alert('Veuillez renseigner le code et le nom du territoire.');
+        return;
+      }
+
+      this.savingTerritory = true;
+      try {
+        const token = localStorage.getItem('token');
+        const payload = {
+          code: this.territoryForm.code.trim().toUpperCase().replace(/\s+/g, '_'),
+          name: this.territoryForm.name.trim(),
+          description: this.territoryForm.description?.trim() || null
+        };
+
+        if (this.editingTerritory) {
+          await axios.put(
+            `/api/territories/${this.editingTerritory.id}`,
+            payload,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+        } else {
+          await axios.post(
+            '/api/territories',
+            payload,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+        }
+
+        await this.loadTerritories();
+        const wasEdit = !!this.editingTerritory;
+        this.closeTerritoryModal();
+        alert(wasEdit ? '✅ Territoire modifié avec succès!' : '✅ Territoire créé avec succès!');
+      } catch (error) {
+        const errors = error.response?.data?.errors;
+        const errorMsg = errors
+          ? Object.values(errors).flat().join('\n')
+          : (error.response?.data?.message || error.message);
+        alert('❌ Erreur: ' + errorMsg);
+        console.error('Erreur sauvegarde territoire:', error);
+      } finally {
+        this.savingTerritory = false;
+      }
+    },
+    confirmDeleteTerritory(territory) {
+      if (confirm(`Supprimer le territoire « ${territory.name} » ?`)) {
+        this.deleteTerritory(territory);
+      }
+    },
+    async deleteTerritory(territory) {
+      try {
+        const token = localStorage.getItem('token');
+        await axios.delete(`/api/territories/${territory.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        await Promise.all([this.loadTerritories(), this.loadAgencies()]);
+        alert('✅ Territoire supprimé avec succès!');
+      } catch (error) {
+        alert('❌ Erreur: ' + (error.response?.data?.message || error.message));
+        console.error('Erreur suppression territoire:', error);
+      }
+    },
+    openCreateAgencyModal() {
+      this.editingAgency = null;
+      this.agencyForm = { code: '', name: '', description: '', territory_id: '' };
+      this.showAgencyModal = true;
+    },
+    openEditAgencyModal(agency) {
+      this.editingAgency = agency;
+      this.agencyForm = {
+        code: agency.code || '',
+        name: agency.name || '',
+        description: agency.description || '',
+        territory_id: agency.territory_id || agency.territory?.id || ''
+      };
+      this.showAgencyModal = true;
+    },
+    closeAgencyModal() {
+      this.showAgencyModal = false;
+      this.editingAgency = null;
+      this.agencyForm = { code: '', name: '', description: '', territory_id: '' };
+    },
+    async saveAgency() {
+      if (!this.agencyForm.code?.trim() || !this.agencyForm.name?.trim()) {
+        alert('Veuillez renseigner le code et le nom de l’agence.');
+        return;
+      }
+
+      this.savingAgency = true;
+      try {
+        const token = localStorage.getItem('token');
+        const payload = {
+          code: this.agencyForm.code.trim().toUpperCase(),
+          name: this.agencyForm.name.trim(),
+          description: this.agencyForm.description?.trim() || null,
+          territory_id: this.agencyForm.territory_id || null
+        };
+
+        if (this.editingAgency) {
+          await axios.put(
+            `/api/agencies/${this.editingAgency.id}`,
+            payload,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+        } else {
+          await axios.post(
+            '/api/agencies',
+            payload,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+        }
+
+        await this.loadAgencies();
+        const wasEdit = !!this.editingAgency;
+        this.closeAgencyModal();
+        alert(wasEdit ? '✅ Agence modifiée avec succès!' : '✅ Agence créée avec succès!');
+      } catch (error) {
+        const errors = error.response?.data?.errors;
+        const errorMsg = errors
+          ? Object.values(errors).flat().join('\n')
+          : (error.response?.data?.message || error.message);
+        alert('❌ Erreur: ' + errorMsg);
+        console.error('Erreur sauvegarde agence:', error);
+      } finally {
+        this.savingAgency = false;
+      }
+    },
+    confirmDeleteAgency(agency) {
+      if (confirm(`Supprimer l’agence « ${agency.name} » (${agency.code}) ?`)) {
+        this.deleteAgency(agency);
+      }
+    },
+    async deleteAgency(agency) {
+      try {
+        const token = localStorage.getItem('token');
+        await axios.delete(`/api/agencies/${agency.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        await this.loadAgencies();
+        alert('✅ Agence supprimée avec succès!');
+      } catch (error) {
+        alert('❌ Erreur: ' + (error.response?.data?.message || error.message));
+        console.error('Erreur suppression agence:', error);
       }
     },
     openAssignResponsibleModal(territory) {
@@ -1291,8 +1657,98 @@ export default {
 }
 
 .col-actions {
-  text-align: right;
+  width: 1%;
   white-space: nowrap;
+  text-align: left;
+}
+
+.data-table th.col-actions,
+.data-table td.col-actions {
+  text-align: left;
+  padding-right: 20px;
+}
+
+.data-table td.col-actions .btn-link:last-child {
+  margin-right: 0;
+}
+
+.tam-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: #fafbfc;
+}
+
+.pagination-info {
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 110px;
+}
+
+.pagination-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.page-size-select {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  font-size: 12px;
+  color: #374151;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.pagination-btn {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.pagination-btn:hover:not(:disabled):not(.ellipsis) {
+  border-color: #8fb3a1;
+  color: var(--brand);
+}
+
+.pagination-btn.active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pagination-btn.ellipsis {
+  border: none;
+  background: transparent;
+  cursor: default;
+  min-width: 20px;
+  padding: 0 2px;
 }
 
 .empty-cell {

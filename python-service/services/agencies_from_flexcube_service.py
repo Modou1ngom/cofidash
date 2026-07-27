@@ -1,18 +1,14 @@
 """
-Agences : CODE_BUREAU + libellé AGENCE depuis DASH_RELATION.
-Par défaut : dernier snapshot global (MAX(MIGRATION_DATETIME)) pour lister toutes les agences du dernier chargement.
+Agences : BRANCH_CODE + BRANCH_NAME depuis Flexcube (STTM_BRANCH).
+Sans tables DASH.
 """
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any, Optional
 
-from database.oracle import get_oracle_connection_cofina
-from services.agencies_dash_query import (
-    AGENCIES_FROM_DASH_RELATION_SQL,
-    AGENCIES_FROM_DASH_RELATION_SQL_BY_MONTH,
-)
+from database.oracle import get_oracle_connection
+from services.agencies_flexcube_query import AGENCIES_FROM_STTM_BRANCH_SQL
 from services.utils import (
     get_territory_from_agency,
     get_territory_from_branch_code,
@@ -60,43 +56,20 @@ def _row_to_agency_dict(code_raw: Any, name_raw: Any) -> Optional[dict[str, Any]
     }
 
 
-def fetch_agencies_from_dash_relation(
-    month: Optional[int] = None,
-    year: Optional[int] = None,
-    scope: str = "latest",
-) -> list[dict[str, Any]]:
-    """
-    Agences distinctes depuis DASH_RELATION.
-
-    scope:
-      - "latest" (défaut) : MAX(MIGRATION_DATETIME) sur toute la table — liste complète du dernier chargement.
-      - "month" : même filtre MM/YYYY que le dash clients (sous-ensemble, souvent moins d'agences).
-    """
-    scope_norm = (scope or "latest").strip().lower()
-    use_month = scope_norm == "month"
-
-    conn = get_oracle_connection_cofina()
+def fetch_agencies_from_flexcube() -> list[dict[str, Any]]:
+    """Agences distinctes depuis CFSFCUBS145.STTM_BRANCH (Flexcube)."""
+    conn = get_oracle_connection()
     try:
         cur = conn.cursor()
-        if use_month:
-            m, y = int(month or 0), int(year or 0)
-            if not m or not y:
-                now = datetime.now()
-                m, y = now.month, now.year
-            month_year = f"{m:02d}/{y}"
-            cur.execute(AGENCIES_FROM_DASH_RELATION_SQL_BY_MONTH, {"month_year": month_year})
-            log_label = f"month_year={month_year}"
-        else:
-            cur.execute(AGENCIES_FROM_DASH_RELATION_SQL)
-            log_label = "snapshot global MAX(MIGRATION_DATETIME)"
+        cur.execute(AGENCIES_FROM_STTM_BRANCH_SQL)
 
         cols = [d[0] for d in cur.description]
         rows_out: list[dict[str, Any]] = []
         seen: set[tuple[str, str]] = set()
         for row in cur.fetchall():
             rec = dict(zip(cols, row))
-            code_raw = rec.get("CODE_BUREAU")
-            name_raw = rec.get("AGENCE")
+            code_raw = rec.get("BRANCH_CODE")
+            name_raw = rec.get("BRANCH_NAME")
             d = _row_to_agency_dict(code_raw, name_raw)
             if not d:
                 continue
@@ -105,11 +78,7 @@ def fetch_agencies_from_dash_relation(
                 continue
             seen.add(key)
             rows_out.append(d)
-        logger.info(
-            "📊 Agences DASH_RELATION (%s): %s ligne(s)",
-            log_label,
-            len(rows_out),
-        )
+        logger.info("📊 Agences STTM_BRANCH (Flexcube): %s ligne(s)", len(rows_out))
         return rows_out
     finally:
         conn.close()

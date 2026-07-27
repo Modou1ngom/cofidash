@@ -27,7 +27,7 @@ from services.portefeuille_risque_service import (
 from services.entrees_par_service import get_entrees_par_data
 from services.reference_compte_service import get_gl_by_code, search_gl
 from services.cr_par_agence_service import get_cr_data_by_parent_gl
-from services.agencies_from_dash_service import fetch_agencies_from_dash_relation
+from services.agencies_from_flexcube_service import fetch_agencies_from_flexcube
 
 logger = logging.getLogger(__name__)
 
@@ -231,31 +231,28 @@ async def get_clients_data_endpoint(
         )
 
 
-@router.get("/data/agencies-from-dash")
-async def get_agencies_from_dash_endpoint(
-    month: Optional[int] = None,
-    year: Optional[int] = None,
-    scope: str = Query(
-        "latest",
-        description="latest = dernier chargement global (liste complète). month = filtre MM/YYYY comme le dash clients (sous-ensemble).",
-    ),
-):
+@router.get("/data/agencies-from-flexcube")
+async def get_agencies_from_flexcube_endpoint():
     """
-    Liste des agences (CODE_BUREAU, AGENCE) depuis DASH_RELATION.
-    Par défaut (scope=latest) : MAX(MIGRATION_DATETIME) sur toute la table.
+    Liste des agences (BRANCH_CODE, BRANCH_NAME) depuis Flexcube STTM_BRANCH.
     """
     try:
-        rows = fetch_agencies_from_dash_relation(month=month, year=year, scope=scope)
-        # Envelopper pour cohérence avec les autres endpoints Oracle ({"data": ...})
+        rows = fetch_agencies_from_flexcube()
         return {"data": rows}
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("Erreur agencies-from-dash: %s", e, exc_info=True)
+        logger.error("Erreur agencies-from-flexcube: %s", e, exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de la récupération des agences: {e!s}",
         ) from e
+
+
+# Alias historique (même source Flexcube — plus de DASH_RELATION).
+@router.get("/data/agencies-from-dash")
+async def get_agencies_from_dash_endpoint_alias():
+    return await get_agencies_from_flexcube_endpoint()
 
 
 @router.get("/data/production/nombre")

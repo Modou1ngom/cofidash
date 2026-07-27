@@ -14,7 +14,9 @@ from services.vue360_kpi_queries import (
     AGENCY_STATS_FLEXCUBE,
 )
 from services.encours_repartition_query import (
+    ENCOURS_GLOBAL_DETAIL,
     ENCOURS_REPARTITION_DETAIL,
+    aggregate_encours_global_rows,
     aggregate_encours_repartition_rows,
 )
 from services.vue360_queries import (
@@ -725,6 +727,23 @@ def _fetch_client_encours_repartition(customer_no: str) -> Optional[Dict[str, fl
         return None
 
 
+def _fetch_client_encours_global(customer_no: str) -> Optional[Dict[str, float]]:
+    """Encours global = capital échéancier + intérêts/pénalités + charges (FTC…)."""
+    try:
+        rows = _execute_query_flexcube(
+            ENCOURS_GLOBAL_DETAIL,
+            {"customer_no": customer_no},
+        )
+        return aggregate_encours_global_rows(rows)
+    except Exception as exc:
+        logger.warning(
+            "Encours global indisponible pour %s: %s",
+            customer_no,
+            exc,
+        )
+        return None
+
+
 def _repartition_has_data(totals: Optional[Dict[str, float]]) -> bool:
     if not totals:
         return False
@@ -943,6 +962,7 @@ def _build_client_summary(
     comptes_rows: Optional[List[Dict[str, Any]]] = None,
     credits: Optional[List[Dict[str, Any]]] = None,
     repartition_totals: Optional[Dict[str, float]] = None,
+    encours_global_totals: Optional[Dict[str, float]] = None,
 ) -> Dict[str, Any]:
     credit_outstanding = _to_float(client.get("total_outstanding"))
     savings = _to_float(client.get("savings_balance"))
@@ -980,23 +1000,40 @@ def _build_client_summary(
         breakdown_totals = _zero_repartition_totals()
         repartition_source = "unavailable"
 
-    # Fallback : montant dû compte (CSTB_AUTO_SETTLE) si la répartition crédit est vide
-    # (client sans prêt mais avec charges / FTC / ACS, etc.).
+    # Fallback : agrégation des crédits actifs (jamais tout coller en FTC).
     accounts_due = _accounts_amount_due_total(comptes_rows)
-    if not _repartition_has_data(breakdown_totals) and accounts_due > 0:
-        breakdown_totals = {
-            **_zero_repartition_totals(),
-            "ftc_due": accounts_due,
-            "total_charge": accounts_due,
-            "total_due_amount": accounts_due,
-        }
-        repartition_source = "accounts_due"
+    if not _repartition_has_data(breakdown_totals):
+        credit_breakdown = _aggregate_encours_breakdown(credits)
+        if _repartition_has_data(credit_breakdown):
+            breakdown_totals = {
+                **_zero_repartition_totals(),
+                **credit_breakdown,
+                "total_due_amount": round(
+                    sum(_to_float(v) for v in credit_breakdown.values()), 2
+                ),
+            }
+            repartition_source = "credits"
+        elif accounts_due > 0:
+            # Montant dû compte connu, mais composantes non classées :
+            # on conserve le total pour les KPI sans fausse répartition FTC.
+            breakdown_totals = {
+                **_zero_repartition_totals(),
+                "total_due_amount": accounts_due,
+            }
+            repartition_source = "accounts_due"
 
     encours_breakdown = _encours_breakdown_items(breakdown_totals)
     total_due_amount = round(_to_float(breakdown_totals.get("total_due_amount")), 2)
     total_exigible_query = round(_to_float(breakdown_totals.get("total_exigible")), 2)
     total_charge_query = round(_to_float(breakdown_totals.get("total_charge")), 2)
-    if total_due_amount > 0:
+
+    # Encours global (requête production) : capital + intérêts/pénalités + charges FTC…
+    encours_global_query = round(
+        _to_float((encours_global_totals or {}).get("encours_global")), 2
+    )
+    if encours_global_query > 0:
+        credit_encours_global = encours_global_query
+    elif total_due_amount > 0:
         credit_encours_global = total_due_amount
     elif total_exigible_query > 0 or total_charge_query > 0:
         credit_encours_global = round(total_exigible_query + total_charge_query, 2)
@@ -1069,6 +1106,17 @@ def _build_client_summary(
         "total_exigible": total_exigible,
         "encours_global": credit_encours_global,
         "credit_encours_global": credit_encours_global,
+        "encours_global_detail": {
+            "encours_total": round(
+                _to_float((encours_global_totals or {}).get("encours_total")), 2
+            ),
+            "charge_pret_due": round(
+                _to_float((encours_global_totals or {}).get("charge_pret_due")), 2
+            ),
+            "charge_due": round(
+                _to_float((encours_global_totals or {}).get("charge_due")), 2
+            ),
+        },
         "encours_credit": credit_outstanding,
         "encours_epargne": balances["epargne"],
         "encours_dat": balances["dat"],
@@ -1126,15 +1174,17 @@ def get_client(
     def resolve_client_rows() -> List[Dict[str, Any]]:
         return _fetch_client_from_flexcube(customer_no, branch_codes)
 
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    with ThreadPoolExecutor(max_workers=5) as pool:
         fut_rows = pool.submit(resolve_client_rows)
         fut_comptes = pool.submit(_fetch_comptes_safe, customer_no)
         fut_credits = pool.submit(_fetch_client_credits, customer_no, branch_codes)
         fut_repartition = pool.submit(_fetch_client_encours_repartition, customer_no)
+        fut_encours_global = pool.submit(_fetch_client_encours_global, customer_no)
         rows = fut_rows.result()
         comptes_rows = fut_comptes.result()
         credits = fut_credits.result()
         repartition_totals = fut_repartition.result()
+        encours_global_totals = fut_encours_global.result()
 
     if not rows:
         return None
@@ -1155,6 +1205,7 @@ def get_client(
         comptes_rows,
         credits,
         repartition_totals=repartition_totals,
+        encours_global_totals=encours_global_totals,
     )
     client["summary"] = summary
     client["total_outstanding"] = summary.get("credit_encours_global") or summary.get(
@@ -1594,9 +1645,14 @@ def _soft_scoring(
     return max(0, min(100, int(round(score))))
 
 
-def _build_credits_summary(credits: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _build_credits_summary(
+    credits: List[Dict[str, Any]],
+    encours_global_totals: Optional[Dict[str, float]] = None,
+) -> Dict[str, Any]:
     active = [c for c in credits if c.get("health_status") not in ("solde",)]
     total_global = sum(_to_float(c.get("total_outstanding")) for c in active)
+    if encours_global_totals and _to_float(encours_global_totals.get("encours_global")) > 0:
+        total_global = _to_float(encours_global_totals.get("encours_global"))
     total_healthy = sum(_to_float(c.get("healthy_outstanding")) for c in active)
     total_unpaid = sum(_to_float(c.get("unpaid_amount")) for c in active)
     total_due = sum(_to_float(c.get("due_amount")) for c in active)
@@ -1614,7 +1670,18 @@ def _build_credits_summary(credits: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
     return {
         "encours_global": round(total_global, 2),
-        "encours_global_label": "Capital + intérêts + pénalités",
+        "encours_global_label": "Capital + intérêts/pénalités + charges (FTC…)",
+        "encours_global_detail": {
+            "encours_total": round(
+                _to_float((encours_global_totals or {}).get("encours_total")), 2
+            ),
+            "charge_pret_due": round(
+                _to_float((encours_global_totals or {}).get("charge_pret_due")), 2
+            ),
+            "charge_due": round(
+                _to_float((encours_global_totals or {}).get("charge_due")), 2
+            ),
+        },
         "total_encours_sain": round(total_healthy, 2),
         "total_encours_impaye": round(total_unpaid, 2),
         "total_exigible": round(total_due, 2),
@@ -1637,8 +1704,11 @@ def list_credits(
         for credit in credits:
             credit["client_id"] = f"CLT-{customer_no}"
     if client_id:
+        encours_global_totals = (
+            _fetch_client_encours_global(customer_no) if customer_no else None
+        )
         return {
-            "summary": _build_credits_summary(credits),
+            "summary": _build_credits_summary(credits, encours_global_totals),
             "credits": credits,
         }
     return credits
