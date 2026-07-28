@@ -84,7 +84,7 @@
           </div>
         </div>
 
-        <div class="form-row" v-if="(shouldShowTypeField && profileCode !== 'CHEF_AGENCE') || (determinedCategory === 'TERRITOIRE' || (isResponsableZone && determinedCategory === 'GRAND COMPTE'))">
+        <div class="form-row" v-if="(shouldShowTypeField && profileCode !== 'CHEF_AGENCE') || ((determinedCategory === 'TERRITOIRE' || (isResponsableZone && determinedCategory === 'GRAND COMPTE')) && profileCode !== 'CHEF_AGENCE')">
           <div class="form-group" v-if="shouldShowTypeField && profileCode !== 'CHEF_AGENCE'">
             <label for="type">Type d'objectif *</label>
             <select 
@@ -107,8 +107,8 @@
             </select>
           </div>
 
-          <!-- Pour Responsable Zone, afficher le sélecteur de territoire -->
-          <div class="form-group" v-if="determinedCategory === 'TERRITOIRE' || (isResponsableZone && determinedCategory === 'GRAND COMPTE')">
+          <!-- Pour Responsable Zone / DGA, afficher le sélecteur de territoire (pas pour CHEF_AGENCE) -->
+          <div class="form-group" v-if="profileCode !== 'CHEF_AGENCE' && (determinedCategory === 'TERRITOIRE' || (isResponsableZone && determinedCategory === 'GRAND COMPTE'))">
             <label for="territory">Territoire *</label>
             <select 
               id="territory" 
@@ -327,7 +327,7 @@
                 <span v-if="loadingCAFs">Chargement des CAF...</span>
                 <span v-else>Sélectionner un CAF</span>
               </option>
-              <option v-for="caf in cafs" :key="caf.id || caf.email" :value="caf.id || caf.email">
+              <option v-for="caf in cafs" :key="caf.id || caf.email" :value="String(caf.id || caf.email)">
                 {{ caf.name }} ({{ caf.email }})
               </option>
             </select>
@@ -380,14 +380,14 @@
                 <td v-else class="value-cell">
                   <span class="empty-cell">-</span>
                 </td>
-                <td v-if="objectiveType.code !== 'PRODUCTION'" class="value-cell">
+                <td v-if="objectiveType.code !== 'PRODUCTION' && cafObjectives[objectiveType.code]" class="value-cell">
                   <input 
                     type="number" 
                     v-model.number="cafObjectives[objectiveType.code].value" 
                     min="0"
-                    :step="objectiveType.code === 'COLLECT' ? '0.01' : '1'"
+                    :step="['COLLECT', 'DEPOT_GARANTIE', 'EPARGNE_SIMPLE', 'EPARGNE_PROJET', 'VOLUME_DAT'].includes(objectiveType.code) ? '0.01' : '1'"
                     class="table-input"
-                    :placeholder="objectiveType.code === 'COLLECT' ? 'Montant (FCFA)' : 'Valeur'"
+                    :placeholder="['COLLECT', 'DEPOT_GARANTIE', 'EPARGNE_SIMPLE', 'EPARGNE_PROJET', 'VOLUME_DAT'].includes(objectiveType.code) ? 'Montant (FCFA)' : 'Valeur'"
                   />
                 </td>
                 <td v-else class="value-cell">
@@ -545,7 +545,8 @@ export default {
         COLLECT: { value: null },
         DEPOT_GARANTIE: { value: null },
         EPARGNE_SIMPLE: { value: null },
-        EPARGNE_PROJET: { value: null }
+        EPARGNE_PROJET: { value: null },
+        VOLUME_DAT: { value: null }
       },
       dgaObjectiveValue: null, // Valeur de l'objectif DGA pour référence
       dgaObjectiveNombres: null, // NOMBRES de l'objectif DGA pour PRODUCTION
@@ -562,7 +563,8 @@ export default {
         COLLECT: { value: null },
         DEPOT_GARANTIE: { value: null },
         EPARGNE_SIMPLE: { value: null },
-        EPARGNE_PROJET: { value: null }
+        EPARGNE_PROJET: { value: null },
+        VOLUME_DAT: { value: null }
       },
       // Sommes des objectifs CAF par type
       cafObjectivesSums: {
@@ -572,7 +574,8 @@ export default {
         COLLECT: { value: 0 },
         DEPOT_GARANTIE: { value: 0 },
         EPARGNE_SIMPLE: { value: 0 },
-        EPARGNE_PROJET: { value: 0 }
+        EPARGNE_PROJET: { value: 0 },
+        VOLUME_DAT: { value: 0 }
       },
       months: [
         'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -774,6 +777,9 @@ export default {
   watch: {
     'form.territory'(newVal) {
       if (newVal) {
+        if (this.profileCode === 'CHEF_AGENCE') {
+          return;
+        }
         if (this.determinedCategory === 'TERRITOIRE') {
           this.loadAgencies();
         }
@@ -968,6 +974,12 @@ export default {
       }
     },
     async loadAgencies() {
+      // Le chef d'agence n'a pas besoin de la liste des agences (son agence est déjà connue)
+      if (this.profileCode === 'CHEF_AGENCE') {
+        this.loadingAgencies = false;
+        return;
+      }
+
       try {
         this.loadingAgencies = true;
         this.agencies = [];
@@ -1426,62 +1438,78 @@ export default {
         return;
       }
 
-      const selectedCAF = this.cafs.find(c => (c.id || c.email) === this.form.caf);
+      const selectedCAF = this.cafs.find(c => String(c.id || c.email) === String(this.form.caf));
       
-      // Pour CHEF_AGENCE, utiliser le code de son agence (pas celui du CAF)
+      // Récupérer le nom de l'agence du Chef d'Agence (pour l'affichage / matching)
       const user = ProfileManager.getCurrentUser();
-      let agencyCode, agencyName, category;
+      let agencyName, category;
       
       if (user && user.agency) {
-        // Utiliser le code de l'agence du Responsable Agence (pas l'ID du CAF)
-        agencyCode = String(user.agency.code || user.agency_id);
         agencyName = user.agency.name || 'Agence';
-        // Pour une agence normale (pas un point de service), utiliser TERRITOIRE comme catégorie
+        category = 'TERRITOIRE';
+      } else if (user && user.agency_id) {
+        agencyName = 'Agence';
         category = 'TERRITOIRE';
       } else {
-        // Fallback si l'agence n'est pas disponible
-        agencyCode = String(this.form.caf);
         agencyName = selectedCAF ? selectedCAF.name : 'CAF';
         category = 'TERRITOIRE';
       }
       
-      // Vérification de sécurité : s'assurer qu'on a bien un code d'agence
-      if (!agencyCode || agencyCode === 'undefined' || agencyCode === 'null') {
+      if (!user?.agency && !user?.agency_id) {
         this.errorMessage = 'Impossible de récupérer le code de l\'agence. Veuillez vous reconnecter.';
         this.loading = false;
         return;
       }
       
-      // Le CAF sélectionné sera stocké dans agency_name pour référence
+      // Le CAF est identifié via agency_code (= id CAF) et agency_name (pour affichage / matching)
+      // Ne pas réutiliser le code agence : sinon on écrase l'objectif d'agence du Responsable Zone
       const cafName = selectedCAF ? selectedCAF.name : 'CAF';
-      const cafIdentifier = String(this.form.caf); // ID ou email du CAF
+      const cafCode = String(selectedCAF?.id || this.form.caf);
+
+      if (!cafCode || cafCode === 'undefined' || cafCode === 'null') {
+        this.errorMessage = 'Veuillez sélectionner un CAF valide.';
+        this.loading = false;
+        return;
+      }
 
       // Préparer les objectifs à soumettre
       const objectivesToSubmit = [];
+      const baseObjective = {
+        category: category,
+        territory: this.form.territory || null,
+        agency_code: cafCode,
+        agency_name: `${agencyName} - CAF: ${cafName}`,
+        period: this.form.period,
+        month: this.form.period === 'month' ? parseInt(this.form.month, 10) : null,
+        quarter: this.form.period === 'quarter' ? parseInt(this.form.quarter, 10) : null,
+        year: parseInt(this.form.year, 10),
+        description: this.form.description || null
+      };
+
+      const pushSimpleObjective = (type, rawValue, options = {}) => {
+        if (rawValue === null || rawValue === '' || !(rawValue > 0)) {
+          return true;
+        }
+        const parsed = options.asFloat ? parseFloat(rawValue) : parseInt(rawValue, 10);
+        if (isNaN(parsed) || parsed < 0) {
+          this.errorMessage = options.errorMessage;
+          this.loading = false;
+          return false;
+        }
+        // La colonne value est entière en base
+        objectivesToSubmit.push({
+          ...baseObjective,
+          type,
+          value: Math.round(parsed)
+        });
+        return true;
+      };
 
       // CLIENT
-      if (this.cafObjectives.CLIENT.value !== null && this.cafObjectives.CLIENT.value !== '' && this.cafObjectives.CLIENT.value > 0) {
-        const clientValue = parseInt(this.cafObjectives.CLIENT.value, 10);
-        if (isNaN(clientValue) || clientValue < 0) {
-          this.errorMessage = 'Pour Objectif Client, veuillez entrer une valeur valide (nombre entier positif).';
-          this.loading = false;
-          return;
-        }
-        const clientObjective = {
-          type: 'CLIENT',
-          category: category,
-          territory: this.form.territory || null,
-          agency_code: agencyCode,
-          agency_name: `${agencyName} - CAF: ${cafName}`,
-          period: this.form.period,
-          month: this.form.period === 'month' ? parseInt(this.form.month, 10) : null,
-          quarter: this.form.period === 'quarter' ? parseInt(this.form.quarter, 10) : null,
-          year: parseInt(this.form.year, 10),
-          value: clientValue,
-          description: this.form.description || null
-        };
-        // Ne pas inclure value_nombres et value_volume pour CLIENT
-        objectivesToSubmit.push(clientObjective);
+      if (!pushSimpleObjective('CLIENT', this.cafObjectives.CLIENT.value, {
+        errorMessage: 'Pour Objectif Client, veuillez entrer une valeur valide (nombre entier positif).'
+      })) {
+        return;
       }
 
       // PRODUCTION
@@ -1500,72 +1528,60 @@ export default {
           this.loading = false;
           return;
         }
-        const productionObjective = {
+        objectivesToSubmit.push({
+          ...baseObjective,
           type: 'PRODUCTION',
-          category: category,
-          territory: this.form.territory || null,
-          agency_code: agencyCode,
-          agency_name: `${agencyName} - CAF: ${cafName}`,
-          period: this.form.period,
-          month: this.form.period === 'month' ? parseInt(this.form.month, 10) : null,
-          quarter: this.form.period === 'quarter' ? parseInt(this.form.quarter, 10) : null,
-          year: parseInt(this.form.year, 10),
           value: nombresValue, // Pour compatibilité
           value_nombres: nombresValue,
-          value_volume: volumeValue,
-          description: this.form.description || null
-        };
-        objectivesToSubmit.push(productionObjective);
+          value_volume: volumeValue
+        });
       }
 
       // ENCOURS_CREDIT
-      if (this.cafObjectives.ENCOURS_CREDIT.value !== null && this.cafObjectives.ENCOURS_CREDIT.value !== '' && this.cafObjectives.ENCOURS_CREDIT.value > 0) {
-        const encoursValue = parseInt(this.cafObjectives.ENCOURS_CREDIT.value, 10);
-        if (isNaN(encoursValue) || encoursValue < 0) {
-          this.errorMessage = 'Pour Objectif Encours Crédit, veuillez entrer une valeur valide (nombre entier positif).';
-          this.loading = false;
-          return;
-        }
-        const encoursObjective = {
-          type: 'ENCOURS_CREDIT',
-          category: category,
-          territory: this.form.territory || null,
-          agency_code: agencyCode,
-          agency_name: `${agencyName} - CAF: ${cafName}`,
-          period: this.form.period,
-          month: this.form.period === 'month' ? parseInt(this.form.month, 10) : null,
-          quarter: this.form.period === 'quarter' ? parseInt(this.form.quarter, 10) : null,
-          year: parseInt(this.form.year, 10),
-          value: encoursValue,
-          description: this.form.description || null
-        };
-        // Ne pas inclure value_nombres et value_volume pour ENCOURS_CREDIT
-        objectivesToSubmit.push(encoursObjective);
+      if (!pushSimpleObjective('ENCOURS_CREDIT', this.cafObjectives.ENCOURS_CREDIT.value, {
+        errorMessage: 'Pour Objectif Encours Crédit, veuillez entrer une valeur valide (nombre entier positif).'
+      })) {
+        return;
       }
 
       // COLLECT
-      if (this.cafObjectives.COLLECT.value !== null && this.cafObjectives.COLLECT.value !== '' && this.cafObjectives.COLLECT.value > 0) {
-        const collectValue = parseFloat(this.cafObjectives.COLLECT.value);
-        if (isNaN(collectValue) || collectValue < 0) {
-          this.errorMessage = 'Pour Objectif Collecte, veuillez entrer une valeur valide (nombre positif).';
-          this.loading = false;
-          return;
-        }
-        const collectObjective = {
-          type: 'COLLECT',
-          category: category,
-          territory: this.form.territory || null,
-          agency_code: agencyCode,
-          agency_name: `${agencyName} - CAF: ${cafName}`,
-          period: this.form.period,
-          month: this.form.period === 'month' ? parseInt(this.form.month, 10) : null,
-          quarter: this.form.period === 'quarter' ? parseInt(this.form.quarter, 10) : null,
-          year: parseInt(this.form.year, 10),
-          value: collectValue,
-          description: this.form.description || null
-        };
-        // Ne pas inclure value_nombres et value_volume pour COLLECT
-        objectivesToSubmit.push(collectObjective);
+      if (!pushSimpleObjective('COLLECT', this.cafObjectives.COLLECT.value, {
+        asFloat: true,
+        errorMessage: 'Pour Objectif Collecte, veuillez entrer une valeur valide (nombre positif).'
+      })) {
+        return;
+      }
+
+      // DEPOT_GARANTIE
+      if (!pushSimpleObjective('DEPOT_GARANTIE', this.cafObjectives.DEPOT_GARANTIE?.value, {
+        asFloat: true,
+        errorMessage: 'Pour Dépôt de Garantie, veuillez entrer une valeur valide (nombre positif).'
+      })) {
+        return;
+      }
+
+      // EPARGNE_SIMPLE
+      if (!pushSimpleObjective('EPARGNE_SIMPLE', this.cafObjectives.EPARGNE_SIMPLE?.value, {
+        asFloat: true,
+        errorMessage: 'Pour Épargne Simple, veuillez entrer une valeur valide (nombre positif).'
+      })) {
+        return;
+      }
+
+      // EPARGNE_PROJET
+      if (!pushSimpleObjective('EPARGNE_PROJET', this.cafObjectives.EPARGNE_PROJET?.value, {
+        asFloat: true,
+        errorMessage: 'Pour Épargne Projet, veuillez entrer une valeur valide (nombre positif).'
+      })) {
+        return;
+      }
+
+      // VOLUME_DAT
+      if (!pushSimpleObjective('VOLUME_DAT', this.cafObjectives.VOLUME_DAT?.value, {
+        asFloat: true,
+        errorMessage: 'Pour Volume DAT, veuillez entrer une valeur valide (nombre positif).'
+      })) {
+        return;
       }
 
       if (objectivesToSubmit.length === 0) {
@@ -2342,7 +2358,8 @@ export default {
         COLLECT: { value: null },
         DEPOT_GARANTIE: { value: null },
         EPARGNE_SIMPLE: { value: null },
-        EPARGNE_PROJET: { value: null }
+        EPARGNE_PROJET: { value: null },
+        VOLUME_DAT: { value: null }
       };
       this.form = {
         type: '',

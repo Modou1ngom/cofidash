@@ -1,4 +1,4 @@
--- Encours global client / prêt
+-- Encours global client / prêt (Vue 360)
 -- = capital restant (PRINCIPAL échéancier)
 -- + intérêts & pénalités auto-settle (CHARGE_PRET)
 -- + charges compte ACS / FOUV / COFC / FTEC (CHARGE)
@@ -33,8 +33,9 @@ SELECT
     c.CUSTOMER_ID,
     c.PRIMARY_APPLICANT_NAME,
     c.ACCOUNT_NUMBER,
-    t.CHARGE_PRET_DUE,
-    r.CHARGE_DUE,
+    c.DR_PROD_AC,
+    NVL(t.CHARGE_PRET_DUE, 0) AS CHARGE_PRET_DUE,
+    NVL(r.CHARGE_DUE, 0) AS CHARGE_DUE,
     SUM(e.AMOUNT_DUE - e.AMOUNT_SETTLED) AS ENCOURS_TOTAL,
     (
         NVL(t.CHARGE_PRET_DUE, 0)
@@ -50,12 +51,13 @@ LEFT JOIN CHARGE_PRET t
     ON t.CONTRACT_REF_NO = c.ACCOUNT_NUMBER
 WHERE e.COMPONENT_NAME = 'PRINCIPAL'
   AND c.ACCOUNT_STATUS NOT IN ('L', 'V')
-  -- AND c.CUSTOMER_ID = :customer_no
+  AND c.CUSTOMER_ID = :customer_no
 GROUP BY
     c.ACCOUNT_NUMBER,
     e.BRANCH_CODE,
     c.CUSTOMER_ID,
     c.PRIMARY_APPLICANT_NAME,
+    c.DR_PROD_AC,
     t.CHARGE_PRET_DUE,
     r.CHARGE_DUE
 ;

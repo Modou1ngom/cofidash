@@ -787,6 +787,7 @@ def _repartition_totals_from_fetch(
 
 
 def _aggregate_encours_breakdown(credits: List[Dict[str, Any]]) -> Dict[str, float]:
+    """Encours restant (capital/intérêts) — ne pas utiliser pour le montant dû."""
     active = [
         c
         for c in credits
@@ -814,6 +815,44 @@ def _aggregate_encours_breakdown(credits: List[Dict[str, Any]]) -> Dict[str, flo
         "coficarte_fee_due": round(
             sum(_to_float(c.get("coficarte_fee_due")) for c in active), 2
         ),
+    }
+
+
+def _aggregate_overdue_breakdown(credits: List[Dict[str, Any]]) -> Dict[str, float]:
+    """Montant dû = uniquement impayé / exigible des crédits en retard."""
+    overdue = [
+        c
+        for c in credits
+        if str(c.get("health_status") or "").lower() == "impaye"
+        or _to_float(c.get("unpaid_amount")) > 0
+        or _to_float(c.get("overdue_amount")) > 0
+        or (
+            _to_float(c.get("due_amount")) > 0
+            and int(_to_float(c.get("par_days"))) > 0
+        )
+    ]
+    if not overdue:
+        return {}
+    total_unpaid = round(sum(_to_float(c.get("unpaid_amount")) for c in overdue), 2)
+    total_due = round(
+        sum(
+            _to_float(c.get("overdue_amount")) or _to_float(c.get("due_amount"))
+            for c in overdue
+        ),
+        2,
+    )
+    amount = total_unpaid if total_unpaid > 0 else total_due
+    if amount <= 0:
+        return {}
+    return {
+        "capital_due": amount,
+        "interest_due": 0.0,
+        "penalty_due": 0.0,
+        "ftc_due": 0.0,
+        "acs_due": 0.0,
+        "opening_fee_due": 0.0,
+        "coficarte_fee_due": 0.0,
+        "total_exigible": amount,
     }
 
 
@@ -1000,22 +1039,20 @@ def _build_client_summary(
         breakdown_totals = _zero_repartition_totals()
         repartition_source = "unavailable"
 
-    # Fallback : agrégation des crédits actifs (jamais tout coller en FTC).
+    # Fallback : uniquement impayé / exigible (jamais l'encours restant sain).
     accounts_due = _accounts_amount_due_total(comptes_rows)
     if not _repartition_has_data(breakdown_totals):
-        credit_breakdown = _aggregate_encours_breakdown(credits)
-        if _repartition_has_data(credit_breakdown):
+        overdue_breakdown = _aggregate_overdue_breakdown(credits)
+        if _repartition_has_data(overdue_breakdown):
             breakdown_totals = {
                 **_zero_repartition_totals(),
-                **credit_breakdown,
+                **overdue_breakdown,
                 "total_due_amount": round(
-                    sum(_to_float(v) for v in credit_breakdown.values()), 2
+                    sum(_to_float(v) for v in overdue_breakdown.values()), 2
                 ),
             }
-            repartition_source = "credits"
+            repartition_source = "credits_overdue"
         elif accounts_due > 0:
-            # Montant dû compte connu, mais composantes non classées :
-            # on conserve le total pour les KPI sans fausse répartition FTC.
             breakdown_totals = {
                 **_zero_repartition_totals(),
                 "total_due_amount": accounts_due,

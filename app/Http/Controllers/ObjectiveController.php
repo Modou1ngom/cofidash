@@ -133,7 +133,7 @@ class ObjectiveController extends Controller
             'type' => 'required|in:CLIENT,PRODUCTION,ENCOURS_CREDIT,COLLECT,DEPOT_GARANTIE,EPARGNE_SIMPLE,EPARGNE_PROJET,VOLUME_DAT',
             'category' => 'required|in:FILIALE,TERRITOIRE,POINT SERVICES,GRAND COMPTE',
             'agency_code' => 'required|string',
-            'value' => 'required|integer|min:0',
+            'value' => 'required|numeric|min:0',
             'value_nombres' => 'nullable|integer|min:0',
             'value_volume' => 'nullable|integer|min:0',
             'period' => 'required|in:month,quarter,year',
@@ -165,7 +165,7 @@ class ObjectiveController extends Controller
             'category.in' => 'La catégorie doit être FILIALE, TERRITOIRE, POINT SERVICES (historique) ou GRAND COMPTE.',
             'agency_code.required' => 'Le code de l\'agence est requis.',
             'value.required' => 'La valeur de l\'objectif est requise.',
-            'value.integer' => 'La valeur de l\'objectif doit être un nombre entier.',
+            'value.numeric' => 'La valeur de l\'objectif doit être un nombre.',
             'value.min' => 'La valeur de l\'objectif doit être supérieure ou égale à 0.',
             'period.required' => 'La période est requise.',
             'period.in' => 'La période doit être month, quarter ou year.',
@@ -987,10 +987,13 @@ class ObjectiveController extends Controller
 
             $agencyCode = $user->agency->code;
 
-            // Construire la requête pour trouver l'objectif
-            // Récupérer tous les objectifs de l'agence (validés ou en attente) pour que le CHEF_AGENCE puisse voir ses objectifs
+            // Objectif d'agence uniquement (exclure les objectifs CAF stockés avec agency_name contenant "CAF:")
             $query = Objective::where('type', $data['type'])
                 ->where('agency_code', $agencyCode)
+                ->where(function ($q) {
+                    $q->whereNull('agency_name')
+                        ->orWhere('agency_name', 'not like', '%CAF:%');
+                })
                 ->where('year', $data['year'])
                 ->where(function($q) use ($data) {
                     if ($data['period'] === 'month' && isset($data['month'])) {
@@ -1147,6 +1150,106 @@ class ObjectiveController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la récupération de la somme des objectifs des agences'
+            ], 500);
+        }
+    }
+
+    /**
+     * Somme des objectifs déjà fixés pour les CAF de l'agence du Chef d'Agence.
+     */
+    public function getCafObjectivesSum(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Utilisateur non authentifié'
+                ], 401);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'type' => 'required|in:CLIENT,PRODUCTION,ENCOURS_CREDIT,COLLECT,DEPOT_GARANTIE,EPARGNE_SIMPLE,EPARGNE_PROJET,VOLUME_DAT',
+                'period' => 'required|in:month,quarter,year',
+                'year' => 'required|integer|min:2020|max:2100',
+                'month' => 'nullable|integer|min:1|max:12',
+                'quarter' => 'nullable|integer|min:1|max:4',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Données invalides',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $data = $validator->validated();
+            $user = $user->load('agency');
+
+            if (!$user->agency) {
+                return response()->json([
+                    'success' => true,
+                    'data' => $data['type'] === 'PRODUCTION'
+                        ? ['value_nombres' => 0, 'value_volume' => 0]
+                        : ['value' => 0]
+                ]);
+            }
+
+            $agencyName = trim((string) $user->agency->name);
+
+            $query = Objective::where('type', $data['type'])
+                ->where('year', $data['year'])
+                ->where('agency_name', 'like', '%CAF:%')
+                ->where(function ($q) use ($agencyName, $user) {
+                    if ($agencyName !== '') {
+                        $q->where('agency_name', 'like', $agencyName.'%');
+                    } else {
+                        $q->where('created_by', $user->id);
+                    }
+                })
+                ->where(function ($q) use ($data) {
+                    if ($data['period'] === 'month' && isset($data['month'])) {
+                        $q->where(function ($q2) use ($data) {
+                            $q2->where('period', 'month')->where('month', $data['month']);
+                        })
+                            ->orWhere('period', 'quarter')
+                            ->orWhere('period', 'year');
+                    } elseif ($data['period'] === 'quarter' && isset($data['quarter'])) {
+                        $q->where(function ($q2) use ($data) {
+                            $q2->where('period', 'quarter')->where('quarter', $data['quarter']);
+                        })
+                            ->orWhere('period', 'year');
+                    } elseif ($data['period'] === 'year') {
+                        $q->where('period', 'year');
+                    }
+                })
+                ->whereIn('status', ['validated', 'pending_validation']);
+
+            $objectives = $query->get();
+
+            if ($data['type'] === 'PRODUCTION') {
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'value_nombres' => (int) $objectives->sum('value_nombres'),
+                        'value_volume' => (int) $objectives->sum('value_volume'),
+                    ]
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'value' => (float) $objectives->sum('value'),
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération de la somme des objectifs CAF: '.$e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération de la somme des objectifs CAF'
             ], 500);
         }
     }

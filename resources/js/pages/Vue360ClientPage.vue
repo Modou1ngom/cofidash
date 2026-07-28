@@ -63,7 +63,7 @@
 
         <section class="synthese-section">
           <div class="section-head">
-            <h3 class="section-title">Répartition montant dû</h3>
+            <h3 class="section-title">Montant global dû</h3>
             <span class="section-total">{{ formatMoney(repartitionTotal) }}</span>
           </div>
           <div

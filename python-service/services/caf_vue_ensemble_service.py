@@ -654,12 +654,18 @@ def _fetch_caf_production(
     )
 
 def _normalize_provision_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    statut = (
+        row.get("user_defined_status")
+        or row.get("statut_declassement")
+        or row.get("declassement_status")
+    )
     return {
         "code_gestion_pret": row.get("code_gestion_pret"),
         "loan_number": row.get("no_pret"),
         "client_name": row.get("nom_client"),
         "charge_affaire": row.get("charge_affaire"),
         "provision_total": _to_float(row.get("provision_total")),
+        "declassement_status": statut,
         "rank": int(_to_float(row.get("rn"))),
     }
 
