@@ -10,6 +10,12 @@ from routers import charts, oracle, cache, c360, vue360
 from database.oracle_pool import init_pools, close_pools
 from database.c360_local_db import init_local_db
 from services.cache_service import enable_cache
+from services.new_deal import (
+    start_backup_scheduler,
+    stop_backup_scheduler,
+    init_new_deal_local_db,
+)
+
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO)
@@ -26,7 +32,12 @@ async def startup_event():
         init_pools(pool_size=5, max_overflow=10)
         enable_cache()
         init_local_db()
-        logger.info("✅ Pools Oracle (DASH + Flexcube), cache et base locale C360 initialisés")
+        init_new_deal_local_db()
+        start_backup_scheduler()
+        logger.info(
+            "✅ Pools Oracle (DASH + Flexcube), cache, base locale C360/New Deal "
+            "et planificateur sauvegarde (06h / 12h) initialisés"
+        )
     except Exception as e:
         logger.error(f"❌ Erreur lors de l'initialisation: {e}", exc_info=True)
 
@@ -34,6 +45,7 @@ async def startup_event():
 async def shutdown_event():
     """Nettoie les ressources à l'arrêt de l'application"""
     try:
+        stop_backup_scheduler()
         close_pools()
         logger.info("✅ Pools de connexions Oracle fermés")
     except Exception as e:

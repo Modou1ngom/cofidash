@@ -28,6 +28,10 @@ from services.entrees_par_service import get_entrees_par_data
 from services.reference_compte_service import get_gl_by_code, search_gl
 from services.cr_par_agence_service import get_cr_data_by_parent_gl
 from services.agencies_from_flexcube_service import fetch_agencies_from_flexcube
+from services.new_deal import (
+    get_new_deal_data,
+    refresh_new_deal_snapshot,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1025,4 +1029,40 @@ async def get_cr_par_agence_data(body: dict):
         import traceback
         logger.error("Erreur CR par Agence: %s\n%s", str(e), traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+
+
+@router.get("/data/new-deal")
+async def get_new_deal_endpoint(limit: Optional[int] = None):
+    """
+    Liste New Deal depuis le snapshot local (hors clients NAFA / déjà en prêt).
+    """
+    try:
+        return get_new_deal_data(limit=limit)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Erreur New Deal: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/backup/new-deal")
+async def refresh_new_deal_backup():
+    """
+    Rafraîchit le snapshot New Deal (Flexcube → SQLite).
+    Planifié automatiquement à 06:00 et 12:00.
+    """
+    try:
+        result = refresh_new_deal_snapshot()
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Erreur sauvegarde New Deal: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Alias rétrocompatibilité
+@router.post("/backup/sv-deblocages-hors-client-nafa")
+async def refresh_new_deal_backup_legacy():
+    return await refresh_new_deal_backup()
 

@@ -21,7 +21,7 @@ class CafLocalObjectiveService
             'monthly_volume_objective' => 0.0,
         ];
 
-        $objectives = $this->productionCandidates($month, $year);
+        $objectives = $this->candidatesByType('PRODUCTION', $month, $year);
         if ($objectives->isEmpty()) {
             return $empty;
         }
@@ -38,14 +38,38 @@ class CafLocalObjectiveService
     }
 
     /**
+     * Objectif New Deal (nombre de dossiers) fixé par le CA pour un CAF.
+     *
+     * @return array{loan_count_objective: float}
+     */
+    public function newDealObjectivesForUser(User $user, int $month, int $year): array
+    {
+        $empty = ['loan_count_objective' => 0.0];
+
+        $objectives = $this->candidatesByType('NEW_DEAL', $month, $year);
+        if ($objectives->isEmpty()) {
+            return $empty;
+        }
+
+        $matched = $this->matchObjectiveForCaf($user, $objectives);
+        if ($matched === null) {
+            return $empty;
+        }
+
+        return [
+            'loan_count_objective' => (float) ($matched->value_nombres ?? $matched->value ?? 0),
+        ];
+    }
+
+    /**
      * @return Collection<int, Objective>
      */
-    private function productionCandidates(int $month, int $year): Collection
+    private function candidatesByType(string $type, int $month, int $year): Collection
     {
         $quarter = (int) ceil($month / 3);
 
         return Objective::query()
-            ->where('type', 'PRODUCTION')
+            ->where('type', $type)
             ->where('year', $year)
             ->where(function ($q) use ($month, $quarter) {
                 $q->where(function ($q2) use ($month) {

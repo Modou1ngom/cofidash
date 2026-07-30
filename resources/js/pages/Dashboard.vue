@@ -56,6 +56,7 @@
           <h2>Renouvellement</h2>
           <p>Section Renouvellement en cours de développement</p>
         </div>
+        <NewDealSection v-if="activeSection === 'new-deal'" />
         <div v-if="activeSection === 'restructuration'" class="section-placeholder">
           <h2>Restructuration</h2>
           <p>Section Restructuration en cours de développement</p>
@@ -143,6 +144,7 @@ const VolumeDatSection = lazySection(() => import('../components/VolumeDatSectio
 const EncoursSection = lazySection(() => import('../components/EncoursSection.vue'));
 const PortefeuilleRisqueSection = lazySection(() => import('../components/PortefeuilleRisqueSection.vue'));
 const PortefeuilleRisqueGlobalSection = lazySection(() => import('../components/PortefeuilleRisqueGlobalSection.vue'));
+const NewDealSection = lazySection(() => import('../components/NewDealSection.vue'));
 const CRParAgenceSection = lazySection(() => import('../components/CRParAgenceSection.vue'));
 const ReferenceCompteSection = lazySection(() => import('../components/ReferenceCompteSection.vue'));
 
@@ -169,6 +171,7 @@ export default {
     EncoursSection,
     PortefeuilleRisqueSection,
     PortefeuilleRisqueGlobalSection,
+    NewDealSection,
     CRParAgenceSection,
     ReferenceCompteSection
   },
@@ -211,7 +214,7 @@ export default {
       this.activeSection = section;
       if (section === 'production') {
         this.activeSubSection = 'production';
-      } else if (section === 'renouvellement' || section === 'restructuration' || section === 'commission-credit' || section === 'recouvrement') {
+      } else if (section === 'renouvellement' || section === 'new-deal' || section === 'restructuration' || section === 'commission-credit' || section === 'recouvrement') {
         this.activeSubSection = null;
       } else if (section === 'portefeuille-risque') {
         // Si aucune sous-section n'est définie, utiliser 'simple' par défaut

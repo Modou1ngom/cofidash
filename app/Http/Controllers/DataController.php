@@ -1659,6 +1659,64 @@ class DataController extends Controller
     }
 
     /**
+     * New Deal — déblocages hors clients NAFA (SV_DEBLOCAGES_HORS_CLIENT_NAFA).
+     */
+    public function getNewDealData(Request $request): JsonResponse
+    {
+        try {
+            $limit = $request->input('limit');
+            $refresh = filter_var($request->input('refresh', false), FILTER_VALIDATE_BOOLEAN);
+
+            $result = $this->oracleService->getNewDealData(
+                $limit !== null && $limit !== '' ? (int) $limit : null,
+                $refresh
+            );
+
+            if ($result['success']) {
+                return response()->json($result['data']);
+            }
+
+            return response()->json([
+                'error' => $result['error'],
+                'message' => $result['message'],
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Erreur New Deal: '.$e->getMessage());
+
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Rafraîchit la table source New Deal (job 06h / 12h).
+     */
+    public function refreshNewDealBackup(): JsonResponse
+    {
+        try {
+            $result = $this->oracleService->refreshNewDealBackup();
+
+            if ($result['success']) {
+                return response()->json($result['data']);
+            }
+
+            return response()->json([
+                'error' => $result['error'],
+                'message' => $result['message'],
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Erreur rafraîchissement New Deal: '.$e->getMessage());
+
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Récupère les données de stock de provision depuis Oracle
      */
     public function getStockProvisionData(Request $request): JsonResponse

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from database.oracle_pool import get_pool_flexcube
+from services.new_deal import get_new_deal_for_caf
 
 logger = logging.getLogger(__name__)
 
@@ -97,37 +98,73 @@ def _to_float(value: Any) -> float:
 
 
 def _normalize_portefeuille_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    encours_par_0 = _to_float(
+        row.get("encours_par_0") or row.get("encours_risque_par0")
+    )
+    encours_par_30 = _to_float(
+        row.get("encours_par_30") or row.get("encours_risque_par30")
+    )
+    encours_par_90 = _to_float(
+        row.get("encours_par_90") or row.get("encours_risque_par90")
+    )
+    encours_par_180 = _to_float(
+        row.get("encours_par_180") or row.get("encours_risque_par180")
+    )
+    encours_par_360 = _to_float(
+        row.get("encours_par_360") or row.get("encours_risque_par360")
+    )
+    par_0 = _to_float(row.get("par_0"))
+    par_global = _to_float(row.get("par_global"))
+    if par_global <= 0:
+        par_global = par_0
     return {
-        "charge_affaire": row.get("charge_affaire"),
+        "charge_affaire": row.get("charge_affaire") or row.get("lov_desc"),
         "branch_name": row.get("branch_name"),
         "code_gestion_pret": row.get("code_gestion_pret"),
         "encours_total": _to_float(row.get("encours_total")),
+        "encours_sain": _to_float(row.get("encours_sain")),
         "encours_impaye": _to_float(row.get("encours_impaye")),
+        "encours_risque": _to_float(row.get("encours_risque")),
         "nombre_dossier": int(_to_float(row.get("nombre_dossier"))),
+        "nombre_dossier_imp": int(_to_float(row.get("nombre_dossier_imp"))),
         "ratio_encours_impaye": _to_float(row.get("ratio_encours_impaye")),
         "ratio_nombre_impaye": _to_float(row.get("ratio_nombre_impaye")),
         "provision_total": _to_float(row.get("provision_total")),
-        "encours_par_0": _to_float(row.get("encours_par_0")),
-        "par_0": _to_float(row.get("par_0")),
-        "encours_par_30": _to_float(row.get("encours_par_30")),
+        "encours_par_0": encours_par_0,
+        "par_0": par_0,
+        "encours_par_30": encours_par_30,
         "par_30": _to_float(row.get("par_30")),
-        "encours_par_90": _to_float(row.get("encours_par_90")),
+        "encours_par_90": encours_par_90,
         "par_90": _to_float(row.get("par_90")),
-        "encours_par_180": _to_float(row.get("encours_par_180")),
+        "encours_par_180": encours_par_180,
         "par_180": _to_float(row.get("par_180")),
-        "encours_par_360": _to_float(row.get("encours_par_360")),
+        "encours_par_360": encours_par_360,
         "par_360": _to_float(row.get("par_360")),
+        "par_global": par_global,
     }
 
 
 def _normalize_top_encours_row(row: Dict[str, Any], par_key: str) -> Dict[str, Any]:
+    # par_key = "encours_par_0" | … ; fallback ENCOURS_RISQUE_PAR*
+    amount = row.get(par_key)
+    if amount is None:
+        suffix = par_key.replace("encours_", "")
+        amount = row.get(f"encours_risque_{suffix}") or row.get(
+            f"encours_risque_par{suffix.replace('par_', '')}"
+        )
     return {
         "code_gestion_pret": row.get("code_gestion_pret"),
-        "loan_number": row.get("no_dossier"),
-        "client_name": row.get("nom_client"),
-        "outstanding": _to_float(row.get(par_key)),
+        "loan_number": row.get("no_dossier") or row.get("no_pret"),
+        "client_name": row.get("nom_client") or row.get("primary_applicant_name"),
+        "outstanding": _to_float(amount),
         "exigible": _to_float(row.get("exigible")),
-        "par_days": int(_to_float(row.get("nbre_jour_retard"))),
+        "par_days": int(
+            _to_float(
+                row.get("nbre_jour_retard")
+                or row.get("duree_impaye_a_date")
+                or 0
+            )
+        ),
         "declassement_status": row.get("statut_declassement"),
         "rank": int(_to_float(row.get("rn"))),
     }
@@ -200,6 +237,14 @@ def _empty_caf_vue_ensemble(
         "entrees_par": {},
         "production_loans": [],
         "encours_evolution": [0.0] * 12,
+        "new_deal": {
+            "loan_count": 0.0,
+            "monthly_volume": 0.0,
+            "loan_count_objective": 0.0,
+            "loan_count_realization_pct": 0.0,
+            "refreshed_at": None,
+        },
+        "new_deal_loans": [],
     }
 
 
@@ -390,17 +435,17 @@ def _normalize_dash_portefeuille_row(row: Dict[str, Any]) -> Dict[str, Any]:
 def _par_global_rate(portefeuille: Optional[Dict[str, Any]]) -> float:
     if not portefeuille:
         return 0.0
-    rates = [
-        _to_float(portefeuille.get("par_0")),
-        _to_float(portefeuille.get("par_30")),
-        _to_float(portefeuille.get("par_90")),
-        _to_float(portefeuille.get("par_180")),
-        _to_float(portefeuille.get("par_360")),
-    ]
-    total_rate = sum(rates)
-    if total_rate > 0:
-        return total_rate
+    par_global = _to_float(portefeuille.get("par_global"))
+    if par_global > 0:
+        return par_global
+    # PAR cumulatif : PAR Global = PAR 0
+    par_0 = _to_float(portefeuille.get("par_0"))
+    if par_0 > 0:
+        return par_0
     encours_total = _to_float(portefeuille.get("encours_total"))
+    encours_risque = _to_float(portefeuille.get("encours_risque"))
+    if encours_risque > 0 and encours_total > 0:
+        return round((encours_risque / encours_total) * 100, 2)
     encours_impaye = _to_float(portefeuille.get("encours_impaye"))
     if encours_total <= 0:
         return 0.0
@@ -703,13 +748,14 @@ def _inject_early_caf_filter(sql: str, caf_code: Optional[str]) -> str:
         flags=re.IGNORECASE,
     )
 
-    # Filtres ACCOUNT_STATUS déjà présents (p / c / C)
+    # Filtres ACCOUNT_STATUS déjà présents (p / c / C) — WHERE ou AND
     for alias in ("p", "c", "C"):
-        pattern = (
-            rf"(AND\s+{alias}\.ACCOUNT_STATUS\s+NOT\s+IN\s*\(\s*'L'\s*,\s*'V'\s*\))"
-        )
-        repl = rf"\1\n      AND {alias}.FIELD_CHAR_2 = :caf_code"
-        sql = re.sub(pattern, repl, sql, flags=re.IGNORECASE)
+        for kw in ("AND", "WHERE"):
+            pattern = (
+                rf"({kw}\s+{alias}\.ACCOUNT_STATUS\s+NOT\s+IN\s*\(\s*'L'\s*,\s*'V'\s*\))"
+            )
+            repl = rf"\1\n      AND {alias}.FIELD_CHAR_2 = :caf_code"
+            sql = re.sub(pattern, repl, sql, flags=re.IGNORECASE)
 
     # Échéances IMPY (jointure p)
     sql = re.sub(
@@ -730,11 +776,11 @@ def _scoped_portefeuille_query(
     params: dict = {}
     if caf_code:
         sql = _inject_early_caf_filter(sql, caf_code)
-        conditions.append("PM.CODE_GESTION_PRET = :caf_code")
+        conditions.append("T.CODE_GESTION_PRET = :caf_code")
         params["caf_code"] = caf_code
     elif branch_code:
-        conditions.append("PM.BRANCH_CODE = :branch_code")
-        params["branch_code"] = branch_code
+        # Agrégat CAF sans ventilation agence dans la requête courante
+        pass
     if conditions:
         sql = f"{sql}\nWHERE {' AND '.join(conditions)}"
     return sql, params
@@ -768,6 +814,13 @@ def get_portefeuille_caf(
     sql, params = _scoped_portefeuille_query(branch_code, caf_code)
     rows = _execute_flexcube(sql, params)
     return [_normalize_portefeuille_row(r) for r in rows]
+
+
+def get_detail_par_caf(
+    caf_code: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Alias : détail PAR via portefeuille_caf.sql."""
+    return get_portefeuille_caf(caf_code=caf_code)
 
 
 def _normalize_dash_entree_par_row(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -1078,7 +1131,7 @@ def _build_caf_vue_ensemble(
 
     current_month = _is_current_month(selected_month, selected_year)
 
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    with ThreadPoolExecutor(max_workers=5) as pool:
         fut_portefeuille = (
             pool.submit(get_portefeuille_caf, branch_code, caf_code) if caf_code else None
         )
@@ -1095,6 +1148,16 @@ def _build_caf_vue_ensemble(
             if caf_code
             else None
         )
+        fut_new_deal = (
+            pool.submit(
+                get_new_deal_for_caf,
+                caf_code,
+                selected_month,
+                selected_year,
+            )
+            if caf_code
+            else None
+        )
         fut_encours_evo = pool.submit(
             _fetch_caf_encours_evolution_year,
             caf_code,
@@ -1107,11 +1170,19 @@ def _build_caf_vue_ensemble(
         production_loans = (
             fut_production_loans.result() if fut_production_loans is not None else []
         )
+        new_deal_raw = fut_new_deal.result() if fut_new_deal is not None else {
+            "loan_count": 0.0,
+            "monthly_volume": 0.0,
+            "loans": [],
+            "refreshed_at": None,
+        }
         encours_evolution = fut_encours_evo.result()
 
     portefeuille = live_rows[0] if live_rows else None
     # Sans snapshot historique Flexcube : pas de portefeuille M-1 fiable.
     portefeuille_prev = None
+    if portefeuille and charge_affaire and not portefeuille.get("charge_affaire"):
+        portefeuille["charge_affaire"] = charge_affaire
 
     # Aligner la courbe sur le mois calendaire + encours live (évite le pic en décembre).
     live_encours = _to_float((portefeuille or {}).get("encours_total"))
@@ -1137,6 +1208,17 @@ def _build_caf_vue_ensemble(
                 ),
             },
         )
+
+    new_deal_loans = list(new_deal_raw.get("loans") or [])
+    # Objectif New Deal injecté côté Laravel (type NEW_DEAL) — pas l'objectif PRODUCTION
+    new_deal_count = _to_float(new_deal_raw.get("loan_count"))
+    new_deal = {
+        "loan_count": new_deal_count,
+        "monthly_volume": _to_float(new_deal_raw.get("monthly_volume")),
+        "loan_count_objective": 0.0,
+        "loan_count_realization_pct": 0.0,
+        "refreshed_at": new_deal_raw.get("refreshed_at"),
+    }
 
     encours_m = _to_float((portefeuille or {}).get("encours_total"))
     encours_m1 = _to_float((portefeuille_prev or {}).get("encours_total"))
@@ -1189,6 +1271,11 @@ def _build_caf_vue_ensemble(
         except Exception as exc:
             logger.warning("Top encours / provisions CAF indisponibles: %s", exc)
 
+    if portefeuille and top_provisions and not portefeuille.get("provision_total"):
+        portefeuille["provision_total"] = round(
+            sum(_to_float(r.get("provision_total")) for r in top_provisions), 2
+        )
+
     return {
         "branch_code": branch_code,
         "caf_code": caf_code,
@@ -1209,4 +1296,6 @@ def _build_caf_vue_ensemble(
         "entrees_par": entrees_par,
         "production_loans": production_loans,
         "encours_evolution": encours_evolution,
+        "new_deal": new_deal,
+        "new_deal_loans": new_deal_loans,
     }

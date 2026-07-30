@@ -46,6 +46,9 @@ Route::prefix('oracle')->group(function () {
     Route::get('/data/portefeuille-risque', [DataController::class, 'getPortefeuilleRisqueData']);
     Route::get('/data/portefeuille-risque-caf', [DataController::class, 'getPortefeuilleRisqueCafData']);
     Route::get('/data/entrees-par', [DataController::class, 'getEntreesParData']);
+    Route::get('/data/new-deal', [DataController::class, 'getNewDealData']);
+    Route::post('/backup/new-deal', [DataController::class, 'refreshNewDealBackup']);
+    Route::post('/backup/sv-deblocages-hors-client-nafa', [DataController::class, 'refreshNewDealBackup']); // alias
     Route::get('/data/stock-provision', [DataController::class, 'getStockProvisionData']);
     Route::get('/data/gl-lookup', [DataController::class, 'getGlLookup']);
     Route::post('/data/cr-par-agence', [DataController::class, 'getCrParAgenceData']);

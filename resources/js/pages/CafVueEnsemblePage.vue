@@ -441,6 +441,58 @@
                 </div>
               </template>
 
+              <!-- New Deal -->
+              <template v-else-if="activeDetail === 'new_deal'">
+                <div class="detail-kpi-row">
+                  <div class="detail-stat">
+                    <span>Nombre New Deal</span>
+                    <strong>{{ formatCount(newDeal.loan_count) }}</strong>
+                  </div>
+                  <div class="detail-stat">
+                    <span>Volume financé</span>
+                    <strong>{{ formatMoney(newDeal.monthly_volume) }}</strong>
+                  </div>
+                  <div class="detail-stat">
+                    <span>Objectif</span>
+                    <strong>{{ formatCount(newDeal.loan_count_objective) }}</strong>
+                  </div>
+                  <div class="detail-stat">
+                    <span>Réalisation</span>
+                    <strong>{{ formatPercent(newDeal.loan_count_realization_pct) }}</strong>
+                  </div>
+                </div>
+                <h3 class="detail-section-title">New Deal du mois</h3>
+                <div v-if="!newDealLoans.length" class="empty-state compact">Aucun New Deal sur la période.</div>
+                <div v-else class="detail-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>N° dossier</th>
+                        <th>Client</th>
+                        <th>Date</th>
+                        <th class="num">Montant</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="loan in newDealLoans"
+                        :key="loan.loan_number"
+                        class="loan-row"
+                        tabindex="0"
+                        role="button"
+                        @click="openLoanDetail(loan.loan_number)"
+                        @keydown.enter="openLoanDetail(loan.loan_number)"
+                      >
+                        <td>{{ loan.loan_number }}</td>
+                        <td>{{ loan.client_name }}</td>
+                        <td>{{ formatDate(loan.disbursement_date) }}</td>
+                        <td class="num">{{ formatMoney(loan.outstanding) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </template>
+
               <!-- Dossiers portefeuille -->
               <template v-else-if="activeDetail === 'dossiers'">
                 <div class="detail-kpi-row">
@@ -653,11 +705,11 @@ import {
 } from '../utils/cafOverviewCache.js';
 
 const PAR_BUCKET_DEFS = [
-  { key: 'par_0', label: 'PAR 0', daysLabel: '0 jour', color: '#16a34a' },
-  { key: 'par_30', label: 'PAR 30', daysLabel: '1 – 30 jours', color: '#ca8a04' },
-  { key: 'par_90', label: 'PAR 90', daysLabel: '31 – 90 jours', color: '#ea580c' },
-  { key: 'par_180', label: 'PAR 180', daysLabel: '91 – 180 jours', color: '#dc2626' },
-  { key: 'par_360', label: 'PAR 360', daysLabel: '> 180 jours', color: '#7f1d1d' },
+  { key: 'par_0', label: 'PAR 0', daysLabel: '> 0 jour', color: '#16a34a' },
+  { key: 'par_30', label: 'PAR 30', daysLabel: '> 30 jours', color: '#ca8a04' },
+  { key: 'par_90', label: 'PAR 90', daysLabel: '> 90 jours', color: '#ea580c' },
+  { key: 'par_180', label: 'PAR 180', daysLabel: '> 180 jours', color: '#dc2626' },
+  { key: 'par_360', label: 'PAR 360', daysLabel: '> 360 jours', color: '#7f1d1d' },
 ];
 
 const MONTH_LABELS = [
@@ -738,6 +790,12 @@ export default {
     productionLoans() {
       return this.overview?.production_loans || [];
     },
+    newDeal() {
+      return this.overview?.new_deal || {};
+    },
+    newDealLoans() {
+      return this.overview?.new_deal_loans || [];
+    },
     topProvisions() {
       return this.overview?.top_provisions || [];
     },
@@ -756,6 +814,15 @@ export default {
       return Math.max(total - impaye, 0);
     },
     kpiCards() {
+      const nd = this.newDeal;
+      const ndCount = Number(nd.loan_count) || 0;
+      const ndObj = Number(nd.loan_count_objective) || 0;
+      let newDealMeta = `${this.formatMoney(nd.monthly_volume)} financés`;
+      if (ndObj > 0) {
+        const vsObj = Math.round(((ndCount / ndObj) - 1) * 100);
+        const sign = vsObj > 0 ? '+' : '';
+        newDealMeta = `${sign}${vsObj}% vs obj · ${this.formatMoney(nd.monthly_volume)}`;
+      }
       return [
         {
           id: 'encours',
@@ -772,6 +839,12 @@ export default {
           label: 'Production du mois',
           value: this.formatMoney(this.production.monthly_volume),
           meta: `${this.formatCount(this.production.loan_count)} dossier(s)`,
+        },
+        {
+          id: 'new_deal',
+          label: 'Nombre New Deal',
+          value: this.formatCount(ndCount),
+          meta: newDealMeta,
         },
         {
           id: 'dossiers',
@@ -798,6 +871,7 @@ export default {
         encours: 'Détail — Encours total',
         par: 'Détail — PAR global',
         production: 'Détail — Production du mois',
+        new_deal: 'Détail — New Deal',
         dossiers: 'Détail — Dossiers portefeuille',
         provisions: 'Détail — Provisions',
       };
@@ -827,8 +901,16 @@ export default {
     parBuckets() {
       const p = this.portefeuille;
       const counts = this.overview?.par_dossier_counts || {};
-      return PAR_BUCKET_DEFS.map((def) => {
-        const rate = Number(p[def.key]) || 0;
+      // Taux cumulatifs → bandes disjointes pour la barre (visuel proportionnel)
+      const keys = PAR_BUCKET_DEFS.map((d) => d.key);
+      const rates = keys.map((k) => Number(p[k]) || 0);
+      const bands = rates.map((rate, i) => {
+        const next = i + 1 < rates.length ? rates[i + 1] : 0;
+        return Math.max(rate - next, 0);
+      });
+      const bandSum = bands.reduce((a, b) => a + b, 0);
+      return PAR_BUCKET_DEFS.map((def, i) => {
+        const rate = rates[i];
         const encours = Number(p[`encours_${def.key}`]) || 0;
         const dossiers = Number(counts[def.key]) || 0;
         return {
@@ -836,7 +918,7 @@ export default {
           rate,
           encours,
           dossiers,
-          share: Math.max(rate, 0),
+          share: bandSum > 0 ? (bands[i] / bandSum) * 100 : 0,
         };
       });
     },
@@ -1005,11 +1087,14 @@ export default {
     },
     computeParGlobalRate(p) {
       if (!p || !Object.keys(p).length) return 0;
-      const rates = ['par_0', 'par_30', 'par_90', 'par_180', 'par_360']
-        .map((k) => Number(p[k]) || 0);
-      const total = rates.reduce((a, b) => a + b, 0);
-      if (total > 0) return total;
+      const explicit = Number(p.par_global);
+      if (explicit > 0) return explicit;
+      // PAR cumulatif : Global = PAR 0
+      const par0 = Number(p.par_0);
+      if (par0 > 0) return par0;
       const encours = Number(p.encours_total) || 0;
+      const risque = Number(p.encours_risque) || 0;
+      if (risque > 0 && encours > 0) return (risque / encours) * 100;
       const impaye = Number(p.encours_impaye) || 0;
       return encours > 0 ? (impaye / encours) * 100 : 0;
     },

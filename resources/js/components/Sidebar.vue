@@ -50,7 +50,7 @@
             </div>
           </div>
         </div>-->
-        <div class="nav-section-header" @click.stop="toggleCredit" :class="{ active: activeSection === 'production' || activeSection === 'renouvellement' || activeSection === 'restructuration' || activeSection === 'commission-credit' || activeSection === 'recouvrement' || activeSection === 'portefeuille-risque' || activeSection === 'performance-credit' }">
+        <div class="nav-section-header" @click.stop="toggleCredit" :class="{ active: activeSection === 'production' || activeSection === 'renouvellement' || activeSection === 'new-deal' || activeSection === 'restructuration' || activeSection === 'commission-credit' || activeSection === 'recouvrement' || activeSection === 'portefeuille-risque' || activeSection === 'performance-credit' }">
           <span class="nav-title">
             <span class="nav-icon">💳</span>
             <span class="nav-label">CREDIT</span>
@@ -73,6 +73,9 @@
               PAR GLOBAL
             </a>
           </div>
+          <a href="#" @click.stop.prevent="selectSection('new-deal')" class="nav-link indent" :class="{ active: activeSection === 'new-deal' }">
+            New Deal
+          </a>
           <a href="#" @click.stop.prevent="selectSection('renouvellement')" class="nav-link indent" :class="{ active: activeSection === 'renouvellement' }">
             Renouvellement
           </a>
@@ -256,7 +259,7 @@ export default {
         this.clientExpanded = false;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
-      } else if (newVal === 'production' || newVal === 'renouvellement' || newVal === 'restructuration' || newVal === 'commission-credit' || newVal === 'recouvrement' || newVal === 'portefeuille-risque' || newVal === 'performance-credit') {
+      } else if (newVal === 'production' || newVal === 'renouvellement' || newVal === 'new-deal' || newVal === 'restructuration' || newVal === 'commission-credit' || newVal === 'recouvrement' || newVal === 'portefeuille-risque' || newVal === 'performance-credit') {
         this.creditExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;
@@ -337,7 +340,7 @@ export default {
       this.clientExpanded = false;
       this.objectivesExpanded = false;
       this.managementExpanded = false;
-      } else if (this.activeSection === 'production' || this.activeSection === 'renouvellement' || this.activeSection === 'restructuration' || this.activeSection === 'commission-credit' || this.activeSection === 'recouvrement' || this.activeSection === 'portefeuille-risque' || this.activeSection === 'performance-credit') {
+      } else if (this.activeSection === 'production' || this.activeSection === 'renouvellement' || this.activeSection === 'new-deal' || this.activeSection === 'restructuration' || this.activeSection === 'commission-credit' || this.activeSection === 'recouvrement' || this.activeSection === 'portefeuille-risque' || this.activeSection === 'performance-credit') {
         this.creditExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;
@@ -558,7 +561,7 @@ export default {
         this.clientExpanded = false;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
-      } else if (section === 'production' || section === 'renouvellement' || section === 'restructuration' || section === 'commission-credit' || section === 'recouvrement' || section === 'portefeuille-risque' || section === 'performance-credit') {
+      } else if (section === 'production' || section === 'renouvellement' || section === 'new-deal' || section === 'restructuration' || section === 'commission-credit' || section === 'recouvrement' || section === 'portefeuille-risque' || section === 'performance-credit') {
         this.creditExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;

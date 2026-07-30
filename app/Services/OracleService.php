@@ -676,6 +676,54 @@ class OracleService
     }
 
     /**
+     * New Deal : déblocages hors clients NAFA (table SV_DEBLOCAGES_HORS_CLIENT_NAFA).
+     */
+    public function getNewDealData(?int $limit = null, bool $refresh = false): array
+    {
+        $params = [];
+        if ($limit !== null && $limit > 0) {
+            $params['limit'] = $limit;
+        }
+
+        if ($refresh) {
+            try {
+                $response = $this->pythonHttp()->get(
+                    "{$this->pythonServiceUrl}/api/oracle/data/new-deal",
+                    $params
+                );
+                if ($response->successful()) {
+                    return ['success' => true, 'data' => $response->json()];
+                }
+
+                return $this->failure('New Deal', $response->body());
+            } catch (\Exception $e) {
+                return $this->failure('New Deal', $e->getMessage(), 'Erreur HTTP Python');
+            }
+        }
+
+        return $this->getPythonGetCached('new-deal', '/api/oracle/data/new-deal', $params, 'New Deal');
+    }
+
+    /**
+     * Rafraîchit la table source New Deal (DROP + CREATE TABLE AS).
+     */
+    public function refreshNewDealBackup(): array
+    {
+        try {
+            $response = $this->pythonHttp()->post(
+                "{$this->pythonServiceUrl}/api/oracle/backup/new-deal"
+            );
+            if ($response->successful()) {
+                return ['success' => true, 'data' => $response->json()];
+            }
+
+            return $this->failure('New Deal backup', $response->body());
+        } catch (\Exception $e) {
+            return $this->failure('New Deal backup', $e->getMessage(), 'Erreur HTTP Python POST');
+        }
+    }
+
+    /**
      * Vérifie un PARENT_GL dans DASH_CR_PAR_AGENCE (Cofina) ; pas de libellé renvoyé.
      */
     public function getGlLookup(?string $glCode = null, ?string $glDesc = null): array

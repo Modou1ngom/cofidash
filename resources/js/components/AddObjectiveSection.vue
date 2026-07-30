@@ -364,6 +364,16 @@
                     placeholder="Nombre"
                   />
                 </td>
+                <td v-else-if="objectiveType.code === 'NEW_DEAL'" class="value-cell">
+                  <input 
+                    type="number" 
+                    v-model.number="cafObjectives[objectiveType.code].value" 
+                    min="0"
+                    step="1"
+                    class="table-input"
+                    placeholder="Nb dossiers"
+                  />
+                </td>
                 <td v-else class="value-cell">
                   <span class="empty-cell">-</span>
                 </td>
@@ -380,7 +390,7 @@
                 <td v-else class="value-cell">
                   <span class="empty-cell">-</span>
                 </td>
-                <td v-if="objectiveType.code !== 'PRODUCTION' && cafObjectives[objectiveType.code]" class="value-cell">
+                <td v-if="objectiveType.code !== 'PRODUCTION' && objectiveType.code !== 'NEW_DEAL' && cafObjectives[objectiveType.code]" class="value-cell">
                   <input 
                     type="number" 
                     v-model.number="cafObjectives[objectiveType.code].value" 
@@ -541,6 +551,7 @@ export default {
       cafObjectives: {
         CLIENT: { value: null },
         PRODUCTION: { value_nombres: null, value_volume: null },
+        NEW_DEAL: { value: null },
         ENCOURS_CREDIT: { value: null },
         COLLECT: { value: null },
         DEPOT_GARANTIE: { value: null },
@@ -559,6 +570,7 @@ export default {
       agencyObjectives: {
         CLIENT: { value: null },
         PRODUCTION: { value_nombres: null, value_volume: null },
+        NEW_DEAL: { value: null },
         ENCOURS_CREDIT: { value: null },
         COLLECT: { value: null },
         DEPOT_GARANTIE: { value: null },
@@ -570,6 +582,7 @@ export default {
       cafObjectivesSums: {
         CLIENT: { value: 0 },
         PRODUCTION: { value_nombres: 0, value_volume: 0 },
+        NEW_DEAL: { value: 0 },
         ENCOURS_CREDIT: { value: 0 },
         COLLECT: { value: 0 },
         DEPOT_GARANTIE: { value: 0 },
@@ -607,6 +620,7 @@ export default {
       return [
         { code: 'CLIENT', label: 'Objectif Client' },
         { code: 'PRODUCTION', label: 'Production' },
+        { code: 'NEW_DEAL', label: 'New Deal' },
         { code: 'ENCOURS_CREDIT', label: 'Objectif Encours Crédit' },
         { code: 'COLLECT', label: 'Objectif Collecte' },
         { code: 'DEPOT_GARANTIE', label: 'Dépôt de Garantie' },
@@ -1537,6 +1551,13 @@ export default {
         });
       }
 
+      // NEW_DEAL (nombre de dossiers)
+      if (!pushSimpleObjective('NEW_DEAL', this.cafObjectives.NEW_DEAL?.value, {
+        errorMessage: 'Pour New Deal, veuillez entrer un nombre de dossiers valide (entier positif).'
+      })) {
+        return;
+      }
+
       // ENCOURS_CREDIT
       if (!pushSimpleObjective('ENCOURS_CREDIT', this.cafObjectives.ENCOURS_CREDIT.value, {
         errorMessage: 'Pour Objectif Encours Crédit, veuillez entrer une valeur valide (nombre entier positif).'
@@ -1657,6 +1678,7 @@ export default {
       const typeMap = {
         'CLIENT': 'Client',
         'PRODUCTION': 'Production',
+        'NEW_DEAL': 'New Deal',
         'PRODUCTION_VOLUME': 'Production Volume',
         'ENCOURS_CREDIT': 'Encours Crédit',
         'COLLECT': 'Collecte',
@@ -2354,6 +2376,7 @@ export default {
       this.cafObjectives = {
         CLIENT: { value: null },
         PRODUCTION: { value_nombres: null, value_volume: null },
+        NEW_DEAL: { value: null },
         ENCOURS_CREDIT: { value: null },
         COLLECT: { value: null },
         DEPOT_GARANTIE: { value: null },
