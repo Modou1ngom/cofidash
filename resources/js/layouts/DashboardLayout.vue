@@ -11,7 +11,7 @@
         :active-sub-section="activeSubSection"
         @zone-selected="selectedZone = $event"
         @section-selected="handleSectionSelected"
-        @sub-section-selected="activeSubSection = $event"
+        @sub-section-selected="handleSubSectionSelected"
       />
       <div class="main-content">
         <router-view v-slot="{ Component, route }">
@@ -36,6 +36,7 @@
 <script>
 import DashboardHeader from '../components/DashboardHeader.vue';
 import Sidebar from '../components/Sidebar.vue';
+import { ProfileManager } from '../utils/profiles.js';
 
 export default {
   name: 'DashboardLayout',
@@ -48,6 +49,9 @@ export default {
   },
   computed: {
     activeSection() {
+      if (this.$route.path.startsWith('/vue360/objectifs')) {
+        return 'objectives';
+      }
       if (this.$route.path.startsWith('/vue360/caf')) {
         return 'caf-overview';
       }
@@ -55,6 +59,18 @@ export default {
         return 'vue360';
       }
       return 'vue360';
+    },
+  },
+  watch: {
+    '$route.path': {
+      immediate: true,
+      handler(path) {
+        if (path.startsWith('/vue360/objectifs')) {
+          this.activeSubSection = 'mine';
+        } else if (path.startsWith('/vue360/caf')) {
+          this.activeSubSection = null;
+        }
+      },
     },
   },
   methods: {
@@ -71,8 +87,23 @@ export default {
         }
         return;
       }
+      if (section === 'objectives' && ProfileManager.isCAF()) {
+        if (!this.$route.path.startsWith('/vue360/objectifs')) {
+          this.$router.push('/vue360/objectifs');
+        }
+        this.activeSubSection = 'mine';
+        return;
+      }
       sessionStorage.setItem('dashboardSection', section);
       this.$router.push('/dashboard');
+    },
+    handleSubSectionSelected(subSection) {
+      this.activeSubSection = subSection;
+      if (subSection === 'mine' && ProfileManager.isCAF()) {
+        if (!this.$route.path.startsWith('/vue360/objectifs')) {
+          this.$router.push('/vue360/objectifs');
+        }
+      }
     },
   },
 };

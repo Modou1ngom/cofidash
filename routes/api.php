@@ -47,8 +47,9 @@ Route::prefix('oracle')->group(function () {
     Route::get('/data/portefeuille-risque-caf', [DataController::class, 'getPortefeuilleRisqueCafData']);
     Route::get('/data/entrees-par', [DataController::class, 'getEntreesParData']);
     Route::get('/data/new-deal', [DataController::class, 'getNewDealData']);
-    Route::post('/backup/new-deal', [DataController::class, 'refreshNewDealBackup']);
-    Route::post('/backup/sv-deblocages-hors-client-nafa', [DataController::class, 'refreshNewDealBackup']); // alias
+    // GET accepté aussi (certains reverse-proxy / caches convertissent POST → GET)
+    Route::match(['get', 'post'], '/backup/new-deal', [DataController::class, 'refreshNewDealBackup']);
+    Route::match(['get', 'post'], '/backup/sv-deblocages-hors-client-nafa', [DataController::class, 'refreshNewDealBackup']);
     Route::get('/data/stock-provision', [DataController::class, 'getStockProvisionData']);
     Route::get('/data/gl-lookup', [DataController::class, 'getGlLookup']);
     Route::post('/data/cr-par-agence', [DataController::class, 'getCrParAgenceData']);
@@ -78,6 +79,7 @@ Route::middleware('auth:sanctum')->prefix('objectives')->group(function () {
     Route::get('/agency-objectives', [ObjectiveController::class, 'getAgencyObjectives']);
     Route::get('/agency-objectives-sum', [ObjectiveController::class, 'getAgencyObjectivesSum']);
     Route::get('/caf-objectives-sum', [ObjectiveController::class, 'getCafObjectivesSum']);
+    Route::get('/my-caf', [ObjectiveController::class, 'myCafObjectives']);
     Route::post('/', [ObjectiveController::class, 'store']);
     Route::put('/{id}', [ObjectiveController::class, 'update']);
     Route::post('/{id}/validate', [ObjectiveController::class, 'validateObjective']);

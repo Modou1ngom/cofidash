@@ -144,6 +144,8 @@ class DashboardController extends Controller
         }
         $data['new_deal'] = $newDeal;
 
+        $data['objectives'] = $this->cafObjectives->listForUser($cafUser, $month, $year);
+
         return $data;
     }
 

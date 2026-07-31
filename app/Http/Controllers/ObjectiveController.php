@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\OracleService;
+use App\Services\CafLocalObjectiveService;
 use App\Models\Objective;
 use App\Models\User;
 use App\Models\Territory;
@@ -17,8 +18,10 @@ class ObjectiveController extends Controller
 {
     protected $oracleService;
 
-    public function __construct(OracleService $oracleService)
-    {
+    public function __construct(
+        OracleService $oracleService,
+        private readonly CafLocalObjectiveService $cafLocalObjectives,
+    ) {
         $this->oracleService = $oracleService;
     }
 
@@ -1253,5 +1256,62 @@ class ObjectiveController extends Controller
             ], 500);
         }
     }
-    
+
+    /**
+     * Liste des objectifs du CAF connecté (ou d'un CAF ciblé pour le CA).
+     */
+    public function myCafObjectives(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Utilisateur non authentifié',
+                ], 401);
+            }
+
+            $validated = $request->validate([
+                'month' => 'nullable|integer|min:1|max:12',
+                'year' => 'nullable|integer|min:2000|max:2100',
+                'caf_code' => 'nullable|string|max:32',
+            ]);
+
+            $month = (int) ($validated['month'] ?? now()->month);
+            $year = (int) ($validated['year'] ?? now()->year);
+            $profileCode = strtoupper((string) ($user->profile->code ?? ''));
+
+            $target = $user;
+            $cafCode = trim((string) ($validated['caf_code'] ?? ''));
+
+            if ($profileCode === 'CAF') {
+                $target = $user;
+            } elseif ($cafCode !== '') {
+                $found = User::query()->where('manager_code', $cafCode)->first();
+                if ($found) {
+                    $target = $found;
+                }
+            }
+
+            $objectives = $this->cafLocalObjectives->listForUser($target, $month, $year);
+
+            return response()->json([
+                'success' => true,
+                'data' => $objectives,
+                'meta' => [
+                    'month' => $month,
+                    'year' => $year,
+                    'caf_name' => $target->name,
+                    'manager_code' => $target->manager_code,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération des objectifs CAF: '.$e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des objectifs CAF',
+            ], 500);
+        }
+    }
 }

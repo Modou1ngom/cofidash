@@ -54,6 +54,12 @@ const routes = [
         component: () => import('../pages/CafVueEnsemblePage.vue'),
         meta: { keepAlive: true },
       },
+      {
+        path: 'objectifs',
+        name: 'vue360-caf-objectifs',
+        component: () => import('../components/CafObjectivesSection.vue'),
+        meta: { keepAlive: false },
+      },
     ],
   },
   {
@@ -91,7 +97,13 @@ router.beforeEach((to, from, next) => {
   } else if ((to.path === '/' || to.path === '/login') && isAuthenticated) {
     next(resolveHomeRoute());
   } else if (to.path === '/dashboard' && isAuthenticated && ProfileManager.isCAF()) {
-    next('/vue360/caf');
+    // Le CAF peut ouvrir Objectifs depuis le dashboard ; le reste redirige vers sa vue
+    const section = sessionStorage.getItem('dashboardSection');
+    if (section === 'objectives') {
+      next('/vue360/objectifs');
+    } else {
+      next('/vue360/caf');
+    }
   } else if (to.path === '/dashboard' && isAuthenticated && ProfileManager.isCC()) {
     next('/vue360/recherche');
   } else if (isAuthenticated && ProfileManager.isCAF() && to.path === '/vue360') {

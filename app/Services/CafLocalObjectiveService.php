@@ -62,6 +62,77 @@ class CafLocalObjectiveService
     }
 
     /**
+     * Liste des objectifs CAF (tous types) pour la période.
+     * Matching strict : "CAF: {nom}" ou agency_code ∈ {id, email, manager_code}.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function listForUser(User $user, int $month, int $year): array
+    {
+        $user->loadMissing('agency');
+        $quarter = (int) ceil($month / 3);
+        $name = trim((string) $user->name);
+        $identifiers = array_values(array_filter([
+            (string) $user->id,
+            trim((string) $user->email),
+            trim((string) ($user->manager_code ?? '')),
+        ], fn (string $v) => $v !== ''));
+
+        if ($name === '' && $identifiers === []) {
+            return [];
+        }
+
+        $query = Objective::query()
+            ->where('year', $year)
+            ->where(function ($q) use ($month, $quarter) {
+                $q->where(function ($q2) use ($month) {
+                    $q2->where('period', 'month')->where('month', $month);
+                })->orWhere(function ($q2) use ($quarter) {
+                    $q2->where('period', 'quarter')->where('quarter', $quarter);
+                })->orWhere('period', 'year');
+            })
+            ->whereIn('status', ['validated', 'pending_validation'])
+            ->where(function ($q) use ($name, $identifiers) {
+                if ($name !== '') {
+                    $q->where('agency_name', 'like', '%CAF: '.$name.'%');
+                }
+                if ($identifiers !== []) {
+                    $method = $name !== '' ? 'orWhereIn' : 'whereIn';
+                    $q->{$method}('agency_code', $identifiers);
+                }
+            })
+            ->orderBy('type')
+            ->orderByRaw("CASE WHEN status = 'validated' THEN 0 ELSE 1 END")
+            ->orderByRaw("CASE period WHEN 'month' THEN 0 WHEN 'quarter' THEN 1 ELSE 2 END")
+            ->orderByDesc('updated_at')
+            ->get();
+
+        // Un seul objectif par type (le plus pertinent déjà trié)
+        $byType = [];
+        foreach ($query as $obj) {
+            $type = (string) $obj->type;
+            if (isset($byType[$type])) {
+                continue;
+            }
+            $byType[$type] = [
+                'id' => $obj->id,
+                'type' => $type,
+                'value' => (float) ($obj->value ?? 0),
+                'value_nombres' => $obj->value_nombres !== null ? (float) $obj->value_nombres : null,
+                'value_volume' => $obj->value_volume !== null ? (float) $obj->value_volume : null,
+                'period' => $obj->period,
+                'year' => (int) $obj->year,
+                'month' => $obj->month !== null ? (int) $obj->month : null,
+                'quarter' => $obj->quarter !== null ? (int) $obj->quarter : null,
+                'status' => $obj->status,
+                'description' => $obj->description,
+            ];
+        }
+
+        return array_values($byType);
+    }
+
+    /**
      * @return Collection<int, Objective>
      */
     private function candidatesByType(string $type, int $month, int $year): Collection

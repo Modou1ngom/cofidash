@@ -10,10 +10,19 @@
           <span class="toggle-icon">{{ clientExpanded ? '▼' : '▶' }}</span>
         </div>
         <div v-if="clientExpanded" class="nav-section-items">
-          <a href="#" @click.stop.prevent="selectSection('client')" class="nav-link indent" :class="{ active: activeSection === 'client' }">
+          <a
+            v-if="isCaf"
+            href="#"
+            @click.stop.prevent="selectSection('caf-overview')"
+            class="nav-link indent"
+            :class="{ active: activeSection === 'caf-overview' }"
+          >
+            Vue d'ensemble
+          </a>
+          <a v-if="!isCaf" href="#" @click.stop.prevent="selectSection('client')" class="nav-link indent" :class="{ active: activeSection === 'client' }">
             Données
           </a>
-          <a href="#" @click.stop.prevent="selectSection('performance-client')" class="nav-link indent" :class="{ active: activeSection === 'performance-client' }">
+          <a v-if="!isCaf" href="#" @click.stop.prevent="selectSection('performance-client')" class="nav-link indent" :class="{ active: activeSection === 'performance-client' }">
             📊 Performance
           </a>
         </div>
@@ -166,9 +175,33 @@
           <span class="toggle-icon">{{ objectivesExpanded ? '▼' : '▶' }}</span>
         </div>
         <div v-if="objectivesExpanded" class="nav-section-items">
-          <a v-if="profileCode !== 'MD'" href="#" @click.stop.prevent="handleObjectiveSubSection('add')" class="nav-link indent" :class="{ active: activeSubSection === 'add' }">➕ Ajouter</a>
-          <a href="#" @click.stop.prevent="handleObjectiveSubSection('validation')" class="nav-link indent" :class="{ active: activeSubSection === 'validation' }">✅ Valider</a>
-         
+          <a
+            v-if="isCaf"
+            href="#"
+            @click.stop.prevent="handleObjectiveSubSection('mine')"
+            class="nav-link indent"
+            :class="{ active: activeSection === 'objectives' && (activeSubSection === 'mine' || !activeSubSection) }"
+          >
+            📋 Mes objectifs
+          </a>
+          <a
+            v-if="!isCaf && profileCode !== 'MD'"
+            href="#"
+            @click.stop.prevent="handleObjectiveSubSection('add')"
+            class="nav-link indent"
+            :class="{ active: activeSubSection === 'add' }"
+          >
+            ➕ Ajouter
+          </a>
+          <a
+            v-if="!isCaf"
+            href="#"
+            @click.stop.prevent="handleObjectiveSubSection('validation')"
+            class="nav-link indent"
+            :class="{ active: activeSubSection === 'validation' }"
+          >
+            ✅ Valider
+          </a>
         </div>
 
         <div class="nav-section-header" @click.stop="toggleReportingFinancier" :class="{ active: activeSection === 'reporting-financier' }">
@@ -413,6 +446,9 @@ export default {
     profileCode() {
       return ProfileManager.getProfileCode();
     },
+    isCaf() {
+      return ProfileManager.isCAF();
+    },
     isAdmin() {
       return ProfileManager.isAdmin();
     }
@@ -510,8 +546,12 @@ export default {
         this.closeAllNavSectionsExcept('objectives');
       }
       this.objectivesExpanded = next;
-      // Toujours sélectionner la section objectives quand on clique sur le header
       this.$emit('section-selected', 'objectives');
+      if (this.isCaf) {
+        this.$nextTick(() => {
+          this.$emit('sub-section-selected', 'mine');
+        });
+      }
     },
     handleObjectiveSubSection(subSection) {
       // S'assurer que la section objectives est sélectionnée et définir la sous-section
@@ -552,7 +592,7 @@ export default {
     },
     selectSection(section) {
       // Gérer l'expansion des sections selon la section sélectionnée
-      if (section === 'client' || section === 'performance-client') {
+      if (section === 'client' || section === 'performance-client' || section === 'caf-overview' || section === 'vue360') {
         this.clientExpanded = true;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
