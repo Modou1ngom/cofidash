@@ -632,12 +632,14 @@ export default {
       return raw.length ? raw : DEFAULT_ENCOURS_REPARTITION;
     },
     repartitionTotal() {
-      const due = Number(this.summary?.total_due_amount ?? 0);
-      if (due > 0) return due;
-      return this.encoursRepartition.reduce(
+      // Total = somme des postes (montant_global_du), jamais un total orphelin
+      const fromItems = this.encoursRepartition.reduce(
         (sum, item) => sum + (Number(item.amount) || 0),
         0,
       );
+      if (fromItems > 0) return fromItems;
+      const due = Number(this.summary?.total_due_amount ?? 0);
+      return due > 0 ? due : 0;
     },
     encoursRepartitionWithAmount() {
       return this.encoursRepartition.filter((item) => (item.amount || 0) > 0);
@@ -665,16 +667,14 @@ export default {
       const encours = Number(
         this.summary?.credit_encours_global
         ?? this.summary?.encours_credit
-        ?? this.client?.total_outstanding
         ?? 0,
       );
-      return count > 0 || encours > 0 || this.credits.length > 0;
+      return count > 0 || encours > 0;
     },
     creditEncoursTotal() {
       return Number(
         this.summary?.credit_encours_global
         ?? this.summary?.encours_credit
-        ?? this.summary?.encours_global
         ?? 0,
       );
     },

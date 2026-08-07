@@ -42,28 +42,48 @@ def aggregate_encours_repartition_rows(rows: List[Dict[str, Any]]) -> Dict[str, 
     if not rows:
         return {}
 
+    def _val(row: Dict[str, Any], *keys: str) -> float:
+        for key in keys:
+            if key in row and row.get(key) is not None:
+                return _to_float(row.get(key))
+            upper = key.upper()
+            if upper in row and row.get(upper) is not None:
+                return _to_float(row.get(upper))
+            lower = key.lower()
+            if lower in row and row.get(lower) is not None:
+                return _to_float(row.get(lower))
+        return 0.0
+
     capital = interest = penalty = total_exigible = 0.0
     charges_by_account: dict[str, dict] = {}
 
     for row in rows:
-        capital += _to_float(row.get("CHARGE_DUE_PRINC"))
-        penalty += _to_float(row.get("CHARGE_DUE_PEN"))
-        interest += _to_float(row.get("CHARGE_DUE_INT"))
-        total_exigible += _to_float(row.get("EXIGIBLE"))
+        capital += _val(row, "CHARGE_DUE_PRINC")
+        penalty += _val(row, "CHARGE_DUE_PEN")
+        interest += _val(row, "CHARGE_DUE_INT")
+        total_exigible += _val(row, "EXIGIBLE")
 
-        account = str(row.get("NUMERO_COMPTE") or "").strip()
+        account = str(
+            row.get("NUMERO_COMPTE")
+            or row.get("numero_compte")
+            or ""
+        ).strip()
         if account and account not in charges_by_account:
             charges_by_account[account] = row
 
     ftc = acs_ouv = acs_an = fr_ouv = carte = total_charge = 0.0
     for row in charges_by_account.values():
-        acs_ouv += _to_float(row.get("CHARGE_DUE_ACS_OUV"))
-        acs_an += _to_float(row.get("CHARGE_DUE_ACS_AN"))
-        fr_ouv += _to_float(row.get("CHARGE_DUE_FR_OUV"))
-        carte += _to_float(row.get("CHARGE_DUE_CARTE"))
-        ftc += _to_float(row.get("CHARGE_DUE_FTC"))
-        total_charge += _to_float(row.get("TOTAL_CHARGE"))
+        acs_ouv += _val(row, "CHARGE_DUE_ACS_OUV")
+        acs_an += _val(row, "CHARGE_DUE_ACS_AN")
+        fr_ouv += _val(row, "CHARGE_DUE_FR_OUV")
+        carte += _val(row, "CHARGE_DUE_CARTE")
+        ftc += _val(row, "CHARGE_DUE_FTC")
+        total_charge += _val(row, "TOTAL_CHARGE")
 
+    # Total = somme des postes affichés (source de vérité pour le widget)
+    components_total = round(
+        capital + interest + penalty + ftc + (acs_ouv + acs_an) + fr_ouv + carte, 2
+    )
     return {
         "capital_due": round(capital, 2),
         "interest_due": round(interest, 2),
@@ -76,7 +96,7 @@ def aggregate_encours_repartition_rows(rows: List[Dict[str, Any]]) -> Dict[str, 
         "coficarte_fee_due": round(carte, 2),
         "total_exigible": round(total_exigible, 2),
         "total_charge": round(total_charge, 2),
-        "total_due_amount": round(total_exigible + total_charge, 2),
+        "total_due_amount": components_total,
     }
 
 

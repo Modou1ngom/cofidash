@@ -1039,57 +1039,86 @@ def _build_client_summary(
         breakdown_totals = _zero_repartition_totals()
         repartition_source = "unavailable"
 
-    # Fallback : uniquement impayé / exigible (jamais l'encours restant sain).
-    accounts_due = _accounts_amount_due_total(comptes_rows)
-    if not _repartition_has_data(breakdown_totals):
-        overdue_breakdown = _aggregate_overdue_breakdown(credits)
-        if _repartition_has_data(overdue_breakdown):
-            breakdown_totals = {
-                **_zero_repartition_totals(),
-                **overdue_breakdown,
-                "total_due_amount": round(
-                    sum(_to_float(v) for v in overdue_breakdown.values()), 2
-                ),
-            }
-            repartition_source = "credits_overdue"
-        elif accounts_due > 0:
-            breakdown_totals = {
-                **_zero_repartition_totals(),
-                "total_due_amount": accounts_due,
-            }
-            repartition_source = "accounts_due"
-
-    encours_breakdown = _encours_breakdown_items(breakdown_totals)
-    total_due_amount = round(_to_float(breakdown_totals.get("total_due_amount")), 2)
-    total_exigible_query = round(_to_float(breakdown_totals.get("total_exigible")), 2)
-    total_charge_query = round(_to_float(breakdown_totals.get("total_charge")), 2)
-
-    # Encours global (requête production) : capital + intérêts/pénalités + charges FTC…
-    encours_global_query = round(
-        _to_float((encours_global_totals or {}).get("encours_global")), 2
-    )
-    if encours_global_query > 0:
-        credit_encours_global = encours_global_query
-    elif total_due_amount > 0:
-        credit_encours_global = total_due_amount
-    elif total_exigible_query > 0 or total_charge_query > 0:
-        credit_encours_global = round(total_exigible_query + total_charge_query, 2)
-    elif accounts_due > 0:
-        credit_encours_global = accounts_due
-    else:
-        credit_encours_global = 0.0
-
     active_credit_rows = [
         c
         for c in credits
         if str(c.get("health_status") or "").lower() != "solde"
         and str(c.get("status") or "").lower() not in ("paid", "solde")
     ]
-    has_active_credit = (
+    encours_global_query = round(
+        _to_float((encours_global_totals or {}).get("encours_global")), 2
+    )
+    encours_total_loan = round(
+        _to_float((encours_global_totals or {}).get("encours_total")), 2
+    )
+    # Prêt actif = capital échéancier / dossiers crédit (pas les seules charges compte).
+    has_loan = (
         active_credits > 0
-        or credit_encours_global > 0
+        or len(active_credit_rows) > 0
+        or encours_total_loan > 0
+    )
+
+    # Montant global dû = UNIQUEMENT montant_global_du.sql (pas de fallback inventé).
+    if repartition_source == "unavailable" and not _repartition_has_data(breakdown_totals):
+        overdue_breakdown = _aggregate_overdue_breakdown(credits)
+        if _repartition_has_data(overdue_breakdown):
+            breakdown_totals = {
+                **_zero_repartition_totals(),
+                **overdue_breakdown,
+                "total_due_amount": round(
+                    _to_float(overdue_breakdown.get("capital_due"))
+                    + _to_float(overdue_breakdown.get("interest_due"))
+                    + _to_float(overdue_breakdown.get("penalty_due"))
+                    + _to_float(overdue_breakdown.get("ftc_due"))
+                    + _to_float(overdue_breakdown.get("acs_due"))
+                    + _to_float(overdue_breakdown.get("opening_fee_due"))
+                    + _to_float(overdue_breakdown.get("coficarte_fee_due")),
+                    2,
+                ),
+            }
+            repartition_source = "credits_overdue"
+
+    # Total affiché = somme des postes du détail
+    component_keys = (
+        "capital_due",
+        "interest_due",
+        "penalty_due",
+        "ftc_due",
+        "acs_due",
+        "opening_fee_due",
+        "coficarte_fee_due",
+    )
+    components_sum = round(
+        sum(_to_float(breakdown_totals.get(k)) for k in component_keys), 2
+    )
+    breakdown_totals["total_due_amount"] = components_sum
+
+    encours_breakdown = _encours_breakdown_items(breakdown_totals)
+    total_due_amount = components_sum
+    total_exigible_query = round(_to_float(breakdown_totals.get("total_exigible")), 2)
+    total_charge_query = round(_to_float(breakdown_totals.get("total_charge")), 2)
+
+    # Encours crédit : uniquement si prêt (encours_global_caf / dossiers).
+    if not has_loan:
+        credit_encours_global = 0.0
+        active_credits = 0
+        par_days = 0
+    elif encours_global_query > 0:
+        credit_encours_global = encours_global_query
+    else:
+        credit_encours_global = round(
+            sum(
+                _to_float(c.get("outstanding") or c.get("total_outstanding"))
+                for c in active_credit_rows
+            ),
+            2,
+        )
+
+    has_active_credit = has_loan and (
+        credit_encours_global > 0
         or credit_outstanding > 0
         or len(active_credit_rows) > 0
+        or active_credits > 0
     )
     if not has_active_credit:
         risk_score = 700
@@ -1097,18 +1126,19 @@ def _build_client_summary(
         eligibility_label = "À étudier"
     else:
         eligibility_label = _eligibility_label(eligibility)
-    # KPI « Exigible » : échéances crédit, sinon montant dû des comptes (auto-settle).
-    total_exigible = round(
-        sum(_to_float(c.get("due_amount")) for c in active_credit_rows), 2
-    )
-    if total_exigible <= 0:
+
+    # KPI « Exigible » synthèse : postes crédit + charges de montant_global_du.
+    total_exigible = total_due_amount
+    if has_loan and total_exigible <= 0:
         total_exigible = round(
-            sum(_to_float(c.get("unpaid_amount")) for c in active_credit_rows), 2
+            sum(_to_float(c.get("due_amount")) for c in active_credit_rows), 2
         )
-    if total_exigible <= 0:
-        total_exigible = round(
-            max(total_exigible_query + total_charge_query, accounts_due), 2
-        )
+        if total_exigible <= 0:
+            total_exigible = round(
+                sum(_to_float(c.get("unpaid_amount")) for c in active_credit_rows), 2
+            )
+        if total_exigible <= 0:
+            total_exigible = round(total_exigible_query + total_charge_query, 2)
 
     last_movement = _last_credit_movement(comptes_rows)
 
@@ -1154,7 +1184,7 @@ def _build_client_summary(
                 _to_float((encours_global_totals or {}).get("charge_due")), 2
             ),
         },
-        "encours_credit": credit_outstanding,
+        "encours_credit": credit_encours_global,
         "encours_epargne": balances["epargne"],
         "encours_dat": balances["dat"],
         "encours_courant": balances["courant"],
@@ -1172,7 +1202,9 @@ def _build_client_summary(
         "agency": str(client.get("agency") or ""),
         "repayment_rate": _to_float(client.get("repayment_rate")),
         "par_days": par_days,
-        "active_credits_count": active_credits,
+        "active_credits_count": (
+            max(active_credits, len(active_credit_rows)) if has_loan else 0
+        ),
     }
 
 
@@ -1245,9 +1277,7 @@ def get_client(
         encours_global_totals=encours_global_totals,
     )
     client["summary"] = summary
-    client["total_outstanding"] = summary.get("credit_encours_global") or summary.get(
-        "encours_credit", client.get("total_outstanding")
-    )
+    client["total_outstanding"] = _to_float(summary.get("credit_encours_global"))
     client["active_credits_count"] = summary.get(
         "active_credits_count", client.get("active_credits_count")
     )
