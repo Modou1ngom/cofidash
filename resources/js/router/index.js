@@ -6,6 +6,15 @@ function resolveHomeRoute() {
   return ProfileManager.getHomeRoute();
 }
 
+function mustChangePassword() {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    return !!user.must_change_password;
+  } catch {
+    return false;
+  }
+}
+
 const routes = [
   {
     path: '/',
@@ -16,6 +25,12 @@ const routes = [
     path: '/login',
     name: 'login-alt',
     component: LoginPage
+  },
+  {
+    path: '/change-password',
+    name: 'change-password',
+    component: () => import('../pages/ChangePasswordPage.vue'),
+    meta: { requiresAuth: true, allowPasswordChange: true }
   },
   {
     path: '/dashboard',
@@ -91,12 +106,24 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token');
   const isAuthenticated = !!token;
+  const needsPasswordChange = isAuthenticated && mustChangePassword();
 
   if (to.meta.requiresAuth && !isAuthenticated) {
     next('/');
-  } else if ((to.path === '/' || to.path === '/login') && isAuthenticated) {
-    next(resolveHomeRoute());
-  } else if (to.path === '/dashboard' && isAuthenticated && ProfileManager.isCAF()) {
+    return;
+  }
+
+  if (needsPasswordChange && !to.meta.allowPasswordChange) {
+    next({ name: 'change-password' });
+    return;
+  }
+
+  if ((to.path === '/' || to.path === '/login') && isAuthenticated) {
+    next(needsPasswordChange ? { name: 'change-password' } : resolveHomeRoute());
+    return;
+  }
+
+  if (to.path === '/dashboard' && isAuthenticated && ProfileManager.isCAF()) {
     // Le CAF peut ouvrir Objectifs depuis le dashboard ; le reste redirige vers sa vue
     const section = sessionStorage.getItem('dashboardSection');
     if (section === 'objectives') {
@@ -104,15 +131,25 @@ router.beforeEach((to, from, next) => {
     } else {
       next('/vue360/caf');
     }
-  } else if (to.path === '/dashboard' && isAuthenticated && ProfileManager.isCC()) {
-    next('/vue360/recherche');
-  } else if (isAuthenticated && ProfileManager.isCAF() && to.path === '/vue360') {
-    next('/vue360/caf');
-  } else if (isAuthenticated && ProfileManager.isCC() && to.path === '/vue360/caf') {
-    next('/vue360/recherche');
-  } else {
-    next();
+    return;
   }
+
+  if (to.path === '/dashboard' && isAuthenticated && ProfileManager.isCC()) {
+    next('/vue360/recherche');
+    return;
+  }
+
+  if (isAuthenticated && ProfileManager.isCAF() && to.path === '/vue360') {
+    next('/vue360/caf');
+    return;
+  }
+
+  if (isAuthenticated && ProfileManager.isCC() && to.path === '/vue360/caf') {
+    next('/vue360/recherche');
+    return;
+  }
+
+  next();
 });
 
 export default router;

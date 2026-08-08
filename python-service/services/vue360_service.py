@@ -1127,8 +1127,15 @@ def _build_client_summary(
     else:
         eligibility_label = _eligibility_label(eligibility)
 
-    # KPI « Exigible » synthèse : postes crédit + charges de montant_global_du.
-    total_exigible = total_due_amount
+    # KPI « Exigible » = capital + intérêts + pénalités uniquement (pas FTC/ACS/frais).
+    total_exigible = round(
+        _to_float(breakdown_totals.get("capital_due"))
+        + _to_float(breakdown_totals.get("interest_due"))
+        + _to_float(breakdown_totals.get("penalty_due")),
+        2,
+    )
+    if total_exigible <= 0:
+        total_exigible = total_exigible_query
     if has_loan and total_exigible <= 0:
         total_exigible = round(
             sum(_to_float(c.get("due_amount")) for c in active_credit_rows), 2
@@ -1137,8 +1144,9 @@ def _build_client_summary(
             total_exigible = round(
                 sum(_to_float(c.get("unpaid_amount")) for c in active_credit_rows), 2
             )
-        if total_exigible <= 0:
-            total_exigible = round(total_exigible_query + total_charge_query, 2)
+    if not has_loan:
+        # Sans prêt : pas d'exigible crédit (les charges restent dans montant global dû).
+        total_exigible = 0.0
 
     last_movement = _last_credit_movement(comptes_rows)
 

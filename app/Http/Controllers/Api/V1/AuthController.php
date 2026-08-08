@@ -127,6 +127,41 @@ class AuthController extends Controller
         return response()->json($result['data']);
     }
 
+    public function changePassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'current_password' => 'required|string',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        /** @var User $user */
+        $user = $request->user();
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['Le mot de passe actuel est incorrect.'],
+            ]);
+        }
+
+        if (Hash::check($request->password, $user->password)) {
+            throw ValidationException::withMessages([
+                'password' => ['Le nouveau mot de passe doit être différent de l\'actuel.'],
+            ]);
+        }
+
+        $user->update([
+            'password' => $request->password,
+            'must_change_password' => false,
+        ]);
+
+        $user->refresh()->loadMissing(['profile', 'territory', 'agency']);
+
+        return response()->json([
+            'message' => 'Mot de passe modifié avec succès.',
+            'data' => $this->scope->formatAuthUser($user),
+        ]);
+    }
+
     public function setManagerCode(Request $request): JsonResponse
     {
         /** @var User $user */

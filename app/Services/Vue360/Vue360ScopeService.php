@@ -98,6 +98,7 @@ class Vue360ScopeService
             'zone_id' => $user->territory?->code ? 'ZN-'.$user->territory->code : null,
             'profile_photo_url' => $profilePhotoUrl,
             'manager_code' => $user->manager_code,
+            'must_change_password' => (bool) $user->must_change_password,
         ];
     }
 }

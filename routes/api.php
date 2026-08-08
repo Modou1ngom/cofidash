@@ -93,6 +93,7 @@ Route::middleware('auth:sanctum')->prefix('objectives')->group(function () {
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/change-password', [AuthController::class, 'changePassword']);
 
     // Alias pratiques pour la gestion territoires / agences (TerritoryAgencyManagement.vue)
     Route::get('/users', [\App\Http\Controllers\UserController::class, 'index']);

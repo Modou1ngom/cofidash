@@ -45,6 +45,7 @@ class UserController extends Controller
         ]);
 
         $validated['password'] = Hash::make($validated['password']);
+        $validated['must_change_password'] = true;
 
         $user = User::create($validated);
 
@@ -70,6 +71,7 @@ class UserController extends Controller
 
         if (isset($validated['password'])) {
             $validated['password'] = Hash::make($validated['password']);
+            $validated['must_change_password'] = true;
         } else {
             unset($validated['password']);
         }

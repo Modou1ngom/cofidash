@@ -30,6 +30,7 @@ Route::prefix('auth')->group(function () {
         Route::delete('/profile-photo', [AuthController::class, 'deleteProfilePhoto']);
         Route::get('/caf-managers', [AuthController::class, 'cafManagers']);
         Route::post('/manager-code', [AuthController::class, 'setManagerCode']);
+        Route::post('/change-password', [AuthController::class, 'changePassword']);
     });
 });
 

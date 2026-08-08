@@ -46,7 +46,11 @@ const handleSubmit = async (e: Event) => {
       localStorage.setItem('userProfile', response.data.user.profile.code);
     }
 
-    router.push(ProfileManager.getHomeRoute());
+    if (response.data.user.must_change_password) {
+      router.push({ name: 'change-password' });
+    } else {
+      router.push(ProfileManager.getHomeRoute());
+    }
   } catch (error: any) {
     if (error.response?.status === 422) {
       errors.value = error.response.data.errors || {};
