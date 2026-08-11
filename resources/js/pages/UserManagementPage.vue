@@ -77,15 +77,17 @@
             </select>
           </div>
           <div class="form-group" v-if="isCafProfile">
-            <label>Code gestionnaire (Flexcube)</label>
-            <input
+            <label>Code gestionnaire / GP (Flexcube) *</label>
+            <SearchableManagerSelect
               v-model="form.manager_code"
-              placeholder="ex: GP-M0856"
-              maxlength="32"
+              :options="cafManagers"
+              :required="true"
+              placeholder="Rechercher un code GP ou un nom…"
             />
             <p class="field-hint">
-              Code LOV GESTION_PRET (FIELD_CHAR_2). Obligatoire pour afficher le portefeuille CAF.
+              Rattachement obligatoire à la création. Code LOV GESTION_PRET (FIELD_CHAR_2).
             </p>
+            <p v-if="managersError" class="field-error">{{ managersError }}</p>
           </div>
           <div class="form-actions">
             <button type="button" @click="closeModal" class="btn-cancel">Annuler</button>
@@ -99,13 +101,17 @@
 
 <script>
 import axios from 'axios';
+import SearchableManagerSelect from '../components/SearchableManagerSelect.vue';
 
 export default {
   name: 'UserManagementPage',
+  components: { SearchableManagerSelect },
   data() {
     return {
       users: [],
       profiles: [],
+      cafManagers: [],
+      managersError: '',
       showCreateModal: false,
       editingUser: null,
       form: {
@@ -121,6 +127,16 @@ export default {
     isCafProfile() {
       const profile = this.profiles.find(p => String(p.id) === String(this.form.profile_id));
       return profile?.code === 'CAF';
+    }
+  },
+  watch: {
+    isCafProfile(isCaf) {
+      if (isCaf && this.cafManagers.length === 0) {
+        this.loadCafManagers();
+      }
+      if (!isCaf) {
+        this.form.manager_code = '';
+      }
     }
   },
   async mounted() {
@@ -147,6 +163,17 @@ export default {
         console.error('Erreur:', error);
       }
     },
+    async loadCafManagers() {
+      this.managersError = '';
+      try {
+        const response = await axios.get('/api/v1/dashboard/caf-managers');
+        this.cafManagers = response.data?.data || response.data || [];
+      } catch (error) {
+        console.error('Erreur:', error);
+        this.managersError = 'Impossible de charger la liste des codes GP Flexcube.';
+        this.cafManagers = [];
+      }
+    },
     editUser(user) {
       this.editingUser = user;
       this.form = {
@@ -156,12 +183,18 @@ export default {
         profile_id: user.profile_id,
         manager_code: user.manager_code || ''
       };
+      if (user.profile?.code === 'CAF') {
+        this.loadCafManagers();
+      }
     },
     async saveUser() {
       try {
         const formData = { ...this.form };
         if (!this.isCafProfile) {
           formData.manager_code = null;
+        } else if (!String(formData.manager_code || '').trim()) {
+          alert('Le code gestionnaire (GP) est obligatoire pour un chargé d\'affaires.');
+          return;
         }
         if (this.editingUser && !formData.password) {
           delete formData.password;
@@ -175,7 +208,11 @@ export default {
         await this.loadUsers();
         this.closeModal();
       } catch (error) {
-        alert(error.response?.data?.message || 'Erreur lors de la sauvegarde');
+        const errors = error.response?.data?.errors;
+        const firstError = errors
+          ? Object.values(errors).flat()[0]
+          : null;
+        alert(firstError || error.response?.data?.message || 'Erreur lors de la sauvegarde');
       }
     },
     async deleteUser(user) {
@@ -358,6 +395,13 @@ export default {
   margin: 6px 0 0;
   font-size: 12px;
   color: #666;
+  line-height: 1.4;
+}
+
+.field-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #b91c1c;
   line-height: 1.4;
 }
 

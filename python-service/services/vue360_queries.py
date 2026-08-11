@@ -793,6 +793,7 @@ WHERE 1 = 1
   {active_filter}
   {client_filter}
   {branch_filter}
+  {caf_filter}
 ORDER BY COALESCE(ed.TRN_DT, c.BOOK_DATE) DESC NULLS LAST
 FETCH FIRST :limit ROWS ONLY
 """

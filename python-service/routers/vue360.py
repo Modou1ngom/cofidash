@@ -207,6 +207,7 @@ async def vue360_client_detail(
 async def vue360_credits(
     branch_codes: Optional[str] = Query(None),
     client_id: Optional[str] = Query(None),
+    caf_code: Optional[str] = Query(None, description="CODE_GESTION_PRET (FIELD_CHAR_2)"),
     limit: int = Query(50, ge=1, le=200),
 ):
     branches = [b.strip() for b in (branch_codes or "").split(",") if b.strip()]
@@ -214,6 +215,7 @@ async def vue360_credits(
         data = vue360_service.list_credits(
             branch_codes=branches or None,
             client_id=client_id,
+            caf_code=caf_code,
             limit=limit,
         )
         return {"data": data}

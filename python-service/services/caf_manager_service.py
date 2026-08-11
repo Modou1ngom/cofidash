@@ -89,10 +89,8 @@ def resolve_manager_code(
         for row in managers:
             if row["code_gestion_pret"] == code:
                 return row
-        return {
-            "code_gestion_pret": code,
-            "charge_affaire": str(charge_affaire or "").strip(),
-        }
+        logger.info("CODE_GESTION_PRET introuvable dans LOV GESTION_PRET: %s", code)
+        return None
 
     managers = list_gestion_pret_managers()
     if not managers:

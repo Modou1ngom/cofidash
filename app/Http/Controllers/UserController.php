@@ -4,12 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\Profile;
+use App\Services\Vue360\Vue360ApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
+    public function __construct(
+        private readonly Vue360ApiService $vue360Api,
+    ) {
+    }
+
     public function index(Request $request)
     {
         $query = User::with(['profile', 'territory', 'agency']);
@@ -44,6 +51,8 @@ class UserController extends Controller
             'manager_code' => 'nullable|string|max:32',
         ]);
 
+        $validated = $this->applyManagerCodeRules($validated);
+
         $validated['password'] = Hash::make($validated['password']);
         $validated['must_change_password'] = true;
 
@@ -69,6 +78,8 @@ class UserController extends Controller
             'manager_code' => 'nullable|string|max:32',
         ]);
 
+        $validated = $this->applyManagerCodeRules($validated);
+
         if (isset($validated['password'])) {
             $validated['password'] = Hash::make($validated['password']);
             $validated['must_change_password'] = true;
@@ -87,5 +98,40 @@ class UserController extends Controller
 
         return response()->json(['message' => 'Utilisateur supprimé avec succès']);
     }
-}
 
+    /**
+     * Pour un profil CAF, le code GP (manager_code) est obligatoire et vérifié dans Flexcube.
+     * Pour les autres profils, le code est effacé.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function applyManagerCodeRules(array $validated): array
+    {
+        $profile = Profile::query()->find($validated['profile_id']);
+        $isCaf = $profile?->code === 'CAF';
+
+        if (!$isCaf) {
+            $validated['manager_code'] = null;
+
+            return $validated;
+        }
+
+        $code = trim((string) ($validated['manager_code'] ?? ''));
+        if ($code === '') {
+            throw ValidationException::withMessages([
+                'manager_code' => ['Le code gestionnaire (GP) est obligatoire pour un chargé d\'affaires.'],
+            ]);
+        }
+
+        if (!$this->vue360Api->verifyManagerCode($code)) {
+            throw ValidationException::withMessages([
+                'manager_code' => ['Code gestionnaire invalide ou introuvable dans Flexcube.'],
+            ]);
+        }
+
+        $validated['manager_code'] = $code;
+
+        return $validated;
+    }
+}

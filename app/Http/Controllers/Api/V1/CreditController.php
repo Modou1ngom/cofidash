@@ -16,7 +16,12 @@ class CreditController extends Controller
     public function index(Request $request): JsonResponse
     {
         $clientId = $request->query('client_id');
-        $result = $this->api->credits($request->user(), $clientId);
+        $cafCode = $request->query('caf_code');
+        $result = $this->api->credits(
+            $request->user(),
+            $clientId,
+            is_string($cafCode) ? $cafCode : null,
+        );
 
         return $this->respondList($result);
     }

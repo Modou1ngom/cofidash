@@ -151,6 +151,7 @@
                 <th>Nom</th>
                 <th>Email</th>
                 <th>Profil</th>
+                <th>Code GP</th>
                 <th>Territoire</th>
                 <th>Agence</th>
                 <th class="col-actions">Actions</th>
@@ -158,7 +159,7 @@
             </thead>
             <tbody>
               <tr v-if="filteredUsers.length === 0">
-                <td colspan="6" class="empty-cell">Aucun utilisateur trouvé</td>
+                <td colspan="7" class="empty-cell">Aucun utilisateur trouvé</td>
               </tr>
               <tr v-for="user in paginatedUsers" :key="user.id">
                 <td>
@@ -169,6 +170,10 @@
                 </td>
                 <td class="muted">{{ user.email }}</td>
                 <td><span class="tag tag-green">{{ user.profile?.name || '—' }}</span></td>
+                <td>
+                  <code v-if="user.manager_code" class="mono">{{ user.manager_code }}</code>
+                  <span v-else class="muted">—</span>
+                </td>
                 <td>
                   <span v-if="user.territory" class="tag tag-neutral">{{ user.territory.name }}</span>
                   <span v-else class="muted">—</span>
@@ -368,6 +373,18 @@
                 </option>
               </select>
             </div>
+            <div class="field full" v-if="isCafUserProfile">
+              <label for="user-manager-code">Code gestionnaire / GP *</label>
+              <SearchableManagerSelect
+                input-id="user-manager-code"
+                v-model="userForm.manager_code"
+                :options="cafManagers"
+                :required="true"
+                placeholder="Rechercher un code GP ou un nom…"
+              />
+              <p class="hint">Rattachement obligatoire à la création du CAF (LOV GESTION_PRET).</p>
+              <p v-if="managersError" class="hint" style="color: #b91c1c;">{{ managersError }}</p>
+            </div>
             <div class="field">
               <label for="user-territory">Territoire</label>
               <select id="user-territory" v-model="userForm.territory_id" class="control">
@@ -507,9 +524,11 @@
 
 <script>
 import axios from 'axios';
+import SearchableManagerSelect from './SearchableManagerSelect.vue';
 
 export default {
   name: 'TerritoryAgencyManagement',
+  components: { SearchableManagerSelect },
   data() {
     return {
       activeTab: 'territories',
@@ -555,8 +574,11 @@ export default {
         password: '',
         profile_id: '',
         territory_id: '',
-        agency_id: ''
+        agency_id: '',
+        manager_code: ''
       },
+      cafManagers: [],
+      managersError: '',
       savingUser: false,
       showProfileModal: false,
       editingProfile: null,
@@ -599,8 +621,12 @@ export default {
       const q = this.searchNormalized;
       if (!q) return this.users;
       return this.users.filter((u) => this.matchesSearch(q, [
-        u.name, u.email, u.profile?.name, u.profile?.code, u.territory?.name, u.agency?.name
+        u.name, u.email, u.profile?.name, u.profile?.code, u.manager_code, u.territory?.name, u.agency?.name
       ]));
+    },
+    isCafUserProfile() {
+      const profile = this.profiles.find((p) => String(p.id) === String(this.userForm.profile_id));
+      return profile?.code === 'CAF';
     },
     filteredProfiles() {
       const q = this.searchNormalized;
@@ -688,6 +714,14 @@ export default {
     currentResultCount() {
       if (this.currentPage > this.totalPages) {
         this.currentPage = this.totalPages;
+      }
+    },
+    isCafUserProfile(isCaf) {
+      if (isCaf && this.cafManagers.length === 0) {
+        this.loadCafManagers();
+      }
+      if (!isCaf) {
+        this.userForm.manager_code = '';
       }
     }
   },
@@ -1111,7 +1145,8 @@ export default {
         password: '',
         profile_id: '',
         territory_id: '',
-        agency_id: ''
+        agency_id: '',
+        manager_code: ''
       };
       this.showUserModal = true;
     },
@@ -1123,8 +1158,12 @@ export default {
         password: '',
         profile_id: user.profile_id,
         territory_id: user.territory_id || '',
-        agency_id: user.agency_id || ''
+        agency_id: user.agency_id || '',
+        manager_code: user.manager_code || ''
       };
+      if (user.profile?.code === 'CAF') {
+        this.loadCafManagers();
+      }
       this.showUserModal = true;
     },
     closeUserModal() {
@@ -1136,8 +1175,23 @@ export default {
         password: '',
         profile_id: '',
         territory_id: '',
-        agency_id: ''
+        agency_id: '',
+        manager_code: ''
       };
+    },
+    async loadCafManagers() {
+      this.managersError = '';
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get('/api/v1/dashboard/caf-managers', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        this.cafManagers = response.data?.data || response.data || [];
+      } catch (error) {
+        console.error('Erreur lors du chargement des codes GP:', error);
+        this.managersError = 'Impossible de charger la liste des codes GP Flexcube.';
+        this.cafManagers = [];
+      }
     },
     async saveUser() {
       if (!this.userForm.name || !this.userForm.email || !this.userForm.profile_id) {
@@ -1150,10 +1204,19 @@ export default {
         return;
       }
 
+      if (this.isCafUserProfile && !String(this.userForm.manager_code || '').trim()) {
+        alert('Le code gestionnaire (GP) est obligatoire pour un chargé d\'affaires.');
+        return;
+      }
+
       this.savingUser = true;
       try {
         const token = localStorage.getItem('token');
         const payload = { ...this.userForm };
+
+        if (!this.isCafUserProfile) {
+          payload.manager_code = null;
+        }
         
         // Si on modifie et qu'il n'y a pas de nouveau mot de passe, ne pas l'envoyer
         if (this.editingUser && !payload.password) {
@@ -1181,7 +1244,9 @@ export default {
           alert(this.editingUser ? '✅ Utilisateur modifié avec succès!' : '✅ Utilisateur créé avec succès!');
         }
       } catch (error) {
-        const errorMsg = error.response?.data?.message || error.message;
+        const errors = error.response?.data?.errors;
+        const firstError = errors ? Object.values(errors).flat()[0] : null;
+        const errorMsg = firstError || error.response?.data?.message || error.message;
         alert('❌ Erreur: ' + errorMsg);
         console.error('Erreur lors de la sauvegarde:', error);
       } finally {

@@ -271,7 +271,10 @@ def _transform_credit(row: Dict[str, Any]) -> Dict[str, Any]:
         "product_type": str(row.get("PRODUCT_TYPE") or "Crédit"),
         "product_code": str(row.get("PRODUCT_CODE") or row.get("PRODUCT_TYPE") or ""),
         "agency": row.get("AGENCY") or str(row.get("BRANCH_CODE") or ""),
-        "manager": row.get("MANAGER") or row.get("MANAGER_CODE") or "",
+        "manager": row.get("MANAGER") or row.get("CHARGE_D_AFFAIRE") or "",
+        "manager_code": str(
+            row.get("MANAGER_CODE") or row.get("CODE_GESTION_PRET") or ""
+        ).strip(),
         "loan_account": str(row.get("LOAN_ACCOUNT") or loan_number),
         "linked_account": str(row.get("LINKED_ACCOUNT") or ""),
         "account_balance": _to_float(row.get("ACCOUNT_BALANCE")),
@@ -1770,11 +1773,17 @@ def _build_credits_summary(
 def list_credits(
     branch_codes: Optional[List[str]] = None,
     client_id: Optional[str] = None,
+    caf_code: Optional[str] = None,
     limit: int = DEFAULT_LIMIT,
 ) -> Any:
     limit = max(1, min(limit, 200))
     customer_no = _normalize_customer_id(client_id) if client_id else ""
-    credits = _fetch_credits_flexcube(branch_codes, client_id, limit)
+    credits = _fetch_credits_flexcube(
+        branch_codes,
+        client_id,
+        limit,
+        caf_code=caf_code,
+    )
     if customer_no:
         for credit in credits:
             credit["client_id"] = f"CLT-{customer_no}"
@@ -1793,6 +1802,7 @@ def _fetch_credits_flexcube(
     branch_codes: Optional[List[str]] = None,
     client_id: Optional[str] = None,
     limit: int = DEFAULT_LIMIT,
+    caf_code: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     if client_id:
         branch_clause, branch_params = "", {}
@@ -1808,10 +1818,17 @@ def _fetch_credits_flexcube(
         params["customer_no"] = customer_no
         active_filter = ""
 
+    caf_filter = ""
+    code = str(caf_code or "").strip()
+    if code:
+        caf_filter = "AND TRIM(c.FIELD_CHAR_2) = :caf_code"
+        params["caf_code"] = code
+
     sql = CREDITS_LIST.format(
         client_filter=client_filter,
         branch_filter=branch_clause,
         active_filter=active_filter,
+        caf_filter=caf_filter,
     )
     try:
         rows = _execute_query_flexcube(sql, params)

@@ -136,11 +136,16 @@ class Vue360ApiService
         );
     }
 
-    public function credits(User $user, ?string $clientId = null): array
+    public function credits(User $user, ?string $clientId = null, ?string $cafCode = null): array
     {
         $params = $this->scopedParams($user);
         if ($clientId) {
             $params['client_id'] = $clientId;
+        }
+        $resolvedCode = trim((string) ($cafCode ?: $this->cafCodeForUser($user) ?: ''));
+        if ($resolvedCode !== '') {
+            $params['caf_code'] = $resolvedCode;
+            $params['limit'] = 200;
         }
 
         return $this->get('/api/vue360/credits', $params);
@@ -198,9 +203,14 @@ class Vue360ApiService
     ): array {
         $params = $this->scopedParams($user);
         $resolvedCode = $cafCode ?: $this->cafCodeForUser($user);
-        if ($resolvedCode) {
-            $params['caf_code'] = $resolvedCode;
+        if (!$resolvedCode) {
+            return [
+                'success' => false,
+                'status' => 422,
+                'message' => 'Code gestionnaire (GP) requis pour afficher l\'encours CAF.',
+            ];
         }
+        $params['caf_code'] = $resolvedCode;
         if ($month !== null) {
             $params['month'] = $month;
         }
