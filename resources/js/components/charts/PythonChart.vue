@@ -108,19 +108,21 @@ export default {
             };
             
             // Ajuster les marges selon le type de graphique
+            const hasTitle = Boolean(chartData.layout?.title?.text);
+
             if (props.chartType === 'pie') {
               layout.margin = {
                 l: 10,
                 r: 10,
-                t: 50,
+                t: hasTitle ? 50 : 10,
                 b: 60
               };
             } else {
               layout.margin = {
-                l: 60,
-                r: 10,
-                t: 40,
-                b: 60
+                l: 72,
+                r: 16,
+                t: hasTitle ? 60 : 34,
+                b: 55
               };
             }
             

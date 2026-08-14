@@ -566,10 +566,11 @@
 
     <div
       v-if="!loading && !errorMessage && hasTerritoires && viewMode === 'dashboard'"
-      ref="dashboardRoot"
-      class="epv-dashboard"
-      :style="dashboardStyle"
+      ref="dashboardViewport"
+      class="epv-dashboard-viewport"
+      :style="dashboardViewportStyle"
     >
+    <div class="epv-dashboard" :style="dashboardStyle">
       <div class="dash-kpi-grid">
         <div class="dash-kpi objectif">
           <span class="dash-kpi-icon" aria-hidden="true">
@@ -577,7 +578,7 @@
           </span>
           <div class="dash-kpi-body">
             <span class="dash-kpi-label">Objectif figé</span>
-            <strong class="dash-kpi-value">{{ formatCurrency(grandTotal.objectif) }} <small>FCFA</small></strong>
+            <strong class="dash-kpi-value">{{ formatMillion(grandTotal.objectif) }} <small>M FCFA</small></strong>
           </div>
         </div>
         <div class="dash-kpi collecte">
@@ -586,7 +587,7 @@
           </span>
           <div class="dash-kpi-body">
             <span class="dash-kpi-label">Collecte réalisée</span>
-            <strong class="dash-kpi-value">{{ formatCurrency(grandTotal.collecteM) }} <small>FCFA</small></strong>
+            <strong class="dash-kpi-value">{{ formatMillion(grandTotal.collecteM) }} <small>M FCFA</small></strong>
           </div>
         </div>
         <div class="dash-kpi taux">
@@ -605,7 +606,7 @@
           <div class="dash-kpi-body">
             <span class="dash-kpi-label">Écart à l’objectif</span>
             <strong class="dash-kpi-value" :class="ecartClass(grandTotal.collecteM - grandTotal.objectif)">
-              {{ formatCurrency(grandTotal.collecteM - grandTotal.objectif) }} <small>FCFA</small>
+              {{ formatMillion(grandTotal.collecteM - grandTotal.objectif) }} <small>M FCFA</small>
             </strong>
           </div>
         </div>
@@ -627,11 +628,11 @@
             <div class="dash-mini-stats">
               <div class="dash-chip collecte">
                 <span>Réalisé</span>
-                <strong>{{ formatCurrency(grandTotal.collecteM) }}</strong>
+                <strong>{{ formatMillion(grandTotal.collecteM) }} M</strong>
               </div>
               <div class="dash-chip objectif">
                 <span>Objectif</span>
-                <strong>{{ formatCurrency(grandTotal.objectif) }}</strong>
+                <strong>{{ formatMillion(grandTotal.objectif) }} M</strong>
               </div>
               <div class="dash-chip taux">
                 <span>Taux</span>
@@ -643,7 +644,7 @@
             :key="`dash-line-${selectedMonth}-${selectedYear}`"
             chartType="multiseries"
             :chartData="dashboardLineChartData"
-            :height="240"
+            :height="200"
           />
         </div>
         <div class="dash-card dash-chart-side">
@@ -654,7 +655,7 @@
             :key="`dash-pie-${selectedMonth}-${selectedYear}`"
             chartType="pie"
             :chartData="dashboardPieChartData"
-            :height="240"
+            :height="200"
           />
         </div>
         <div class="dash-card dash-resume">
@@ -771,29 +772,26 @@
               <thead>
                 <tr>
                   <th>Territoire</th>
-                  <th class="col-num">Objectif</th>
-                  <th class="col-num">Réalisé</th>
+                  <th class="col-num">Objectif (M)</th>
+                  <th class="col-num">Réalisé (M)</th>
                   <th class="col-num">Taux</th>
-                  <th class="col-num">Écart</th>
+                  <th class="col-num">Écart (M)</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="row in dashboardZoneRows" :key="row.id">
                   <td><strong>{{ row.name }}</strong></td>
-                  <td class="col-num">{{ formatCurrency(row.objectif) }}</td>
-                  <td class="col-num">{{ formatCurrency(row.collecteM) }}</td>
+                  <td class="col-num">{{ formatMillion(row.objectif) }}</td>
+                  <td class="col-num">{{ formatMillion(row.collecteM) }}</td>
                   <td class="col-num"><span :class="troBadge(row.tro)">{{ formatTro(row.tro) }}</span></td>
-                  <td class="col-num" :class="ecartClass(row.ecart)">{{ formatCurrency(row.ecart) }}</td>
+                  <td class="col-num" :class="ecartClass(row.ecart)">{{ formatMillion(row.ecart) }}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
       </div>
-
-      <p class="dash-footnote">
-        Données du snapshot quotidien (mise à jour automatique chaque jour à 06h00).
-      </p>
+    </div>
     </div>
 
     <div
@@ -842,7 +840,14 @@ export default {
       },
       activeLevel: { type: 'total', category: 'TERRITOIRE' },
       viewMode: 'dashboard',
-      dashboardHeight: null,
+      // Le dashboard est toujours composé à cette taille puis mis à l'échelle,
+      // pour un rendu identique quel que soit l'écran.
+      dashboardDesignWidth: 1600,
+      dashboardDesignHeight: 840,
+      // En dessous de ce facteur le texte deviendrait illisible : on laisse défiler à la place.
+      dashboardMinScale: 0.8,
+      dashboardScale: 1,
+      dashboardOverflowsX: false,
       chartViewMode: 'graph',
       perfLevel: 'territoire',
       perfTerritoryKey: null,
@@ -1240,17 +1245,17 @@ export default {
         { length: lastDay },
         (_, i) => `${String(i + 1).padStart(2, '0')}/${String(this.selectedMonth).padStart(2, '0')}`
       );
-      const objectif = Number(this.grandTotal.objectif) || 0;
-      const collecte = Number(this.grandTotal.collecteM) || 0;
+      const objectif = (Number(this.grandTotal.objectif) || 0) / 1_000_000;
+      const collecte = (Number(this.grandTotal.collecteM) || 0) / 1_000_000;
       return {
         labels,
         series: {
           Objectif: labels.map(() => objectif),
           Collecte: labels.map((_, i) => (i === labels.length - 1 ? collecte : 0)),
         },
-        title: `Évolution ${this.months[this.selectedMonth - 1]} ${this.selectedYear}`,
+        title: '',
         xlabel: 'Jour du mois',
-        ylabel: 'Montant (FCFA)',
+        ylabel: 'Montant (M FCFA)',
         colors: ['#2563EB', '#16A34A'],
       };
     },
@@ -1259,39 +1264,59 @@ export default {
       return {
         labels: rows.map((r) => r.name),
         values: rows.map((r) => r.collecteM),
-        title: 'Répartition de la collecte',
+        title: '',
       };
     },
     dashboardStyle() {
-      return this.dashboardHeight ? { height: this.dashboardHeight } : {};
+      return {
+        width: `${this.dashboardDesignWidth}px`,
+        height: `${this.dashboardDesignHeight}px`,
+        transform: `scale(${this.dashboardScale})`,
+      };
+    },
+    dashboardViewportStyle() {
+      // La barre de défilement horizontale mangerait le bas des cartes : on lui réserve sa place.
+      const scrollbarAllowance = this.dashboardOverflowsX ? 16 : 0;
+      return {
+        height: `${Math.round(this.dashboardDesignHeight * this.dashboardScale) + scrollbarAllowance}px`,
+      };
     },
   },
   mounted() {
     this.loadData();
-    window.addEventListener('resize', this.updateDashboardHeight);
-    this.updateDashboardHeight();
+    window.addEventListener('resize', this.updateDashboardScale);
+    this.updateDashboardScale();
   },
   beforeUnmount() {
-    window.removeEventListener('resize', this.updateDashboardHeight);
+    window.removeEventListener('resize', this.updateDashboardScale);
   },
   watch: {
     viewMode() {
-      this.$nextTick(this.updateDashboardHeight);
+      this.$nextTick(this.updateDashboardScale);
     },
     loading() {
-      this.$nextTick(this.updateDashboardHeight);
+      this.$nextTick(this.updateDashboardScale);
     },
   },
   methods: {
-    // La hauteur disponible dépend de l'entête d'application, qui n'est pas connue en CSS seul.
-    updateDashboardHeight() {
-      const el = this.$refs.dashboardRoot;
-      if (!el || window.innerWidth <= 1100) {
-        this.dashboardHeight = null;
-        return;
-      }
-      const available = window.innerHeight - el.getBoundingClientRect().top - 16;
-      this.dashboardHeight = available > 520 ? `${Math.round(available)}px` : null;
+    // Le dashboard garde toujours la même composition : on calcule le facteur
+    // d'échelle qui la fait tenir dans la place réellement disponible.
+    updateDashboardScale() {
+      const el = this.$refs.dashboardViewport;
+      if (!el) return;
+
+      const availableWidth = el.clientWidth;
+      const availableHeight = window.innerHeight - el.getBoundingClientRect().top - 16;
+      if (availableWidth <= 0 || availableHeight <= 0) return;
+
+      const fitScale = Math.min(
+        availableWidth / this.dashboardDesignWidth,
+        availableHeight / this.dashboardDesignHeight
+      );
+
+      const scale = Math.max(fitScale, this.dashboardMinScale);
+      this.dashboardScale = scale;
+      this.dashboardOverflowsX = this.dashboardDesignWidth * scale > availableWidth + 1;
     },
     agencyDisplayName(agency) {
       return agency.name || agency.AGENCE || agency.BRANCH_NAME || agency.BRANCH_CODE || '—';
@@ -1389,6 +1414,15 @@ export default {
       const n = Number(v);
       if (!Number.isFinite(n)) return '—';
       return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n);
+    },
+    formatMillion(v) {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return '—';
+      const millions = n / 1_000_000;
+      return new Intl.NumberFormat('fr-FR', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      }).format(millions);
     },
     formatTro(v) {
       const n = Number(v);
@@ -2429,29 +2463,39 @@ export default {
   .perf-cards {
     grid-template-columns: repeat(2, minmax(140px, 1fr));
   }
-
-  .dash-charts-row,
-  .dash-tables-row {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 640px) {
   .kpi-strip,
-  .perf-cards,
-  .dash-kpi-grid {
+  .perf-cards {
     grid-template-columns: 1fr;
   }
 }
 
+/*
+ * Le dashboard est toujours composé à sa taille de référence (voir dashboardDesignWidth/Height)
+ * puis mis à l'échelle par transform. La composition est donc rigoureusement identique
+ * sur tous les écrans ; seule la taille apparente change.
+ */
+.epv-dashboard-viewport {
+  width: 100%;
+  /* Sous l'échelle minimale la composition dépasse en largeur : on défile plutôt que de rétrécir. */
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
 .epv-dashboard {
   display: grid;
-  grid-template-rows: auto minmax(0, 1.05fr) minmax(0, 1fr) auto;
-  gap: 0.6rem;
-  width: 100%;
-  height: calc(100vh - 200px);
-  min-height: 560px;
+  grid-template-rows: auto minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  transform-origin: top left;
   overflow: hidden;
+}
+
+.epv-dashboard .dash-kpi-grid,
+.epv-dashboard .dash-charts-row,
+.epv-dashboard .dash-tables-row {
+  min-width: 0;
 }
 
 .epv-dashboard :deep(.python-chart-container) {
@@ -2469,7 +2513,7 @@ export default {
 
 .dash-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(130px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.7rem;
 }
 
@@ -2477,6 +2521,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 0.7rem;
+  min-width: 0;
   background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
   border: 1px solid #e8edf3;
   border-radius: 16px;
@@ -2530,9 +2575,7 @@ export default {
   color: #64748b;
   font-weight: 700;
   margin-bottom: 0.18rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.25;
 }
 
 .dash-kpi-value {
@@ -2540,7 +2583,7 @@ export default {
   font-weight: 700;
   color: #0f172a;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  line-height: 1.25;
   letter-spacing: -0.01em;
 }
 
@@ -2557,6 +2600,7 @@ export default {
   gap: 0.7rem;
   align-items: stretch;
   min-height: 0;
+  min-width: 0;
 }
 
 .dash-tables-row {
@@ -2564,6 +2608,7 @@ export default {
   grid-template-columns: 1fr 1fr 1fr;
   gap: 0.7rem;
   min-height: 0;
+  min-width: 0;
 }
 
 .dash-card {
@@ -2573,6 +2618,7 @@ export default {
   padding: 0.75rem 0.9rem;
   display: flex;
   flex-direction: column;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 24px -14px rgba(15, 23, 42, 0.15);
@@ -2959,20 +3005,8 @@ export default {
   flex: 0 0 auto;
 }
 
-/* En dessous de 1100px les cartes s'empilent : le dashboard ne peut plus tenir sur un écran. */
-@media (max-width: 1100px) {
-  .epv-dashboard {
-    grid-template-rows: none;
-    height: auto;
-    min-height: 0;
-    overflow: visible;
-  }
-
-  .epv-dashboard :deep(.python-chart-container),
-  .epv-dashboard :deep(.chart-wrapper),
-  .epv-dashboard :deep(.chart-loading),
-  .epv-dashboard :deep(.chart-error) {
-    min-height: 260px;
-  }
-}
+/*
+ * Aucune media query sur le dashboard : sa composition est figée à la taille de référence
+ * et c'est le facteur d'échelle (transform) qui l'adapte à l'écran.
+ */
 </style>
