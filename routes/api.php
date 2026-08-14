@@ -20,6 +20,7 @@ Route::prefix('charts')->group(function () {
     Route::post('/timeseries', [ChartController::class, 'timeseries']);
     Route::post('/multiseries', [ChartController::class, 'multiseries']);
     Route::post('/barchart', [ChartController::class, 'barchart']);
+    Route::post('/groupedbar', [ChartController::class, 'groupedbar']);
     Route::post('/evolution', [ChartController::class, 'evolution']);
     Route::post('/pie', [ChartController::class, 'pie']);
 });
@@ -41,6 +42,10 @@ Route::prefix('oracle')->group(function () {
     Route::get('/data/volume-dat', [DataController::class, 'getVolumeDatData']);
     Route::get('/data/depot-garantie', [DataController::class, 'getDepotGarantieData']);
     Route::get('/data/domiciliation-flux', [DataController::class, 'getDomiciliationFluxData']);
+    Route::get('/data/collecte-epargne-a-vue', [DataController::class, 'getCollecteEpargneAVueData']);
+    Route::match(['get', 'post'], '/backup/collecte-epargne-a-vue', [DataController::class, 'refreshCollecteEpargneAVueBackup']);
+    Route::match(['get', 'post'], '/backup/objectif-epv-vue', [DataController::class, 'refreshObjectifEpvVueBackup']);
+    Route::get('/data/objectif-epv-vue/snapshot', [DataController::class, 'getObjectifEpvVueSnapshotMeta']);
     Route::get('/data/transfers', [DataController::class, 'getTransfersData']);
     Route::get('/data/prepaid-card-sales', [DataController::class, 'getPrepaidCardSalesData']);
     Route::get('/data/portefeuille-risque', [DataController::class, 'getPortefeuilleRisqueData']);

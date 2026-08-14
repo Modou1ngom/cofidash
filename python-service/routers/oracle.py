@@ -32,6 +32,17 @@ from services.new_deal import (
     get_new_deal_data,
     refresh_new_deal_snapshot,
 )
+from services.collecte_epargne_a_vue_service import get_collecte_epargne_a_vue_data
+from services.collecte_epargne_a_vue_backup_service import (
+    get_collecte_snapshot_meta,
+    has_collecte_snapshot,
+    refresh_collecte_epv_vue_snapshot,
+)
+from services.objectif_epv_vue_backup_service import (
+    get_objectif_snapshot_meta,
+    has_objectif_snapshot,
+    refresh_objectif_epv_vue_snapshot,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1058,6 +1069,125 @@ async def refresh_new_deal_backup():
         raise
     except Exception as e:
         logger.error("Erreur sauvegarde New Deal: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/data/collecte-epargne-a-vue")
+async def get_collecte_epargne_a_vue_endpoint(
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    refresh: Optional[bool] = False,
+):
+    """
+    Collecte d'épargne à vue — lit le snapshot du matin (06h) par défaut.
+    refresh=true force un recalcul Flexcube + mise à jour du snapshot.
+    """
+    try:
+        logger.info(
+            "📅 collecte-epargne-a-vue: month=%s year=%s refresh=%s",
+            month,
+            year,
+            refresh,
+        )
+        return get_collecte_epargne_a_vue_data(
+            month=month,
+            year=year,
+            refresh=bool(refresh),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_message = str(e) if str(e) else repr(e)
+        logger.error("Erreur collecte-epargne-a-vue: %s", error_message, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors de la récupération collecte épargne à vue: {error_message}",
+        )
+
+
+@router.post("/backup/collecte-epargne-a-vue")
+async def refresh_collecte_epargne_a_vue_backup(
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+):
+    """
+    Rafraîchit le snapshot Collecte épargne à vue (Flexcube → SQLite).
+    Planifié automatiquement chaque jour à 06:00.
+    """
+    try:
+        result = refresh_collecte_epv_vue_snapshot(month=month, year=year)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Erreur snapshot collecte EPV vue: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/data/collecte-epargne-a-vue/snapshot")
+async def get_collecte_epargne_a_vue_snapshot_meta_endpoint(
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+):
+    """Métadonnées du snapshot collecte EPV vue pour un mois."""
+    try:
+        from datetime import date as _date
+
+        today = _date.today()
+        m = int(month) if month else today.month
+        y = int(year) if year else today.year
+        meta = get_collecte_snapshot_meta(m, y)
+        return {
+            "month": m,
+            "year": y,
+            "exists": has_collecte_snapshot(m, y),
+            "meta": meta,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/data/objectif-epv-vue/snapshot")
+async def get_objectif_epv_vue_snapshot_meta_endpoint(
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+):
+    """Métadonnées du snapshot d'objectifs EPV vue pour un mois."""
+    try:
+        from datetime import date as _date
+
+        today = _date.today()
+        m = int(month) if month else today.month
+        y = int(year) if year else today.year
+        meta = get_objectif_snapshot_meta(m, y)
+        return {
+            "month": m,
+            "year": y,
+            "exists": has_objectif_snapshot(m, y),
+            "meta": meta,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/backup/objectif-epv-vue")
+async def refresh_objectif_epv_vue_backup(
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+):
+    """
+    Fige les objectifs COLLECTE ÉPARGNE À VUE pour un mois (table locale SQLite).
+    Planifié automatiquement le 1er de chaque mois à 06:00.
+    """
+    try:
+        result = refresh_objectif_epv_vue_snapshot(month=month, year=year)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Erreur snapshot objectifs EPV vue: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -1413,6 +1413,139 @@ class DataController extends Controller
     }
 
     /**
+     * Collecte d'épargne à vue (Flexcube — détail client)
+     */
+    public function getCollecteEpargneAVueData(Request $request): JsonResponse
+    {
+        try {
+            $month = $request->input('month');
+            $year = $request->input('year');
+            $refresh = filter_var($request->input('refresh', false), FILTER_VALIDATE_BOOLEAN);
+
+            $result = $this->oracleService->getCollecteEpargneAVueData(
+                $month !== null && $month !== '' ? (int) $month : null,
+                $year !== null && $year !== '' ? (int) $year : null,
+                $refresh
+            );
+
+            if ($result['success']) {
+                return response()->json($result['data'] ?? []);
+            }
+
+            Log::error('Erreur collecte-epargne-a-vue', [
+                'error' => $result['error'] ?? null,
+                'message' => $result['message'] ?? null,
+            ]);
+
+            return response()->json([
+                'error' => $result['error'] ?? 'oracle_error',
+                'message' => $result['message'] ?? 'Erreur Oracle',
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Exception collecte-epargne-a-vue', ['message' => $e->getMessage()]);
+
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Force le snapshot quotidien collecte épargne à vue (équivalent job 06h).
+     */
+    public function refreshCollecteEpargneAVueBackup(Request $request): JsonResponse
+    {
+        try {
+            $month = $request->input('month');
+            $year = $request->input('year');
+
+            $result = $this->oracleService->refreshCollecteEpargneAVueBackup(
+                $month !== null && $month !== '' ? (int) $month : null,
+                $year !== null && $year !== '' ? (int) $year : null
+            );
+
+            if ($result['success']) {
+                return response()->json($result['data'] ?? []);
+            }
+
+            return response()->json([
+                'error' => $result['error'] ?? 'oracle_error',
+                'message' => $result['message'] ?? 'Erreur snapshot collecte',
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Exception snapshot collecte EPV vue', ['message' => $e->getMessage()]);
+
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Fige les objectifs collecte épargne à vue (snapshot mensuel).
+     */
+    public function refreshObjectifEpvVueBackup(Request $request): JsonResponse
+    {
+        try {
+            $month = $request->input('month');
+            $year = $request->input('year');
+
+            $result = $this->oracleService->refreshObjectifEpvVueBackup(
+                $month !== null && $month !== '' ? (int) $month : null,
+                $year !== null && $year !== '' ? (int) $year : null
+            );
+
+            if ($result['success']) {
+                return response()->json($result['data'] ?? []);
+            }
+
+            return response()->json([
+                'error' => $result['error'] ?? 'oracle_error',
+                'message' => $result['message'] ?? 'Erreur snapshot objectifs',
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Exception snapshot objectifs EPV vue', ['message' => $e->getMessage()]);
+
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Métadonnées du snapshot objectifs EPV vue.
+     */
+    public function getObjectifEpvVueSnapshotMeta(Request $request): JsonResponse
+    {
+        try {
+            $month = $request->input('month');
+            $year = $request->input('year');
+
+            $result = $this->oracleService->getObjectifEpvVueSnapshotMeta(
+                $month !== null && $month !== '' ? (int) $month : null,
+                $year !== null && $year !== '' ? (int) $year : null
+            );
+
+            if ($result['success']) {
+                return response()->json($result['data'] ?? []);
+            }
+
+            return response()->json([
+                'error' => $result['error'] ?? 'oracle_error',
+                'message' => $result['message'] ?? 'Erreur meta snapshot',
+            ], 500);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Récupère les données de ventes de cartes prépayées depuis Oracle via l'API Python
      */
     public function getPrepaidCardSalesData(Request $request): JsonResponse

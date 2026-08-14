@@ -80,6 +80,7 @@
         <VolumeDatSection v-if="activeSection === 'encours-dat'" />
         <EncoursSection v-if="activeSection === 'encours-epargne'" :selectedZoneProp="selectedZone" />
         <DepotGarantieSection v-if="activeSection === 'depot-garantie'" />
+        <CollecteEpargneAVueSection v-if="activeSection === 'collecte-epargne-a-vue'" />
         
         <AddObjectiveSection v-if="activeSection === 'objectives' && activeSubSection === 'add'" />
         <ValidationSection v-if="activeSection === 'objectives' && activeSubSection === 'validation'" />
@@ -140,6 +141,7 @@ const TerritoryAgencyManagement = lazySection(() => import('../components/Territ
 const MoneyTransferSection = lazySection(() => import('../components/MoneyTransferSection.vue'));
 const EnvironmentsSection = lazySection(() => import('../components/EnvironmentsSection.vue'));
 const DepotGarantieSection = lazySection(() => import('../components/DepotGarantieSection.vue'));
+const CollecteEpargneAVueSection = lazySection(() => import('../components/CollecteEpargneAVueSection.vue'));
 const VolumeDatSection = lazySection(() => import('../components/VolumeDatSection.vue'));
 const EncoursSection = lazySection(() => import('../components/EncoursSection.vue'));
 const PortefeuilleRisqueSection = lazySection(() => import('../components/PortefeuilleRisqueSection.vue'));
@@ -167,6 +169,7 @@ export default {
     MoneyTransferSection,
     EnvironmentsSection,
     DepotGarantieSection,
+    CollecteEpargneAVueSection,
     VolumeDatSection,
     EncoursSection,
     PortefeuilleRisqueSection,
@@ -232,7 +235,7 @@ export default {
         this.activeSubSection = null;
       } else if (section === 'collection') {
         this.activeSubSection = null;
-      } else if (section === 'domiciliation-flux' || section === 'encours-dat' || section === 'encours-epargne' || section === 'depot-garantie') {
+      } else if (section === 'domiciliation-flux' || section === 'encours-dat' || section === 'encours-epargne' || section === 'depot-garantie' || section === 'collecte-epargne-a-vue') {
         this.activeSubSection = null;
       } else if (section === 'environments') {
         this.activeSubSection = null;

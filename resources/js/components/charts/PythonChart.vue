@@ -22,7 +22,7 @@ export default {
     chartType: {
       type: String,
       required: true,
-      validator: (value) => ['line', 'bar', 'area', 'pie'].includes(value)
+      validator: (value) => ['line', 'bar', 'groupedbar', 'multiseries', 'area', 'pie'].includes(value)
     },
     chartData: {
       type: Object,
@@ -71,6 +71,10 @@ export default {
         
         if (props.chartType === 'bar') {
           endpoint = '/api/charts/barchart';
+        } else if (props.chartType === 'groupedbar') {
+          endpoint = '/api/charts/groupedbar';
+        } else if (props.chartType === 'multiseries') {
+          endpoint = '/api/charts/multiseries';
         } else if (props.chartType === 'area') {
           endpoint = '/api/charts/timeseries';
         } else if (props.chartType === 'pie') {
@@ -106,10 +110,10 @@ export default {
             // Ajuster les marges selon le type de graphique
             if (props.chartType === 'pie') {
               layout.margin = {
-                l: 20,
-                r: 20,
-                t: 60,
-                b: 20
+                l: 10,
+                r: 10,
+                t: 50,
+                b: 60
               };
             } else {
               layout.margin = {
@@ -127,9 +131,8 @@ export default {
               {
                 responsive: true,
                 autosizable: true,
-                displayModeBar: true,
+                displayModeBar: false,
                 displaylogo: false,
-                modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
                 locale: 'fr',
                 useResizeHandler: true
               }

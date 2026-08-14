@@ -26,7 +26,7 @@
             📊 Performance
           </a>
         </div>
-        <div class="nav-section-header" @click.stop="toggleDepot" :class="{ active: activeSection === 'collection' || activeSection === 'performance-collection' || activeSection === 'domiciliation-flux' || activeSection === 'encours-dat' || activeSection === 'encours-epargne' || activeSection === 'depot-garantie' }">
+        <div class="nav-section-header" @click.stop="toggleDepot" :class="{ active: activeSection === 'collection' || activeSection === 'performance-collection' || activeSection === 'domiciliation-flux' || activeSection === 'encours-dat' || activeSection === 'encours-epargne' || activeSection === 'depot-garantie' || activeSection === 'collecte-epargne-a-vue' }">
           <span class="nav-title">
             <span class="nav-icon">💰</span>
             <span class="nav-label">DEPOT</span>
@@ -34,7 +34,10 @@
           <span class="toggle-icon">{{ depotExpanded ? '▼' : '▶' }}</span>
         </div>
         <div v-if="depotExpanded" class="nav-section-items">
-          <a href="#" @click.stop.prevent="selectSection('collection')" class="nav-link indent" :class="{ active: activeSection === 'collection' }">
+          <a href="#" @click.stop.prevent="selectSection('collecte-epargne-a-vue')" class="nav-link indent" :class="{ active: activeSection === 'collecte-epargne-a-vue' }">
+            Collecte d'épargne à vue
+          </a>
+         <!-- <a href="#" @click.stop.prevent="selectSection('collection')" class="nav-link indent" :class="{ active: activeSection === 'collection' }">
             Domiciliation de flux
           </a>
           <a href="#" @click.stop.prevent="selectSection('encours-dat')" class="nav-link indent" :class="{ active: activeSection === 'encours-dat' }">
@@ -46,6 +49,7 @@
           <a href="#" @click.stop.prevent="selectSection('depot-garantie')" class="nav-link indent" :class="{ active: activeSection === 'depot-garantie' }">
             Dépôt de Garantie
           </a>
+        -->
         </div>
        <!-- <div v-if="activeSection === 'client'" class="nav-section-items">
           <div class="nav-section">
@@ -66,26 +70,27 @@
           </span>
           <span class="toggle-icon">{{ creditExpanded ? '▼' : '▶' }}</span>
         </div>
-        <div v-if="creditExpanded" class="nav-section-items">
-          <a href="#" @click.stop.prevent="selectSection('production')" class="nav-link indent" :class="{ active: activeSection === 'production' }">
+        <!----><div v-if="creditExpanded" class="nav-section-items">
+         <!-- <a href="#" @click.stop.prevent="selectSection('production')" class="nav-link indent" :class="{ active: activeSection === 'production' }">
             Production
-          </a>
+          </a>-->
           <div class="nav-section-header indent" @click.stop="togglePortefeuilleRisque">
             <span>Portefeuille à risque</span>
             <span class="toggle-icon">{{ portefeuilleRisqueExpanded ? '▼' : '▶' }}</span>
           </div>
-          <div v-if="portefeuilleRisqueExpanded" class="nav-section-items">
-           <!--<a href="#" @click.stop.prevent="handlePortefeuilleRisqueSection('simple')" class="nav-link double-indent" :class="{ active: activeSection === 'portefeuille-risque' && activeSubSection === 'simple' }">
+          <!--<div v-if="portefeuilleRisqueExpanded" class="nav-section-items">
+           <a href="#" @click.stop.prevent="handlePortefeuilleRisqueSection('simple')" class="nav-link double-indent" :class="{ active: activeSection === 'portefeuille-risque' && activeSubSection === 'simple' }">
               PAR SIMPLE
             </a>-->
-            <a href="#" @click.stop.prevent="handlePortefeuilleRisqueSection('global')" class="nav-link double-indent" :class="{ active: activeSection === 'portefeuille-risque' && activeSubSection === 'global' }">
+           <!-- <a href="#" @click.stop.prevent="handlePortefeuilleRisqueSection('global')" class="nav-link double-indent" :class="{ active: activeSection === 'portefeuille-risque' && activeSubSection === 'global' }">
               PAR GLOBAL
             </a>
-          </div>
+          </div>-->
+        
           <a href="#" @click.stop.prevent="selectSection('new-deal')" class="nav-link indent" :class="{ active: activeSection === 'new-deal' }">
             New Deal
           </a>
-          <a href="#" @click.stop.prevent="selectSection('renouvellement')" class="nav-link indent" :class="{ active: activeSection === 'renouvellement' }">
+         <!-- <a href="#" @click.stop.prevent="selectSection('renouvellement')" class="nav-link indent" :class="{ active: activeSection === 'renouvellement' }">
             Renouvellement
           </a>
           <a href="#" @click.stop.prevent="selectSection('restructuration')" class="nav-link indent" :class="{ active: activeSection === 'restructuration' }">
@@ -98,7 +103,7 @@
          
           <a href="#" @click.stop.prevent="selectSection('performance-credit')" class="nav-link indent" :class="{ active: activeSection === 'performance-credit' }">
             📊 Performance
-          </a>
+          </a>-->
         </div>
        
        <!-- <div class="nav-section-header" @click.stop="selectSection('performance')" :class="{ active: activeSection === 'performance' }">
@@ -287,7 +292,7 @@ export default {
         this.clientExpanded = true;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
-      } else if (newVal === 'collection' || newVal === 'performance-collection' || newVal === 'domiciliation-flux' || newVal === 'encours-dat' || newVal === 'encours-epargne' || newVal === 'depot-garantie') {
+      } else if (newVal === 'collection' || newVal === 'performance-collection' || newVal === 'domiciliation-flux' || newVal === 'encours-dat' || newVal === 'encours-epargne' || newVal === 'depot-garantie' || newVal === 'collecte-epargne-a-vue') {
         this.depotExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;
@@ -368,7 +373,7 @@ export default {
       this.clientExpanded = true;
       this.objectivesExpanded = false;
       this.managementExpanded = false;
-    } else if (this.activeSection === 'collection' || this.activeSection === 'performance-collection' || this.activeSection === 'domiciliation-flux' || this.activeSection === 'encours-dat' || this.activeSection === 'encours-epargne' || this.activeSection === 'depot-garantie') {
+    } else if (this.activeSection === 'collection' || this.activeSection === 'performance-collection' || this.activeSection === 'domiciliation-flux' || this.activeSection === 'encours-dat' || this.activeSection === 'encours-epargne' || this.activeSection === 'depot-garantie' || this.activeSection === 'collecte-epargne-a-vue') {
       this.depotExpanded = true;
       this.clientExpanded = false;
       this.objectivesExpanded = false;
@@ -596,7 +601,7 @@ export default {
         this.clientExpanded = true;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
-      } else if (section === 'collection' || section === 'performance-collection' || section === 'domiciliation-flux' || section === 'encours-dat' || section === 'encours-epargne' || section === 'depot-garantie') {
+      } else if (section === 'collection' || section === 'performance-collection' || section === 'domiciliation-flux' || section === 'encours-dat' || section === 'encours-epargne' || section === 'depot-garantie' || section === 'collecte-epargne-a-vue') {
         this.depotExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;

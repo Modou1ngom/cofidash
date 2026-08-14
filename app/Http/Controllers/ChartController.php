@@ -70,7 +70,9 @@ class ChartController extends Controller
                 'labels' => $request->input('labels', []),
                 'series' => $request->input('series', []),
                 'title' => $request->input('title', 'Graphique multi-séries'),
+                'xlabel' => $request->input('xlabel', 'Période'),
                 'ylabel' => $request->input('ylabel', 'Valeur'),
+                'colors' => $request->input('colors'),
             ]);
 
             if ($response->successful()) {
@@ -117,6 +119,39 @@ class ChartController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Erreur lors de la génération du graphique en barres: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Service temporairement indisponible',
+                'message' => UserFacingError::from($e->getMessage())
+            ], 500);
+        }
+    }
+
+    /**
+     * Génère un graphique en barres groupées (ex. Objectif vs Réalisation)
+     */
+    public function groupedbar(Request $request): JsonResponse
+    {
+        try {
+            $response = $this->pythonHttp()->post("{$this->pythonServiceUrl}/api/charts/groupedbar", [
+                'labels' => $request->input('labels', []),
+                'series' => $request->input('series', []),
+                'title' => $request->input('title', 'Comparaison'),
+                'xlabel' => $request->input('xlabel', 'Catégorie'),
+                'ylabel' => $request->input('ylabel', 'Valeur'),
+                'colors' => $request->input('colors'),
+            ]);
+
+            if ($response->successful()) {
+                return response()->json($response->json());
+            }
+
+            return response()->json([
+                'error' => 'Service temporairement indisponible',
+                'message' => UserFacingError::from($response->body())
+            ], 500);
+
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la génération du graphique groupé: ' . $e->getMessage());
             return response()->json([
                 'error' => 'Service temporairement indisponible',
                 'message' => UserFacingError::from($e->getMessage())

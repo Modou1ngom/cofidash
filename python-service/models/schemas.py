@@ -16,13 +16,24 @@ class MultiSeriesData(BaseModel):
     labels: List[str]
     series: Dict[str, List[float]]
     title: Optional[str] = "Graphique multi-séries"
+    xlabel: Optional[str] = "Période"
     ylabel: Optional[str] = "Valeur"
+    colors: Optional[List[str]] = None
 
 
 class BarChartData(BaseModel):
     labels: List[str]
     values: List[float]
     title: Optional[str] = "Graphique en barres"
+    xlabel: Optional[str] = "Catégorie"
+    ylabel: Optional[str] = "Valeur"
+    colors: Optional[List[str]] = None
+
+
+class GroupedBarData(BaseModel):
+    labels: List[str]
+    series: Dict[str, List[float]]
+    title: Optional[str] = "Comparaison"
     xlabel: Optional[str] = "Catégorie"
     ylabel: Optional[str] = "Valeur"
     colors: Optional[List[str]] = None

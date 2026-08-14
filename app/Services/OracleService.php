@@ -355,6 +355,108 @@ class OracleService
     }
 
     /**
+     * Collecte d'épargne à vue (Flexcube — détail client)
+     */
+    public function getCollecteEpargneAVueData(?int $month = null, ?int $year = null, bool $refresh = false): array
+    {
+        $params = [];
+        if ($month !== null) {
+            $params['month'] = $month;
+        }
+        if ($year !== null) {
+            $params['year'] = $year;
+        }
+        if ($refresh) {
+            $params['refresh'] = 1;
+        }
+
+        // Lecture directe : le snapshot SQLite Python est déjà rapide (job 06h).
+        // Évite un cache Laravel qui masquerait le snapshot du matin.
+        return $this->getPythonGetDirect(
+            '/api/oracle/data/collecte-epargne-a-vue',
+            $params,
+            'Collecte épargne à vue'
+        );
+    }
+
+    /**
+     * Force le snapshot quotidien collecte épargne à vue (job 06h).
+     */
+    public function refreshCollecteEpargneAVueBackup(?int $month = null, ?int $year = null): array
+    {
+        $params = [];
+        if ($month !== null) {
+            $params['month'] = $month;
+        }
+        if ($year !== null) {
+            $params['year'] = $year;
+        }
+
+        try {
+            $query = http_build_query($params);
+            $url = "{$this->pythonServiceUrl}/api/oracle/backup/collecte-epargne-a-vue"
+                .($query !== '' ? '?'.$query : '');
+            $response = $this->pythonHttp()->post($url);
+            if ($response->successful()) {
+                return ['success' => true, 'data' => $response->json()];
+            }
+
+            return $this->failure('Snapshot collecte EPV vue', $response->body());
+        } catch (\Exception $e) {
+            return $this->failure('Snapshot collecte EPV vue', $e->getMessage(), 'Erreur HTTP Python POST');
+        }
+    }
+
+    /**
+     * Fige les objectifs collecte épargne à vue pour un mois (snapshot SQLite).
+     */
+    public function refreshObjectifEpvVueBackup(?int $month = null, ?int $year = null): array
+    {
+        $params = [];
+        if ($month !== null) {
+            $params['month'] = $month;
+        }
+        if ($year !== null) {
+            $params['year'] = $year;
+        }
+
+        try {
+            $query = http_build_query($params);
+            $url = "{$this->pythonServiceUrl}/api/oracle/backup/objectif-epv-vue"
+                .($query !== '' ? '?'.$query : '');
+            $response = $this->pythonHttp()->post($url);
+            if ($response->successful()) {
+                return ['success' => true, 'data' => $response->json()];
+            }
+
+            return $this->failure('Snapshot objectifs EPV vue', $response->body());
+        } catch (\Exception $e) {
+            return $this->failure('Snapshot objectifs EPV vue', $e->getMessage(), 'Erreur HTTP Python POST');
+        }
+    }
+
+    /**
+     * Métadonnées du snapshot objectifs EPV vue.
+     */
+    public function getObjectifEpvVueSnapshotMeta(?int $month = null, ?int $year = null): array
+    {
+        $params = [];
+        if ($month !== null) {
+            $params['month'] = $month;
+        }
+        if ($year !== null) {
+            $params['year'] = $year;
+        }
+
+        return $this->getPythonGetCached(
+            'objectif-epv-vue-meta',
+            '/api/oracle/data/objectif-epv-vue/snapshot',
+            $params,
+            'Meta objectifs EPV vue'
+        );
+    }
+
+    /**
      * Transferts d'argent (Orange Money, Wave, Ria, WU) — service Python
      */
     public function getTransfersData(

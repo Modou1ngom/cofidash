@@ -9,7 +9,14 @@ from plotly.utils import PlotlyJSONEncoder
 import json
 import io
 import base64
-from models.schemas import TimeSeriesData, MultiSeriesData, BarChartData, EvolutionData, PieChartData
+from models.schemas import (
+    TimeSeriesData,
+    MultiSeriesData,
+    BarChartData,
+    GroupedBarData,
+    EvolutionData,
+    PieChartData,
+)
 
 
 def generate_timeseries_chart(data: TimeSeriesData):
@@ -44,9 +51,9 @@ def generate_multiseries_chart(data: MultiSeriesData):
     """Génère un graphique multi-séries au format Plotly JSON"""
     fig = go.Figure()
     
-    colors = ['#1A4D3A', '#8B0000', '#0066CC', '#FF6600', '#9932CC']
+    colors = data.colors if data.colors else ['#2563EB', '#16A34A', '#0066CC', '#FF6600', '#9932CC']
     color_idx = 0
-    
+
     for series_name, series_values in data.series.items():
         fig.add_trace(go.Scatter(
             x=data.labels,
@@ -57,10 +64,10 @@ def generate_multiseries_chart(data: MultiSeriesData):
             marker=dict(size=7)
         ))
         color_idx += 1
-    
+
     fig.update_layout(
         title=data.title,
-        xaxis_title="Période",
+        xaxis_title=data.xlabel,
         yaxis_title=data.ylabel,
         template="plotly_white",
         hovermode='x unified',
@@ -99,6 +106,41 @@ def generate_bar_chart(data: BarChartData):
         paper_bgcolor='white'
     )
     
+    graph_json = json.dumps(fig, cls=PlotlyJSONEncoder)
+    return json.loads(graph_json)
+
+
+def generate_grouped_bar_chart(data: GroupedBarData):
+    """Génère un graphique en barres groupées (comparaison de plusieurs séries)"""
+    default_colors = ['#2563EB', '#16A34A', '#0F766E', '#B45309', '#8B0000']
+    colors = data.colors if data.colors else default_colors
+
+    fig = go.Figure()
+
+    for idx, (series_name, series_values) in enumerate(data.series.items()):
+        fig.add_trace(go.Bar(
+            x=data.labels,
+            y=series_values,
+            name=series_name,
+            marker_color=colors[idx % len(colors)],
+            hovertemplate='<b>%{x}</b><br>' + series_name + ': %{y:,.0f}<extra></extra>',
+        ))
+
+    fig.update_layout(
+        title=data.title,
+        xaxis_title=data.xlabel,
+        yaxis_title=data.ylabel,
+        barmode='group',
+        bargap=0.25,
+        bargroupgap=0.08,
+        template="plotly_white",
+        hovermode='x unified',
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        font=dict(family="Arial", size=12),
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+    )
+
     graph_json = json.dumps(fig, cls=PlotlyJSONEncoder)
     return json.loads(graph_json)
 
@@ -159,14 +201,19 @@ def generate_pie_chart(data: PieChartData):
         go.Pie(
             labels=data.labels,
             values=data.values,
-            marker=dict(colors=colors),
-            textinfo='label+percent',
-            textposition='outside',
-            hole=0,  # 0 pour un camembert complet, > 0 pour un donut
-            hovertemplate='<b>%{label}</b><br>Valeur: %{value}<br>Pourcentage: %{percent}<extra></extra>'
+            marker=dict(colors=colors, line=dict(color='#ffffff', width=1.5)),
+            textinfo='percent',
+            textposition='inside',
+            insidetextorientation='horizontal',
+            hole=0.42,
+            hovertemplate='<b>%{label}</b><br>Montant: %{value:,.0f}<br>Part: %{percent}<extra></extra>',
         )
     ])
     
+    fig.update_traces(
+        textfont=dict(size=12, color='#111827'),
+    )
+
     fig.update_layout(
         title=data.title,
         template="plotly_white",
@@ -174,7 +221,16 @@ def generate_pie_chart(data: PieChartData):
         plot_bgcolor='white',
         paper_bgcolor='white',
         showlegend=True,
-        legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.1)
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.02,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=10),
+            bgcolor='rgba(255,255,255,0.9)',
+        ),
+        margin=dict(l=10, r=10, t=50, b=60),
     )
     
     graph_json = json.dumps(fig, cls=PlotlyJSONEncoder)

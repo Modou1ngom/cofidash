@@ -15,6 +15,16 @@ from services.new_deal import (
     stop_backup_scheduler,
     init_new_deal_local_db,
 )
+from services.objectif_epv_vue_backup_service import init_objectif_epv_vue_local_db
+from services.objectif_epv_vue_backup_scheduler import (
+    start_objectif_epv_vue_scheduler,
+    stop_objectif_epv_vue_scheduler,
+)
+from services.collecte_epargne_a_vue_backup_service import init_collecte_epv_vue_local_db
+from services.collecte_epargne_a_vue_backup_scheduler import (
+    start_collecte_epv_vue_scheduler,
+    stop_collecte_epv_vue_scheduler,
+)
 
 
 # Configuration du logging
@@ -33,10 +43,15 @@ async def startup_event():
         enable_cache()
         init_local_db()
         init_new_deal_local_db()
+        init_objectif_epv_vue_local_db()
+        init_collecte_epv_vue_local_db()
         start_backup_scheduler()
+        start_objectif_epv_vue_scheduler()
+        start_collecte_epv_vue_scheduler()
         logger.info(
-            "✅ Pools Oracle (DASH + Flexcube), cache, base locale C360/New Deal "
-            "et planificateur sauvegarde (06h / 12h) initialisés"
+            "✅ Pools Oracle, cache, bases locales (C360/New Deal/objectifs EPV/"
+            "collecte EPV) et planificateurs initialisés "
+            "(New Deal 06h/12h, objectifs 1er du mois, collecte EPV chaque jour 06h)"
         )
     except Exception as e:
         logger.error(f"❌ Erreur lors de l'initialisation: {e}", exc_info=True)
@@ -46,6 +61,8 @@ async def shutdown_event():
     """Nettoie les ressources à l'arrêt de l'application"""
     try:
         stop_backup_scheduler()
+        stop_objectif_epv_vue_scheduler()
+        stop_collecte_epv_vue_scheduler()
         close_pools()
         logger.info("✅ Pools de connexions Oracle fermés")
     except Exception as e:
