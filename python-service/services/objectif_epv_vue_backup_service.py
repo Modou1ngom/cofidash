@@ -243,6 +243,24 @@ def refresh_objectif_epv_vue_snapshot(
             local.close()
 
         logger.info("✅ Snapshot objectifs EPV vue %s: %s lignes en %.1fs", key, len(rows), elapsed)
+
+        # Si les lignes collecte existent déjà, recalculer les tables d'affichage
+        # avec les nouveaux objectifs figés.
+        try:
+            from services.collecte_epargne_a_vue_backup_service import (
+                has_collecte_snapshot,
+                materialize_collecte_display,
+            )
+
+            if has_collecte_snapshot(m, y):
+                materialize_collecte_display(m, y, data_source="snapshot")
+                logger.info("♻️ Affichage collecte EPV vue rematérialisé après figement objectifs")
+        except Exception as remat_exc:
+            logger.warning(
+                "Objectifs figés OK mais rematérialisation affichage échouée: %s",
+                remat_exc,
+            )
+
         return {
             "success": True,
             "month_key": key,

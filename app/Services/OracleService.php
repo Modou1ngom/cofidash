@@ -372,7 +372,7 @@ class OracleService
 
         // Lecture directe : le snapshot SQLite Python est déjà rapide (job 06h).
         // Évite un cache Laravel qui masquerait le snapshot du matin.
-        return $this->getPythonGetDirect(
+        return $this->getPythonGetRaw(
             '/api/oracle/data/collecte-epargne-a-vue',
             $params,
             'Collecte épargne à vue'
@@ -954,6 +954,42 @@ class OracleService
     /**
      * GET vers Python sans cache Laravel (données déjà en cache SQLite côté Python).
      */
+    /**
+     * GET vers Python en relayant le corps JSON tel quel.
+     *
+     * Les réponses volumineuses (plusieurs Mo) coûtaient un json_decode puis un
+     * json_encode inutiles : on récupère les octets bruts, encore compressés
+     * quand Python les a gzippés, pour les retransmettre au navigateur.
+     *
+     * @return array{success: bool, body?: string, gzipped?: bool, error?: string, message?: string}
+     */
+    protected function getPythonGetRaw(string $path, array $params, string $logContext): array
+    {
+        try {
+            $response = $this->pythonHttp()
+                ->withHeaders(['Accept-Encoding' => 'gzip'])
+                ->withOptions(['decode_content' => false])
+                ->get("{$this->pythonServiceUrl}{$path}", $params);
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'body' => $response->body(),
+                    'gzipped' => strtolower((string) $response->header('Content-Encoding')) === 'gzip',
+                ];
+            }
+
+            Log::error('Erreur API Python GET ['.$logContext.']', [
+                'path' => $path,
+                'status' => $response->status(),
+            ]);
+
+            return $this->failure($logContext, 'HTTP '.$response->status());
+        } catch (\Exception $e) {
+            return $this->failure($logContext, $e->getMessage(), 'Exception API Python GET');
+        }
+    }
+
     protected function getPythonGetDirect(string $path, array $params, string $logContext): array
     {
         try {

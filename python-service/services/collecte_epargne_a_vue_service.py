@@ -12,8 +12,11 @@ from typing import Any, Dict, List, Optional, Set
 from database.oracle_pool import get_pool_flexcube
 from services.collecte_epargne_a_vue_backup_service import (
     get_collecte_snapshot_meta,
+    has_collecte_display,
     has_collecte_snapshot,
+    load_collecte_display_payload,
     load_collecte_snapshot_rows,
+    materialize_collecte_display,
     refresh_collecte_epv_vue_snapshot,
 )
 from services.collecte_epargne_a_vue_query import COLLECTE_EPARGNE_A_VUE_QUERY
@@ -107,26 +110,8 @@ def _finalize_metrics(m: Dict[str, float]) -> Dict[str, float]:
 
 
 def _metrics_payload(cm: Dict[str, float]) -> Dict[str, float]:
-    return {
-        "cumMontantFinance": cm["cumMontantFinance"],
-        "CUM_MONTANT_FINANCE": cm["cumMontantFinance"],
-        "encoursCredit": cm["encoursCredit"],
-        "ENCOURS_CREDIT": cm["encoursCredit"],
-        "CUM_ENCOURS_CREDIT": cm["encoursCredit"],
-        "mtEcheance": cm["mtEcheance"],
-        "MT_ECHEANCE": cm["mtEcheance"],
-        "MONTANT_ECHEANCE": cm["mtEcheance"],
-        "objectif": cm["objectif"],
-        "OBJECTIF": cm["objectif"],
-        "OBJ_COL_EPV_VUE": cm["objectif"],
-        "collecteM": cm["collecteM"],
-        "COLLECTE_M": cm["collecteM"],
-        "COL_EP_VUE": cm["collecteM"],
-        "totalDepot": cm["totalDepot"],
-        "TOTAL_DEPOT": cm["totalDepot"],
-        "tro": cm["tro"],
-        "TRO": cm["tro"],
-    }
+    """Clés camelCase uniquement : les alias SQL alourdissaient la réponse sans être lus."""
+    return dict(cm)
 
 
 def _build_hierarchical(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -214,25 +199,15 @@ def _build_hierarchical(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
                 "CODE_CAF": code_caf,
                 "CHARGE_AFFAIRE": charge,
                 "MATRICULE_CLIENT": matricule,
-                "matriculeClient": matricule,
                 "NUMERO_COMPTE": numero_compte,
-                "numeroCompte": numero_compte,
                 "NOM_CLIENT": nom_client,
-                "nomClient": nom_client,
                 "CUM_MONTANT_FINANCE": finance,
-                "cumMontantFinance": finance,
                 "CUM_ENCOURS_CREDIT": encours,
-                "encoursCredit": encours,
                 "OBJ_COL_EPV_VUE": obj,
-                "objectif": obj,
                 "MONTANT_ECHEANCE": echeance,
-                "mtEcheance": echeance,
                 "TOTAL_DEPOT": depot,
-                "totalDepot": depot,
                 "COL_EP_VUE": collecte,
-                "collecteM": collecte,
                 "tro": _tro(collecte, obj),
-                "TRO": _tro(collecte, obj),
             }
         )
 
@@ -331,12 +306,14 @@ def get_collecte_epargne_a_vue_data(
     month: Optional[int] = None,
     year: Optional[int] = None,
     refresh: bool = False,
+    include_rows: bool = False,
 ) -> Dict[str, Any]:
     """
-    Lignes client + structure hiérarchique pour le dashboard DEPOT.
+    Structure hiérarchique (territoire → agence → CAF → clients) pour le dashboard DEPOT.
 
-    Par défaut lit le snapshot SQLite du matin (06h).
-    refresh=True force un recalcul Flexcube + mise à jour du snapshot.
+    Par défaut lit le payload d'affichage pré-calculé (tables de sauvegarde).
+    refresh=True force un recalcul Flexcube + mise à jour des tables.
+    include_rows=True renvoie en plus les lignes brutes (debug : ~3 Mo de payload).
     """
     today = date.today()
     m = int(month) if month else today.month
@@ -344,10 +321,7 @@ def get_collecte_epargne_a_vue_data(
     if m < 1 or m > 12:
         raise ValueError(f"Mois invalide: {m}")
 
-    date_debut, date_fin_exclusive = _month_bounds_iso(m, y)
     started = time.monotonic()
-    data_source = "snapshot"
-    snapshot_meta: Optional[Dict[str, Any]] = None
 
     if refresh or not has_collecte_snapshot(m, y):
         if refresh:
@@ -364,7 +338,35 @@ def get_collecte_epargne_a_vue_data(
             )
         refresh_collecte_epv_vue_snapshot(month=m, year=y)
         data_source = "refreshed" if refresh else "live_then_cached"
+    else:
+        data_source = "display" if has_collecte_display(m, y) else "snapshot"
 
+    # Chemin rapide : payload d'affichage déjà matérialisé
+    if not include_rows:
+        payload = load_collecte_display_payload(m, y)
+        if payload is None and has_collecte_snapshot(m, y):
+            logger.info(
+                "⚙️ Matérialisation affichage manquante pour %04d-%02d — rebuild",
+                y,
+                m,
+            )
+            payload = materialize_collecte_display(m, y, data_source="snapshot")
+        if payload is not None:
+            payload = dict(payload)
+            payload["elapsed_seconds"] = round(time.monotonic() - started, 2)
+            payload["data_source"] = data_source if refresh else "display"
+            payload["display_cached"] = True
+            logger.info(
+                "⚡ collecte-epargne-a-vue display cache hit month=%s year=%s count=%s (%.2fs)",
+                m,
+                y,
+                payload.get("count"),
+                payload["elapsed_seconds"],
+            )
+            return payload
+
+    # Fallback : reconstruction depuis les lignes brutes
+    date_debut, date_fin_exclusive = _month_bounds_iso(m, y)
     rows = load_collecte_snapshot_rows(m, y)
     snapshot_meta = get_collecte_snapshot_meta(m, y)
     if snapshot_meta:
@@ -380,23 +382,7 @@ def get_collecte_epargne_a_vue_data(
     )
 
     rows, objectifs_meta = apply_frozen_objectifs(rows, m, y)
-    if objectifs_meta.get("objectifs_figes"):
-        logger.info(
-            "📌 Objectifs figés appliqués (%s/%s lignes)",
-            objectifs_meta.get("objectifs_applied"),
-            objectifs_meta.get("objectifs_snapshot_rows"),
-        )
-    else:
-        logger.info("⚠️ Objectifs live (aucun snapshot objectifs pour %04d-%02d)", y, m)
-
-    elapsed = time.monotonic() - started
     hierarchical = _build_hierarchical(rows)
-    logger.info(
-        "✅ collecte-epargne-a-vue: %s lignes, hiérarchie OK en %.1fs (source=%s)",
-        len(rows),
-        elapsed,
-        data_source,
-    )
 
     total_objectif = sum(_f(r.get("obj_col_epv_vue")) for r in rows)
     total_finance = sum(_f(r.get("cum_montant_finance")) for r in rows)
@@ -415,8 +401,16 @@ def get_collecte_epargne_a_vue_data(
         total_col += _f(r.get("col_ep_vue"))
         total_echeance += _f(r.get("montant_echeance"))
 
+    elapsed = time.monotonic() - started
+    logger.info(
+        "✅ collecte-epargne-a-vue: %s lignes, hiérarchie OK en %.1fs (source=%s)",
+        len(rows),
+        elapsed,
+        data_source,
+    )
+
     return {
-        "data": rows,
+        "data": rows if include_rows else [],
         "hierarchicalData": hierarchical,
         "count": len(rows),
         "month": m,

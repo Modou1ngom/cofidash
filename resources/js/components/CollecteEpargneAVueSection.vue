@@ -781,8 +781,8 @@
               <tbody>
                 <tr v-for="row in dashboardZoneRows" :key="row.id">
                   <td><strong>{{ row.name }}</strong></td>
-                  <td class="col-num">{{ formatMillion(row.objectif) }}</td>
-                  <td class="col-num">{{ formatMillion(row.collecteM) }}</td>
+                  <td class="col-num c-objectif">{{ formatMillion(row.objectif) }}</td>
+                  <td class="col-num c-collecte">{{ formatMillion(row.collecteM) }}</td>
                   <td class="col-num"><span :class="troBadge(row.tro)">{{ formatTro(row.tro) }}</span></td>
                   <td class="col-num" :class="ecartClass(row.ecart)">{{ formatMillion(row.ecart) }}</td>
                 </tr>
@@ -804,6 +804,7 @@
 </template>
 
 <script>
+import { markRaw } from 'vue';
 import PythonChart from './charts/PythonChart.vue';
 
 export default {
@@ -843,7 +844,7 @@ export default {
       // Le dashboard est toujours composé à cette taille puis mis à l'échelle,
       // pour un rendu identique quel que soit l'écran.
       dashboardDesignWidth: 1600,
-      dashboardDesignHeight: 840,
+      dashboardDesignHeight: 900,
       // En dessous de ce facteur le texte deviendrait illisible : on laisse défiler à la place.
       dashboardMinScale: 0.8,
       dashboardScale: 1,
@@ -868,7 +869,7 @@ export default {
       if (this.recalculating) {
         return 'Recalcul Flexcube en cours… (peut prendre 1 à 3 min)';
       }
-      return 'Chargement du snapshot du matin…';
+      return `Chargement de ${this.months[this.selectedMonth - 1]} ${this.selectedYear}… (1er accès d'un mois : 1–3 min pour créer le snapshot)`;
     },
     hasTerritoires() {
       const t = this.hierarchicalData?.TERRITOIRE || {};
@@ -1457,10 +1458,14 @@ export default {
         }
         const response = await window.axios.get('/api/oracle/data/collecte-epargne-a-vue', {
           params,
-          timeout: forceRefresh ? 300000 : 60000,
+          // Le 1er accès d'un mois sans snapshot lance Flexcube (~1–3 min).
+          // Les mois déjà sauvegardés répondent en < 1 s.
+          timeout: 300000,
         });
         const payload = response.data || {};
-        this.hierarchicalData = payload.hierarchicalData || { TERRITOIRE: {} };
+        // Arborescence volumineuse et jamais mutée : la rendre réactive coûterait
+        // des milliers de proxies pour rien.
+        this.hierarchicalData = markRaw(payload.hierarchicalData || { TERRITOIRE: {} });
         this.dataSource = payload.data_source || '';
         this.dataSnapshotAt =
           (payload.data_snapshot && payload.data_snapshot.refreshed_at) || '';
@@ -1479,7 +1484,7 @@ export default {
         if (err?.code === 'ECONNABORTED' || String(msg).toLowerCase().includes('timeout')) {
           msg = forceRefresh
             ? 'Le recalcul Flexcube a pris trop de temps. Réessayez plus tard.'
-            : 'Le chargement du snapshot a pris trop de temps. Réessayez.';
+            : `Le premier chargement de ${this.months[this.selectedMonth - 1]} ${this.selectedYear} a pris trop de temps. Réessayez : le snapshot sera réutilisé ensuite.`;
         }
         this.errorMessage = msg;
         this.hierarchicalData = { TERRITOIRE: {} };
@@ -2522,8 +2527,8 @@ export default {
   align-items: center;
   gap: 0.7rem;
   min-width: 0;
-  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
-  border: 1px solid #e8edf3;
+  background: #eef2f7;
+  border: 1px solid #e2e8f0;
   border-radius: 16px;
   padding: 0.75rem 0.85rem;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 20px -12px rgba(15, 23, 42, 0.12);
@@ -2569,17 +2574,17 @@ export default {
 
 .dash-kpi-label {
   display: block;
-  font-size: 0.64rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   color: #64748b;
   font-weight: 700;
-  margin-bottom: 0.18rem;
+  margin-bottom: 0.2rem;
   line-height: 1.25;
 }
 
 .dash-kpi-value {
-  font-size: 1.02rem;
+  font-size: 1.2rem;
   font-weight: 700;
   color: #0f172a;
   font-variant-numeric: tabular-nums;
@@ -2587,8 +2592,12 @@ export default {
   letter-spacing: -0.01em;
 }
 
+.dash-kpi.objectif .dash-kpi-value { color: #2563eb; }
+.dash-kpi.collecte .dash-kpi-value { color: #059669; }
+.dash-kpi.comptes .dash-kpi-value { color: #7c3aed; }
+
 .dash-kpi-value small {
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   color: #94a3b8;
   font-weight: 600;
   margin-left: 0.15rem;
@@ -2612,8 +2621,8 @@ export default {
 }
 
 .dash-card {
-  background: #fff;
-  border: 1px solid #e8edf3;
+  background: #eef2f7;
+  border: 1px solid #e2e8f0;
   border-radius: 16px;
   padding: 0.75rem 0.9rem;
   display: flex;
@@ -2638,7 +2647,7 @@ export default {
 
 .dash-card-head h4 {
   margin: 0;
-  font-size: 0.88rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: #0f172a;
   position: relative;
@@ -2723,12 +2732,12 @@ export default {
 .dash-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
 }
 
 .dash-table th,
 .dash-table td {
-  padding: 0.48rem 0.55rem;
+  padding: 0.5rem 0.55rem;
   border-bottom: 1px solid #f1f5f9;
   text-align: left;
 }
@@ -2738,7 +2747,7 @@ export default {
   top: 0;
   background: #f8fafc;
   color: #64748b;
-  font-size: 0.66rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 700;
@@ -2761,7 +2770,11 @@ export default {
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  font-weight: 600;
 }
+
+.dash-table .col-num.c-objectif { color: #2563eb; }
+.dash-table .col-num.c-collecte { color: #059669; }
 
 .dash-table td strong {
   font-weight: 700;
@@ -2787,20 +2800,30 @@ export default {
   gap: 0.65rem;
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Sans cela les colonnes gardent la largeur de leur contenu et les badges sont rognés. */
+.dash-rank-split > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .dash-rank-title {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: 0.4rem;
-  padding: 0.2rem 0.35rem;
+  margin-bottom: 0.45rem;
+  padding: 0.25rem 0.4rem;
   border-radius: 6px;
+  flex: 0 0 auto;
 }
 
 .dash-rank-title.top {
@@ -2828,28 +2851,32 @@ export default {
   padding: 0;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: 0.3rem;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .dash-rank-list li {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.38rem 0.45rem;
+  padding: 0.4rem 0.5rem;
   border-radius: 10px;
-  background: #f8fafc;
+  background: #ffffff;
   border: 1px solid transparent;
+  min-width: 0;
   transition: background 0.12s ease, border-color 0.12s ease;
 }
 
 .dash-rank-list li:hover {
-  background: #f1f5f9;
-  border-color: #e2e8f0;
+  background: #ffffff;
+  border-color: #cbd5e1;
 }
 
 .dash-rank-list .rank {
-  width: 1.35rem;
-  height: 1.35rem;
+  width: 1.4rem;
+  height: 1.4rem;
   flex: 0 0 auto;
   border-radius: 999px;
   display: inline-flex;
@@ -2857,7 +2884,7 @@ export default {
   justify-content: center;
   background: #e2e8f0;
   color: #475569;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 700;
 }
 
@@ -2885,7 +2912,8 @@ export default {
 }
 
 .dash-rank-list .meta strong {
-  font-size: 0.74rem;
+  font-size: 0.82rem;
+  font-weight: 600;
   color: #1e293b;
   white-space: nowrap;
   overflow: hidden;
@@ -2893,7 +2921,7 @@ export default {
 }
 
 .dash-rank-list .meta span {
-  font-size: 0.66rem;
+  font-size: 0.7rem;
   color: #94a3b8;
   white-space: nowrap;
   overflow: hidden;
@@ -2982,17 +3010,17 @@ export default {
 
 .dash-resume-label {
   display: block;
-  font-size: 0.64rem;
+  font-size: 0.68rem;
   color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   font-weight: 700;
-  margin-bottom: 0.12rem;
+  margin-bottom: 0.15rem;
 }
 
 .dash-resume-value {
   display: block;
-  font-size: 0.8rem;
+  font-size: 0.88rem;
   color: #0f172a;
   font-weight: 700;
   line-height: 1.25;

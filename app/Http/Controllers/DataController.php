@@ -8,6 +8,7 @@ use App\Services\OracleService;
 use App\Models\Objective;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 
 class DataController extends Controller
@@ -20,6 +21,28 @@ class DataController extends Controller
     public function __construct(OracleService $oracleService)
     {
         $this->oracleService = $oracleService;
+    }
+
+    /**
+     * Retransmet un corps JSON déjà sérialisé par le service Python.
+     *
+     * Le gzip produit en amont est conservé quand le client l'accepte, ce qui
+     * évite à la fois de décompresser et de recompresser plusieurs Mo.
+     */
+    protected function passthroughJson(Request $request, string $body, bool $gzipped): Response
+    {
+        $headers = ['Content-Type' => 'application/json'];
+
+        if ($gzipped) {
+            if (str_contains(strtolower((string) $request->header('Accept-Encoding')), 'gzip')) {
+                $headers['Content-Encoding'] = 'gzip';
+                $headers['Vary'] = 'Accept-Encoding';
+            } else {
+                $body = gzdecode($body) ?: $body;
+            }
+        }
+
+        return response($body, 200, $headers);
     }
 
     /**
@@ -1415,7 +1438,7 @@ class DataController extends Controller
     /**
      * Collecte d'épargne à vue (Flexcube — détail client)
      */
-    public function getCollecteEpargneAVueData(Request $request): JsonResponse
+    public function getCollecteEpargneAVueData(Request $request)
     {
         try {
             $month = $request->input('month');
@@ -1429,7 +1452,11 @@ class DataController extends Controller
             );
 
             if ($result['success']) {
-                return response()->json($result['data'] ?? []);
+                return $this->passthroughJson(
+                    $request,
+                    $result['body'] ?? '[]',
+                    (bool) ($result['gzipped'] ?? false)
+                );
             }
 
             Log::error('Erreur collecte-epargne-a-vue', [

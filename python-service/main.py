@@ -4,6 +4,7 @@ Utilise FastAPI pour exposer des endpoints API
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 import logging
 
 from routers import charts, oracle, cache, c360, vue360
@@ -67,6 +68,9 @@ async def shutdown_event():
         logger.info("✅ Pools de connexions Oracle fermés")
     except Exception as e:
         logger.error(f"❌ Erreur lors de la fermeture: {e}", exc_info=True)
+
+# Les réponses de données atteignent plusieurs Mo de JSON très répétitif.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 # Configuration CORS pour permettre les requêtes depuis Laravel/Vue.js
 app.add_middleware(

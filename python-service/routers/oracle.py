@@ -1077,10 +1077,12 @@ async def get_collecte_epargne_a_vue_endpoint(
     month: Optional[int] = None,
     year: Optional[int] = None,
     refresh: Optional[bool] = False,
+    include_rows: Optional[bool] = False,
 ):
     """
     Collecte d'épargne à vue — lit le snapshot du matin (06h) par défaut.
     refresh=true force un recalcul Flexcube + mise à jour du snapshot.
+    include_rows=true ajoute les lignes brutes (debug).
     """
     try:
         logger.info(
@@ -1093,6 +1095,7 @@ async def get_collecte_epargne_a_vue_endpoint(
             month=month,
             year=year,
             refresh=bool(refresh),
+            include_rows=bool(include_rows),
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
