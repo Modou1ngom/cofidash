@@ -5,7 +5,8 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Tuple
 
-from database.oracle import get_oracle_connection_cofina
+from database.oracle_pool import get_pool
+from services.cache_service import TTL_DASHBOARD, generate_cache_key, get_cache, set_cache
 
 logger = logging.getLogger(__name__)
 
@@ -133,9 +134,14 @@ def get_cr_data_by_parent_gl(
 
     migration_key = (date_to or "").strip()
     month_year = _month_year_from_dd_mm_yyyy(migration_key)
+    cache_key = f"cr-par-agence:{generate_cache_key(migration_key, tuple(sorted(codes)))}"
+    cached = get_cache(cache_key)
+    if cached is not None:
+        logger.info("⚡ CR par agence cache hit date=%s gl=%s", migration_key, len(codes))
+        return cached
 
-    conn = get_oracle_connection_cofina()
-    try:
+    pool = get_pool()
+    with pool.get_connection_context() as conn:
         parent_placeholders = ", ".join([f":p{i}" for i in range(len(codes))])
         base_params: Dict[str, Any] = {"migration_date_minus1": migration_key}
         for i, c in enumerate(codes):
@@ -164,9 +170,5 @@ def get_cr_data_by_parent_gl(
             out = [_row_to_dict(columns, row) for row in rows]
 
         logger.info("CR par Agence DASH — %s lignes", len(out))
+        set_cache(cache_key, out, TTL_DASHBOARD)
         return out
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass

@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from database.oracle_pool import get_pool_flexcube
 from services.c360_oracle_service import fetch_remboursements_from_oracle
 from services.c360_sync_service import sync_customer_c360
+from services.cache_service import TTL_DASHBOARD, generate_cache_key, get_cache, set_cache
 from services.vue360_kpi_queries import (
     AGENCY_STATS_FLEXCUBE,
 )
@@ -1970,6 +1971,13 @@ def list_dat_deposits(
 
 
 def get_dashboard_kpis(branch_codes: Optional[List[str]] = None) -> Dict[str, Any]:
+    codes = tuple(sorted(_normalize_branch_codes(branch_codes or [])))
+    cache_key = f"vue360-dashboard-kpis:{generate_cache_key(codes)}"
+    cached = get_cache(cache_key)
+    if cached is not None:
+        logger.info("⚡ vue360 dashboard kpis cache hit branches=%s", codes or "all")
+        return cached
+
     branch_filter_c, branch_filter_sc, branch_filter_ca, params = _dashboard_branch_filters(
         branch_codes
     )
@@ -1997,7 +2005,7 @@ def get_dashboard_kpis(branch_codes: Optional[List[str]] = None) -> Dict[str, An
     )
     par90 = round(par30 * 0.45, 1) if par30 else 0.0
 
-    return {
+    payload = {
         "active_credits": active_credits,
         "global_outstanding": global_outstanding,
         "repayment_rate": repayment_rate,
@@ -2012,9 +2020,18 @@ def get_dashboard_kpis(branch_codes: Optional[List[str]] = None) -> Dict[str, An
         "chart_encours": charts["encours"],
         "chart_par": charts["par"],
     }
+    set_cache(cache_key, payload, TTL_DASHBOARD)
+    return payload
 
 
 def get_risks(branch_codes: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    codes = tuple(sorted(_normalize_branch_codes(branch_codes or [])))
+    cache_key = f"vue360-risks:{generate_cache_key(codes)}"
+    cached = get_cache(cache_key)
+    if cached is not None:
+        logger.info("⚡ vue360 risks cache hit branches=%s", codes or "all")
+        return cached
+
     branch_filter_c, _, _, params = _dashboard_branch_filters(branch_codes)
     sql = RISKS_PAR.format(branch_filter_c=branch_filter_c)
     rows = _execute_query(sql, params)
@@ -2030,6 +2047,7 @@ def get_risks(branch_codes: Optional[List[str]] = None) -> List[Dict[str, Any]]:
                 "trend": 0.0,
             }
         )
+    set_cache(cache_key, result, TTL_DASHBOARD)
     return result
 
 
@@ -2141,6 +2159,12 @@ def get_agencies_kpis(
         return []
 
     branch_codes = [str(a.get("code", "")).strip() for a in agencies if a.get("code")]
+    cache_key = f"vue360-agencies-kpis:{generate_cache_key(tuple(sorted(branch_codes)))}"
+    cached = get_cache(cache_key)
+    if cached is not None:
+        logger.info("⚡ vue360 agencies kpis cache hit count=%s", len(branch_codes))
+        return cached
+
     flex_stats = _fetch_flexcube_agency_stats(branch_codes)
     production = _fetch_production_by_agency(branch_codes)
     encours_by_agency = _fetch_encours_evolution_by_agency(branch_codes)
@@ -2175,6 +2199,7 @@ def get_agencies_kpis(
         outstanding = agency.get("total_outstanding", 0)
         agency["score"] = round(min(100.0, outstanding / 100_000_000), 1) if outstanding else 0.0
 
+    set_cache(cache_key, enriched, TTL_DASHBOARD)
     return enriched
 
 

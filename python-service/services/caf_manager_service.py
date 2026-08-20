@@ -8,6 +8,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 from database.oracle_pool import get_pool_flexcube
+from services.cache_service import TTL_REFERENCE, get_cache, set_cache
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +65,14 @@ def _name_candidates(name: Optional[str], email: Optional[str]) -> List[str]:
 
 
 def list_gestion_pret_managers() -> List[Dict[str, str]]:
+    cache_key = "flexcube-gestion-pret-managers"
+    cached = get_cache(cache_key)
+    if cached is not None:
+        logger.info("⚡ Liste CAF cache hit (%s)", len(cached))
+        return cached
+
     rows = _execute_flexcube(GESTION_PRET_MANAGERS)
-    return [
+    managers = [
         {
             "code_gestion_pret": str(row.get("code_gestion_pret") or "").strip(),
             "charge_affaire": str(row.get("charge_affaire") or "").strip(),
@@ -73,6 +80,8 @@ def list_gestion_pret_managers() -> List[Dict[str, str]]:
         for row in rows
         if str(row.get("code_gestion_pret") or "").strip()
     ]
+    set_cache(cache_key, managers, TTL_REFERENCE)
+    return managers
 
 
 def resolve_manager_code(

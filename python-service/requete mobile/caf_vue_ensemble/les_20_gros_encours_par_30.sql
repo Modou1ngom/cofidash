@@ -96,7 +96,7 @@ FROM (
         ) AS RN
     FROM PAR_DETAIL PD
 )
-WHERE RN <= 20
+WHERE RN <= :top_limit
 ORDER BY
     CODE_GESTION_PRET,
     ENCOURS_PAR_30 DESC

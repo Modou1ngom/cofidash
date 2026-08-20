@@ -2,7 +2,7 @@
   <aside class="sidebar">
     <nav class="sidebar-nav">
       <div class="nav-section">
-        <div class="nav-section-header" @click.stop="toggleClient" :class="{ active: activeSection === 'client' || activeSection === 'vue360' || activeSection === 'caf-overview' || activeSection === 'performance-client' }">
+        <div class="nav-section-header" @click.stop="toggleClient" :class="{ active: activeSection === 'client' || activeSection === 'vue360' || activeSection === 'caf-overview' || activeSection === 'performance-client' || activeSection === 'comptes-ouverts' }">
           <span class="nav-title">
             <span class="nav-icon">👤</span>
             <span class="nav-label">RELATION</span>
@@ -21,6 +21,9 @@
           </a>
           <a v-if="!isCaf" href="#" @click.stop.prevent="selectSection('client')" class="nav-link indent" :class="{ active: activeSection === 'client' }">
             Données
+          </a>
+          <a href="#" @click.stop.prevent="selectSection('comptes-ouverts')" class="nav-link indent" :class="{ active: activeSection === 'comptes-ouverts' }">
+            Comptes ouverts
           </a>
           <a v-if="!isCaf" href="#" @click.stop.prevent="selectSection('performance-client')" class="nav-link indent" :class="{ active: activeSection === 'performance-client' }">
             📊 Performance
@@ -74,18 +77,16 @@
          <!-- <a href="#" @click.stop.prevent="selectSection('production')" class="nav-link indent" :class="{ active: activeSection === 'production' }">
             Production
           </a>-->
-          <div class="nav-section-header indent" @click.stop="togglePortefeuilleRisque">
-            <span>Portefeuille à risque</span>
-            <span class="toggle-icon">{{ portefeuilleRisqueExpanded ? '▼' : '▶' }}</span>
-          </div>
+         
           <!--<div v-if="portefeuilleRisqueExpanded" class="nav-section-items">
            <a href="#" @click.stop.prevent="handlePortefeuilleRisqueSection('simple')" class="nav-link double-indent" :class="{ active: activeSection === 'portefeuille-risque' && activeSubSection === 'simple' }">
               PAR SIMPLE
             </a>-->
-           <!-- <a href="#" @click.stop.prevent="handlePortefeuilleRisqueSection('global')" class="nav-link double-indent" :class="{ active: activeSection === 'portefeuille-risque' && activeSubSection === 'global' }">
-              PAR GLOBAL
+
+            <a href="#" @click.stop.prevent="handlePortefeuilleRisqueSection('global')" class="nav-link indent":class="{ active: activeSection === 'global'}">
+          Portefeuille à risque
             </a>
-          </div>-->
+          
         
           <a href="#" @click.stop.prevent="selectSection('new-deal')" class="nav-link indent" :class="{ active: activeSection === 'new-deal' }">
             New Deal
@@ -288,7 +289,7 @@ export default {
   },
   watch: {
     activeSection(newVal) {
-      if (newVal === 'client' || newVal === 'vue360' || newVal === 'caf-overview' || newVal === 'performance-client') {
+      if (newVal === 'client' || newVal === 'vue360' || newVal === 'caf-overview' || newVal === 'performance-client' || newVal === 'comptes-ouverts') {
         this.clientExpanded = true;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
@@ -369,7 +370,7 @@ export default {
   },
   mounted() {
     // Initialiser l'état selon la section active
-    if (this.activeSection === 'client' || this.activeSection === 'vue360' || this.activeSection === 'caf-overview' || this.activeSection === 'performance-client') {
+    if (this.activeSection === 'client' || this.activeSection === 'vue360' || this.activeSection === 'caf-overview' || this.activeSection === 'performance-client' || this.activeSection === 'comptes-ouverts') {
       this.clientExpanded = true;
       this.objectivesExpanded = false;
       this.managementExpanded = false;
@@ -597,7 +598,7 @@ export default {
     },
     selectSection(section) {
       // Gérer l'expansion des sections selon la section sélectionnée
-      if (section === 'client' || section === 'performance-client' || section === 'caf-overview' || section === 'vue360') {
+      if (section === 'client' || section === 'performance-client' || section === 'caf-overview' || section === 'vue360' || section === 'comptes-ouverts') {
         this.clientExpanded = true;
         this.objectivesExpanded = false;
         this.managementExpanded = false;

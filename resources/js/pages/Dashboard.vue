@@ -15,6 +15,7 @@
       />
       <div class="main-content">
         <ClientSection v-if="activeSection === 'client'" :selectedZoneProp="selectedZone" />
+        <CompteOuvertSection v-if="activeSection === 'comptes-ouverts'" />
         <CollectionSection 
           v-if="activeSection === 'collection'" 
           :selectedZoneProp="selectedZone"
@@ -128,6 +129,7 @@ function lazySection(loader) {
 }
 
 const ClientSection = lazySection(() => import('../components/ClientSection.vue'));
+const CompteOuvertSection = lazySection(() => import('../components/CompteOuvertSection.vue'));
 const CollectionSection = lazySection(() => import('../components/CollectionSection.vue'));
 const ProductionSection = lazySection(() => import('../components/ProductionSection.vue'));
 const ProductionVolumeSection = lazySection(() => import('../components/ProductionVolumeSection.vue'));
@@ -156,6 +158,7 @@ export default {
     DashboardHeader,
     Sidebar,
     ClientSection,
+    CompteOuvertSection,
     CollectionSection,
     ProductionSection,
     ProductionVolumeSection,
@@ -231,7 +234,7 @@ export default {
           const profileCode = ProfileManager.getProfileCode();
           this.activeSubSection = profileCode === 'MD' ? 'validation' : 'add';
         }
-      } else if (section === 'client') {
+      } else if (section === 'client' || section === 'comptes-ouverts') {
         this.activeSubSection = null;
       } else if (section === 'collection') {
         this.activeSubSection = null;

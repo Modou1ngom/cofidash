@@ -712,7 +712,7 @@ class OracleService
             $params['year_ref'] = $yearRef;
         }
 
-        return $this->getPythonGetCached('portefeuille-risque', '/api/oracle/data/portefeuille-risque', $params, 'Portefeuille risque');
+        return $this->getPythonGetCached('portefeuille-risque-agence-v1', '/api/oracle/data/portefeuille-risque', $params, 'Portefeuille risque');
     }
 
     /**
@@ -762,6 +762,22 @@ class OracleService
     }
 
     /**
+     * Ouvertures de comptes (courants 251 + épargne 253) — dashboard exécutif.
+     */
+    public function getComptesOuvertsData(?int $month = null, ?int $year = null): array
+    {
+        $params = [];
+        if ($month) {
+            $params['month'] = $month;
+        }
+        if ($year) {
+            $params['year'] = $year;
+        }
+
+        return $this->getPythonGetCached('comptes-ouverts-v1', '/api/oracle/data/comptes-ouverts', $params, 'Comptes ouverts');
+    }
+
+    /**
      * Récupère les entrées PAR et provisions pour un palier (0, 30, 90, 180, 360)
      */
     public function getEntreesParData(?int $month = null, ?int $year = null, ?int $par = 0): array
@@ -774,7 +790,7 @@ class OracleService
             $params['year'] = $year;
         }
 
-        return $this->getPythonGetCached('entrees-par', '/api/oracle/data/entrees-par', $params, 'Entrées PAR');
+        return $this->getPythonGetCached('entrees-par-flexcube-v1', '/api/oracle/data/entrees-par', $params, 'Entrées PAR');
     }
 
     /**

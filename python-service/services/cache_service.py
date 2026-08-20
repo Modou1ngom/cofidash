@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 _cache: Dict[str, Dict[str, Any]] = {}
 _cache_enabled = True
 _default_ttl = 300  # 5 minutes par défaut
+TTL_DASHBOARD = 300  # écrans peu sensibles au temps réel
+TTL_REFERENCE = 1800  # agences, CAF, référentiels
 
 
 def generate_cache_key(*args, **kwargs) -> str:

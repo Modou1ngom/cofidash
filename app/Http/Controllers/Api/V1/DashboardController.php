@@ -42,6 +42,7 @@ class DashboardController extends Controller
             $validated['caf_code'] ?? null,
             isset($validated['month']) ? (int) $validated['month'] : null,
             isset($validated['year']) ? (int) $validated['year'] : null,
+            $request->boolean('refresh'),
         );
 
         if (!$result['success']) {

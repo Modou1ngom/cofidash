@@ -40,7 +40,7 @@ app = FastAPI(title="COFIdash Charts API", version="1.0.0")
 async def startup_event():
     """Initialise les ressources au démarrage de l'application"""
     try:
-        init_pools(pool_size=5, max_overflow=10)
+        init_pools(flexcube_size=8, dash_size=4, max_overflow=0)
         enable_cache()
         init_local_db()
         init_new_deal_local_db()
@@ -50,8 +50,9 @@ async def startup_event():
         start_objectif_epv_vue_scheduler()
         start_collecte_epv_vue_scheduler()
         logger.info(
-            "✅ Pools Oracle, cache, bases locales (C360/New Deal/objectifs EPV/"
-            "collecte EPV) et planificateurs initialisés "
+            "✅ Pools Oracle statiques (flexcube=8, dash=4, overflow=0), cache, "
+            "bases locales (C360/New Deal/objectifs EPV/collecte EPV) et "
+            "planificateurs initialisés "
             "(New Deal 06h/12h, objectifs 1er du mois, collecte EPV chaque jour 06h)"
         )
     except Exception as e:

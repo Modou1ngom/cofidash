@@ -5,7 +5,6 @@ import logging
 from typing import Optional, Dict
 from datetime import datetime
 import calendar
-from database.oracle import get_oracle_connection
 from services.utils import get_territory_from_agency, get_territory_from_branch_code, get_territory_key, get_all_territories
 
 logger = logging.getLogger(__name__)

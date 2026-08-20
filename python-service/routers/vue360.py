@@ -302,13 +302,18 @@ async def vue360_caf_resolve_manager(
 
 
 @router.get("/caf/vue-ensemble")
-async def vue360_caf_vue_ensemble(
+def vue360_caf_vue_ensemble(
     branch_codes: Optional[str] = Query(None, description="Codes agence séparés par virgule"),
     caf_code: Optional[str] = Query(None, description="CODE_GESTION_PRET (FIELD_CHAR_2)"),
     month: Optional[int] = Query(None, ge=1, le=12, description="Mois calendaire (1-12)"),
     year: Optional[int] = Query(None, ge=2000, le=2100, description="Année"),
+    all_dossiers: bool = Query(
+        False,
+        description="True = tous les dossiers PAR (web). False = top 20 (mobile).",
+    ),
+    refresh: bool = Query(False, description="Ignore le cache serveur."),
 ):
-    """Vue d'ensemble CAF mobile — portefeuille, top encours PAR, provisions."""
+    """Vue d'ensemble CAF — portefeuille, top encours PAR, provisions."""
     branches = [b.strip() for b in (branch_codes or "").split(",") if b.strip()]
     try:
         from services.caf_vue_ensemble_service import get_caf_vue_ensemble
@@ -319,6 +324,8 @@ async def vue360_caf_vue_ensemble(
                 caf_code=caf_code,
                 month=month,
                 year=year,
+                all_dossiers=all_dossiers,
+                refresh=refresh,
             )
         }
     except FileNotFoundError as exc:

@@ -200,6 +200,7 @@ class Vue360ApiService
         ?string $cafCode = null,
         ?int $month = null,
         ?int $year = null,
+        bool $refresh = false,
     ): array {
         $params = $this->scopedParams($user);
         $resolvedCode = $cafCode ?: $this->cafCodeForUser($user);
@@ -211,11 +212,15 @@ class Vue360ApiService
             ];
         }
         $params['caf_code'] = $resolvedCode;
+        $params['all_dossiers'] = true;
         if ($month !== null) {
             $params['month'] = $month;
         }
         if ($year !== null) {
             $params['year'] = $year;
+        }
+        if ($refresh) {
+            $params['refresh'] = 'true';
         }
 
         return $this->get('/api/vue360/caf/vue-ensemble', $params, self::HTTP_TIMEOUT_LONG);

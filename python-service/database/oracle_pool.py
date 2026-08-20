@@ -3,6 +3,7 @@ Pools de connexions Oracle — DASH (REPORT_GROUPE) et Flexcube (CFSFCUBS145).
 """
 import logging
 import threading
+import time
 from contextlib import contextmanager
 from queue import Empty, Queue
 from typing import Callable, Optional
@@ -11,8 +12,13 @@ from database.oracle import get_oracle_connection_cofina, get_oracle_connection_
 
 logger = logging.getLogger(__name__)
 
-POOL_SIZE = 5
-MAX_OVERFLOW = 10
+# Pools statiques : taille fixe, pas de sessions « overflow ».
+FLEXCUBE_POOL_SIZE = 8
+DASH_POOL_SIZE = 4
+MAX_OVERFLOW = 0
+POOL_SIZE = FLEXCUBE_POOL_SIZE  # alias historique (Flexcube)
+# Ping SELECT 1 uniquement si la connexion a dormi plus longtemps.
+_PING_AFTER_IDLE_SEC = 60.0
 
 
 class OracleConnectionPool:
@@ -30,10 +36,12 @@ class OracleConnectionPool:
         self.name = name
         self.pool_size = pool_size
         self.max_overflow = max_overflow
-        self._pool = Queue(maxsize=pool_size)
-        self._overflow = []
+        self.max_total = pool_size + max(0, max_overflow)
+        # Idle = pool de base (+ overflow si activé) : une connexion rendue est toujours réutilisable.
+        self._pool = Queue(maxsize=self.max_total)
         self._lock = threading.Lock()
         self._created = 0
+        self._checked_out = 0
         self._initialize_pool(warmup=warmup)
 
     def _initialize_pool(self, warmup: int = 1):
@@ -44,6 +52,7 @@ class OracleConnectionPool:
         try:
             for _ in range(min(warmup, self.pool_size)):
                 conn = self._connect_fn()
+                self._mark_used(conn)
                 self._pool.put(conn)
                 self._created += 1
             logger.info(
@@ -54,11 +63,43 @@ class OracleConnectionPool:
         except Exception as exc:
             logger.warning("Impossible de pré-initialiser le pool [%s]: %s", self.name, exc)
 
+    @staticmethod
+    def _mark_used(conn) -> None:
+        try:
+            conn._cofidash_last_used = time.monotonic()
+        except Exception:
+            pass
+
+    @staticmethod
+    def _needs_ping(conn) -> bool:
+        last = getattr(conn, "_cofidash_last_used", 0.0)
+        try:
+            return (time.monotonic() - float(last or 0.0)) >= _PING_AFTER_IDLE_SEC
+        except Exception:
+            return True
+
+    @staticmethod
+    def _ping(conn) -> bool:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 FROM DUAL")
+            cursor.close()
+            return True
+        except Exception:
+            return False
+
     def _create_connection(self):
         conn = self._connect_fn()
-        self._created += 1
+        self._mark_used(conn)
         logger.debug("Nouvelle connexion [%s] (total: %s)", self.name, self._created)
         return conn
+
+    def _close_quietly(self, conn) -> None:
+        try:
+            if conn is not None:
+                conn.close()
+        except Exception:
+            pass
 
     def get_connection(self, timeout: Optional[float] = None):
         conn = None
@@ -67,59 +108,63 @@ class OracleConnectionPool:
         except Empty:
             pass
 
-        if conn is not None:
-            try:
-                cursor = conn.cursor()
-                cursor.execute("SELECT 1 FROM DUAL")
-                cursor.close()
-                return conn
-            except Exception:
-                logger.warning("Connexion invalide [%s], recréation", self.name)
+        if conn is None:
+            reserved = False
+            with self._lock:
+                if self._created < self.max_total:
+                    self._created += 1
+                    reserved = True
+            if reserved:
                 try:
-                    conn.close()
+                    conn = self._create_connection()
+                    with self._lock:
+                        self._checked_out += 1
+                    return conn
                 except Exception:
-                    pass
-                return self._create_connection()
+                    with self._lock:
+                        self._created = max(0, self._created - 1)
+                    raise
 
-        with self._lock:
-            if len(self._overflow) < self.max_overflow:
-                conn = self._create_connection()
-                self._overflow.append(conn)
-                return conn
+        if conn is None:
+            stats = self.get_stats()
+            logger.warning(
+                "Pool [%s] saturé, attente... (in_use=%s created=%s idle=%s max=%s)",
+                self.name,
+                stats["in_use"],
+                stats["total_created"],
+                stats["available"],
+                self.max_total,
+            )
+            wait = 30.0 if timeout is None else timeout
+            conn = self._pool.get(timeout=wait)
 
-        logger.warning("Pool [%s] saturé, attente...", self.name)
-        wait = 30.0 if timeout is None else timeout
-        conn = self._pool.get(timeout=wait)
-        try:
-            cursor = conn.cursor()
-            cursor.execute("SELECT 1 FROM DUAL")
-            cursor.close()
-            return conn
-        except Exception:
+        if self._needs_ping(conn) and not self._ping(conn):
             logger.warning("Connexion invalide [%s], recréation", self.name)
+            self._close_quietly(conn)
             try:
-                conn.close()
+                conn = self._create_connection()
             except Exception:
-                pass
-            return self._create_connection()
+                with self._lock:
+                    self._created = max(0, self._created - 1)
+                raise
+
+        self._mark_used(conn)
+        with self._lock:
+            self._checked_out += 1
+        return conn
 
     def return_connection(self, conn):
         if conn is None:
             return
         with self._lock:
-            if conn in self._overflow:
-                self._overflow.remove(conn)
+            self._checked_out = max(0, self._checked_out - 1)
+        self._mark_used(conn)
         try:
             self._pool.put_nowait(conn)
         except Exception:
+            self._close_quietly(conn)
             with self._lock:
-                if len(self._overflow) < self.max_overflow:
-                    self._overflow.append(conn)
-                    return
-            try:
-                conn.close()
-            except Exception:
-                pass
+                self._created = max(0, self._created - 1)
 
     @contextmanager
     def get_connection_context(self, timeout: Optional[float] = None):
@@ -139,23 +184,23 @@ class OracleConnectionPool:
             except Exception:
                 pass
         with self._lock:
-            for conn in self._overflow:
-                try:
-                    conn.close()
-                except Exception:
-                    pass
-            self._overflow.clear()
+            self._created = 0
+            self._checked_out = 0
         logger.info("Pool Oracle [%s] fermé", self.name)
 
     def get_stats(self):
         with self._lock:
-            return {
-                "name": self.name,
-                "pool_size": self.pool_size,
-                "available": self._pool.qsize(),
-                "overflow": len(self._overflow),
-                "total_created": self._created,
-            }
+            created = self._created
+            in_use = self._checked_out
+        idle = self._pool.qsize()
+        return {
+            "name": self.name,
+            "pool_size": self.pool_size,
+            "available": idle,
+            "in_use": in_use,
+            "overflow": max(0, created - self.pool_size),
+            "total_created": created,
+        }
 
 
 _pool_cofina: Optional[OracleConnectionPool] = None
@@ -168,6 +213,8 @@ def get_pool_cofina() -> OracleConnectionPool:
     if _pool_cofina is None:
         _pool_cofina = OracleConnectionPool(
             get_oracle_connection_cofina,
+            pool_size=DASH_POOL_SIZE,
+            max_overflow=MAX_OVERFLOW,
             name="cofina-dash",
         )
     return _pool_cofina
@@ -179,6 +226,8 @@ def get_pool_flexcube() -> OracleConnectionPool:
     if _pool_flexcube is None:
         _pool_flexcube = OracleConnectionPool(
             get_oracle_connection_flexcube,
+            pool_size=FLEXCUBE_POOL_SIZE,
+            max_overflow=MAX_OVERFLOW,
             name="flexcube",
         )
     return _pool_flexcube
@@ -190,33 +239,45 @@ def get_pool() -> OracleConnectionPool:
 
 
 def init_pools(
-    pool_size: int = POOL_SIZE,
+    pool_size: Optional[int] = None,
     max_overflow: int = MAX_OVERFLOW,
-    warmup: int = 2,
+    warmup: Optional[int] = None,
+    flexcube_size: int = FLEXCUBE_POOL_SIZE,
+    dash_size: int = DASH_POOL_SIZE,
 ):
-    """Initialise les deux pools Oracle (warmup=0 : pas de connexion au démarrage)."""
+    """Initialise les pools statiques Flexcube et DASH (warmup = taille du pool)."""
     global _pool_cofina, _pool_flexcube
     close_pools()
+    if pool_size is not None:
+        flexcube_size = pool_size
+        dash_size = pool_size
+    dash_warmup = dash_size if warmup is None else warmup
+    flex_warmup = flexcube_size if warmup is None else warmup
     _pool_cofina = OracleConnectionPool(
         get_oracle_connection_cofina,
-        pool_size=pool_size,
+        pool_size=dash_size,
         max_overflow=max_overflow,
         name="cofina-dash",
-        warmup=warmup,
+        warmup=dash_warmup,
     )
     _pool_flexcube = OracleConnectionPool(
         get_oracle_connection_flexcube,
-        pool_size=pool_size,
+        pool_size=flexcube_size,
         max_overflow=max_overflow,
         name="flexcube",
-        warmup=warmup,
+        warmup=flex_warmup,
     )
-    logger.info("Pools Oracle initialisés: cofina-dash + flexcube")
+    logger.info(
+        "Pools Oracle statiques: flexcube=%s dash=%s overflow=%s",
+        flexcube_size,
+        dash_size,
+        max_overflow,
+    )
 
 
-def init_pool(pool_size: int = POOL_SIZE, max_overflow: int = MAX_OVERFLOW):
-    """Compatibilité — initialise les deux pools."""
-    init_pools(pool_size, max_overflow)
+def init_pool(pool_size: int = FLEXCUBE_POOL_SIZE, max_overflow: int = MAX_OVERFLOW):
+    """Compatibilité — initialise les deux pools à la même taille."""
+    init_pools(pool_size=pool_size, max_overflow=max_overflow)
 
 
 def close_pools():

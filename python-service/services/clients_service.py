@@ -4,7 +4,6 @@ Service pour la gestion des données clients
 import logging
 from datetime import datetime
 from typing import Optional
-from database.oracle import get_oracle_connection
 from services.clients_dash_query import CLIENTS_DASH_QUERY
 from services.utils import calculate_period_dates, get_territory_from_agency, get_territory_key, get_all_territories, SERVICE_POINT_MAPPING
 

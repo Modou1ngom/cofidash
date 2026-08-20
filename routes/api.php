@@ -51,6 +51,7 @@ Route::prefix('oracle')->group(function () {
     Route::get('/data/portefeuille-risque', [DataController::class, 'getPortefeuilleRisqueData']);
     Route::get('/data/portefeuille-risque-caf', [DataController::class, 'getPortefeuilleRisqueCafData']);
     Route::get('/data/entrees-par', [DataController::class, 'getEntreesParData']);
+    Route::get('/data/comptes-ouverts', [DataController::class, 'getComptesOuvertsData']);
     Route::get('/data/new-deal', [DataController::class, 'getNewDealData']);
     // GET accepté aussi (certains reverse-proxy / caches convertissent POST → GET)
     Route::match(['get', 'post'], '/backup/new-deal', [DataController::class, 'refreshNewDealBackup']);

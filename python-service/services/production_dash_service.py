@@ -7,10 +7,22 @@ from datetime import date as dt_date
 from datetime import timedelta
 from typing import Any, Optional
 
-from database.oracle import get_oracle_connection_cofina
+from database.oracle_pool import get_pool
 from services.volume_dat_service import _ref_month_year, _week_range_dd_mm_yyyy
 
 logger = logging.getLogger(__name__)
+
+
+def _fetch_dash_rows(sql: str, binds: dict) -> list[dict]:
+    pool = get_pool()
+    with pool.get_connection_context() as conn:
+        cur = conn.cursor()
+        try:
+            cur.execute(sql, binds)
+            cols = [d[0] for d in cur.description]
+            return [dict(zip(cols, r)) for r in cur.fetchall()]
+        finally:
+            cur.close()
 
 _SQL_INNER_DAY = "TO_CHAR(d.MIGRATION_DATE_MINUS1, 'DD/MM/YYYY') = :migration_target"
 _SQL_INNER_MONTH = "TO_CHAR(d.MIGRATION_DATE_MINUS1, 'MM/YYYY') = :month_year"
@@ -83,24 +95,14 @@ WHERE MIGRATION_DATETIME = (
 )
 ORDER BY CODE_AGENCE, AGENCE, CHARGE_AFFAIRE
 """
-    conn = get_oracle_connection_cofina()
-    try:
-        cur = conn.cursor()
-        cur.execute(sql, binds)
-        cols = [d[0] for d in cur.description]
-        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
-        logger.info(
-            "📊 DASH_PRODUCTION_NOMBRE month=%02d/%d lignes=%s",
-            month,
-            year,
-            len(rows),
-        )
-        return rows
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+    rows = _fetch_dash_rows(sql, binds)
+    logger.info(
+        "📊 DASH_PRODUCTION_NOMBRE month=%02d/%d lignes=%s",
+        month,
+        year,
+        len(rows),
+    )
+    return rows
 
 
 def fetch_dash_production_volume_rows_for_month(
@@ -130,24 +132,14 @@ WHERE MIGRATION_DATETIME = (
 )
 ORDER BY CODE_AGENCE, AGENCE, CHARGE_AFFAIRE
 """
-    conn = get_oracle_connection_cofina()
-    try:
-        cur = conn.cursor()
-        cur.execute(sql, binds)
-        cols = [d[0] for d in cur.description]
-        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
-        logger.info(
-            "📊 DASH_PRODUCTION_VOLUME month=%02d/%d lignes=%s",
-            month,
-            year,
-            len(rows),
-        )
-        return rows
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+    rows = _fetch_dash_rows(sql, binds)
+    logger.info(
+        "📊 DASH_PRODUCTION_VOLUME month=%02d/%d lignes=%s",
+        month,
+        year,
+        len(rows),
+    )
+    return rows
 
 
 def fetch_dash_production_nombre_rows(
@@ -178,23 +170,13 @@ WHERE MIGRATION_DATETIME = (
 )
 ORDER BY CODE_AGENCE, AGENCE, CHARGE_AFFAIRE
 """
-    conn = get_oracle_connection_cofina()
-    try:
-        cur = conn.cursor()
-        cur.execute(sql, binds)
-        cols = [d[0] for d in cur.description]
-        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
-        logger.info(
-            "📊 DASH_PRODUCTION_NOMBRE mode=%s lignes=%s",
-            mode,
-            len(rows),
-        )
-        return rows
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+    rows = _fetch_dash_rows(sql, binds)
+    logger.info(
+        "📊 DASH_PRODUCTION_NOMBRE mode=%s lignes=%s",
+        mode,
+        len(rows),
+    )
+    return rows
 
 
 def build_production_nombre_charge_details_by_agency(raw_rows: list[dict]) -> dict[str, list[dict]]:
@@ -340,23 +322,13 @@ WHERE MIGRATION_DATETIME = (
 )
 ORDER BY CODE_AGENCE, AGENCE, CHARGE_AFFAIRE
 """
-    conn = get_oracle_connection_cofina()
-    try:
-        cur = conn.cursor()
-        cur.execute(sql, binds)
-        cols = [d[0] for d in cur.description]
-        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
-        logger.info(
-            "📊 DASH_PRODUCTION_VOLUME mode=%s lignes=%s",
-            mode,
-            len(rows),
-        )
-        return rows
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+    rows = _fetch_dash_rows(sql, binds)
+    logger.info(
+        "📊 DASH_PRODUCTION_VOLUME mode=%s lignes=%s",
+        mode,
+        len(rows),
+    )
+    return rows
 
 
 def normalize_nombre_row_from_dash(row: dict) -> dict:
@@ -526,23 +498,13 @@ WHERE MIGRATION_DATE_MINUS1 = (
 )
 ORDER BY CODE_AGENCE, AGENCE
 """
-    conn = get_oracle_connection_cofina()
-    try:
-        cur = conn.cursor()
-        cur.execute(sql, binds)
-        cols = [d[0] for d in cur.description]
-        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
-        logger.info(
-            "📊 DASH_EVOLUTION_ENCOURS mode=%s lignes=%s",
-            mode,
-            len(rows),
-        )
-        return rows
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+    rows = _fetch_dash_rows(sql, binds)
+    logger.info(
+        "📊 DASH_EVOLUTION_ENCOURS mode=%s lignes=%s",
+        mode,
+        len(rows),
+    )
+    return rows
 
 
 def normalize_encours_row_from_dash(row: dict) -> dict:

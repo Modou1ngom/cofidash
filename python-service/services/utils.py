@@ -462,33 +462,17 @@ def generate_branch_code_mapping_from_db() -> Dict[str, str]:
         Dictionnaire avec le mapping code agence -> territoire
     """
     try:
-        # Essayer d'importer get_oracle_connection
-        try:
-            from database.oracle import get_oracle_connection
-        except ImportError:
-            # Si l'import échoue, essayer une importation relative
-            try:
-                import sys
-                import os
-                sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                from database.oracle import get_oracle_connection
-            except ImportError as e:
-                logger.warning(f"⚠️ Impossible d'importer get_oracle_connection: {e}")
-                return {}
+        from database.oracle_pool import get_pool_flexcube
     except Exception as e:
-        logger.warning(f"⚠️ Erreur lors de l'import: {e}")
+        logger.warning("⚠️ Impossible d'importer le pool Flexcube: %s", e)
         return {}
-    
+
     try:
-        connection = get_oracle_connection()
-        if not connection:
-            logger.warning("⚠️ Impossible de se connecter à Oracle pour récupérer les codes agence")
-            return {}
-        
-        cursor = connection.cursor()
-        
-        # Récupérer tous les codes agence et noms d'agences
-        query = """
+        pool = get_pool_flexcube()
+        with pool.get_connection_context() as connection:
+            cursor = connection.cursor()
+            try:
+                query = """
             SELECT DISTINCT
                 b.BRANCH_CODE,
                 b.BRANCH_NAME
@@ -497,25 +481,22 @@ def generate_branch_code_mapping_from_db() -> Dict[str, str]:
               AND b.BRANCH_NAME IS NOT NULL
             ORDER BY b.BRANCH_CODE
         """
-        
-        cursor.execute(query)
-        results = cursor.fetchall()
-        cursor.close()
-        
+                cursor.execute(query)
+                results = cursor.fetchall()
+            finally:
+                cursor.close()
+
         mapping = {}
         mapped_count = 0
         unmapped_count = 0
-        
+
         for branch_code, branch_name in results:
             if not branch_code or not branch_name:
                 continue
-            
-            # Normaliser le code agence
+
             branch_code_str = str(branch_code).strip().upper()
-            
-            # Utiliser le mapping par nom pour déterminer le territoire
             territory = get_territory_from_agency(branch_name)
-            
+
             if territory:
                 mapping[branch_code_str] = territory
                 mapped_count += 1
@@ -523,11 +504,11 @@ def generate_branch_code_mapping_from_db() -> Dict[str, str]:
             else:
                 unmapped_count += 1
                 logger.debug(f"⚠️ Code agence {branch_code_str} ({branch_name}) non mappé")
-        
+
         logger.info(f"📊 Mapping généré: {mapped_count} codes agence mappés, {unmapped_count} non mappés")
-        
+
         return mapping
-        
+
     except Exception as e:
         logger.error(f"❌ Erreur lors de la génération du mapping: {e}", exc_info=True)
         return {}

@@ -129,6 +129,7 @@
           <div class="caf-header">
             <div class="caf-selector">
               <span>CAF</span>
+              <span v-if="cafData.length" class="caf-count">({{ cafData.length }})</span>
               <span class="dropdown-icon">▼</span>
             </div>
           </div>
@@ -262,13 +263,13 @@
     <div v-if="activeTab === 'flop-30'" class="flop-30-container">
       <div class="flop-30-header">
         <h3 class="flop-30-title">Portefeuille Risque – FLOP 30 (30 CAF les plus à risque)</h3>
-        <p class="flop-30-subtitle">Classement par ratio de risque (PAR 0). Comparaison {{ getComparisonPeriodLabel() }}.</p>
       </div>
       <div class="table-wrapper flop-30-table-wrapper">
         <table class="flop-30-table">
           <thead>
             <tr>
               <th class="flop-rang">RANG</th>
+              <th class="flop-agence">AGENCE</th>
               <th class="flop-caf">CAF</th>
               <th class="flop-num">NBRE DE DOSSIERS</th>
               <th class="flop-amount">Encours de crédit</th>
@@ -290,10 +291,10 @@
               </tr>
               <tr v-for="i in 29" :key="'flop-empty-' + i" class="flop-row flop-row-empty" :class="{ 'flop-row-alt': i % 2 === 0 }">
                 <td class="flop-rang">{{ i + 2 }}</td>
+                <td class="flop-agence">–</td>
                 <td class="flop-caf">–</td>
                 <td class="flop-num">–</td>
                 <td class="flop-amount">–</td>
-                <td class="flop-num">–</td>
                 <td class="flop-amount">–</td>
                 <td class="flop-pct">–</td>
                 <td class="flop-pct">–</td>
@@ -307,13 +308,13 @@
             <template v-else>
               <tr v-for="(item, idx) in flop30Rows" :key="item.empty ? 'flop-row-' + item.rang : getCafRowKey(item, idx)" class="flop-row" :class="{ 'flop-row-alt': idx % 2 === 1, 'flop-row-empty': item.empty }">
                 <td class="flop-rang">{{ item.rang }}</td>
-                <td class="flop-caf">{{ item.empty ? '–' : (item.agence ? item.agence + ' – ' + item.nom : item.nom) }}</td>
+                <td class="flop-agence">{{ item.empty ? '–' : (item.agence || '–') }}</td>
+                <td class="flop-caf">{{ item.empty ? '–' : item.nom }}</td>
                 <td class="flop-num">{{ item.empty ? '–' : formatNumber(item.nbreDossiers) }}</td>
                 <td class="flop-amount">{{ item.empty ? '–' : formatCurrency(item.encoursCredit) }}</td>
-                <td class="flop-num">{{ item.empty ? '–' : (item.nbreDossiersImpayes != null ? formatNumber(item.nbreDossiersImpayes) : '–') }}</td>
-                <td class="flop-amount">{{ item.empty ? '–' : formatCurrency(item.encoursImpayes != null ? item.encoursImpayes : item.encoursCredit) }}</td>
-                <td class="flop-pct">{{ item.empty ? '–' : (item.ratioNbreImpayes != null ? formatPercent(item.ratioNbreImpayes) : '–') }}</td>
-                <td class="flop-pct">{{ item.empty ? '–' : formatPercent(item.ratioEncoursImpayes != null ? item.ratioEncoursImpayes : getCafPar(item, 'par0')) }}</td>
+                <td class="flop-amount">{{ item.empty ? '–' : formatCurrency(item.encoursImpayes) }}</td>
+                <td class="flop-pct">{{ item.empty ? '–' : formatPercent(item.ratioNbreImpayes) }}</td>
+                <td class="flop-pct">{{ item.empty ? '–' : formatPercent(item.ratioEncoursImpayes) }}</td>
                 <td class="flop-par">
                   <template v-if="item.empty">–</template>
                   <template v-else>
@@ -360,13 +361,14 @@
     <div v-if="activeTab === 'top-50'" class="top-50-container">
       <div class="top-50-header">
         <h3 class="top-50-title">Portefeuille Risque – TOP 50 (50 CAF les moins à risque)</h3>
-        <p class="top-50-subtitle">Classement par ratio de risque (PAR 0, du plus faible au plus élevé). Comparaison {{ getComparisonPeriodLabel() }}.</p>
       </div>
       <div class="table-wrapper top-50-table-wrapper">
+      
         <table class="top-50-table">
           <thead>
             <tr>
               <th class="top-rang">RANG</th>
+              <th class="top-agence">AGENCE</th>
               <th class="top-caf">CAF</th>
               <th class="top-num">NBRE DE DOSSIERS</th>
               <th class="top-amount">Encours de crédit</th>
@@ -381,10 +383,11 @@
             <template v-if="cafLoading && top50Data.length === 0">
               <tr>
                 <td class="top-rang">1</td>
-                <td colspan="8" class="top-loading">🔄 Chargement des données...</td>
+                <td colspan="9" class="top-loading">🔄 Chargement des données...</td>
               </tr>
               <tr v-for="i in 49" :key="'empty-' + i" class="top-row top-row-empty" :class="{ 'top-row-alt': i % 2 === 0 }">
                 <td class="top-rang">{{ i + 2 }}</td>
+                <td class="top-agence">–</td>
                 <td class="top-caf">–</td>
                 <td class="top-num">–</td>
                 <td class="top-amount">–</td>
@@ -398,7 +401,8 @@
             <template v-else>
               <tr v-for="(item, idx) in top50Rows" :key="item.empty ? 'row-' + item.rang : getCafRowKey(item, idx)" class="top-row" :class="{ 'top-row-alt': idx % 2 === 1, 'top-row-empty': item.empty }">
                 <td class="top-rang">{{ item.rang }}</td>
-                <td class="top-caf">{{ item.empty ? '–' : (item.agence ? item.agence + ' – ' + item.nom : item.nom) }}</td>
+                <td class="top-agence">{{ item.empty ? '–' : (item.agence || '–') }}</td>
+                <td class="top-caf">{{ item.empty ? '–' : item.nom }}</td>
                 <td class="top-num">{{ item.empty ? '–' : formatNumber(item.nbreDossiers) }}</td>
                 <td class="top-amount">{{ item.empty ? '–' : formatCurrency(item.encoursCredit) }}</td>
                 <td class="top-par">
@@ -457,13 +461,11 @@
             <thead>
               <tr>
                 <th>N° Prêt</th>
-                <th>BLOC</th>
+                <th>Agence</th>
+                <th>CAF</th>
                 <th>Statut déclassement</th>
                 <th>Nom client</th>
                 <th>Date mise en place</th>
-                <th>Agence</th>
-                <th>Production (vol.)</th>
-                <th>1re échéance</th>
                 <th>Encours total</th>
                 <th>Encours sain</th>
                 <th>Encours impayé</th>
@@ -473,17 +475,15 @@
             </thead>
             <tbody>
               <tr v-if="entreesParList.length === 0">
-                <td colspan="13" class="entrees-par-empty">Aucune entrée pour ce palier.</td>
+                <td colspan="11" class="entrees-par-empty">Aucune entrée pour ce palier.</td>
               </tr>
               <tr v-for="(row, idx) in entreesParList" :key="row.NO_PRET || row.no_pret || `entrees-par-row-${idx}`">
                 <td>{{ row.NO_PRET ?? row.no_pret ?? '–' }}</td>
-                <td>{{ row.BLOC ?? row.bloc ?? '–' }}</td>
+                <td>{{ row.AGENCE ?? row.agence ?? '–' }}</td>
+                <td>{{ row.CHARGE_AFFAIRE ?? row.charge_affaire ?? row.BLOC ?? row.bloc ?? '–' }}</td>
                 <td>{{ row.STATUT_DECLASSEMENT ?? row.statut_declassement ?? '–' }}</td>
                 <td>{{ row.NOM_CLIENT ?? row.nom_client ?? '–' }}</td>
                 <td>{{ formatDate(row.DATE_MISE_EN_PLACE ?? row.date_mise_en_place) }}</td>
-                <td>{{ row.AGENCE ?? row.agence ?? '–' }}</td>
-                <td class="number-cell">{{ formatCurrency(row.PRODUCTION_EN_VOLUME ?? row.production_en_volume) }}</td>
-                <td>{{ formatDate(row.DATE_PREM_ECHEANCE ?? row.date_prem_echeance) }}</td>
                 <td class="number-cell">{{ formatCurrency(row.ENCOURS_TOTAL ?? row.encours_total) }}</td>
                 <td class="number-cell">{{ formatCurrency(row.ENCOURS_SAIN ?? row.encours_sain) }}</td>
                 <td class="number-cell">{{ formatCurrency(row.ENCOURS_IMPAYE ?? row.encours_impaye) }}</td>
@@ -989,33 +989,50 @@ export default {
       });
       return list;
     },
-    /** Toujours 50 lignes pour le tableau PAR | CAF (données ou placeholders) */
+    /** Toutes les lignes CAF (plus de plafond à 50). Placeholders uniquement si liste vide. */
     parCafRows() {
-      const data = this.cafData || [];
-      const rows = [];
-      for (let i = 0; i < 50; i++) {
-        rows.push(data[i] ? { ...data[i] } : { empty: true });
+      const data = this.sortedCafData;
+      if (data.length === 0) {
+        return Array.from({ length: 12 }, () => ({ empty: true }));
       }
-      return rows;
+      return data;
+    },
+    /** Tri agence puis nom de CAF, pour parcourir tout le réseau. */
+    sortedCafData() {
+      const data = this.cafData || [];
+      return [...data].sort((a, b) => {
+        const agA = (a.agence || '').localeCompare(b.agence || '', 'fr', { sensitivity: 'base' });
+        if (agA !== 0) return agA;
+        return (a.nom || '').localeCompare(b.nom || '', 'fr', { sensitivity: 'base' });
+      });
     },
     /** Les 30 CAF les plus à risque (tri par PAR 0 décroissant) pour l'onglet FLOP 30 */
     flop30Data() {
       if (!this.cafData || this.cafData.length === 0) return [];
-      const sorted = [...this.cafData].sort((a, b) => {
+      const eligible = this.cafData.filter((item) => this.toSingleNumber(item.encoursCredit) > 0);
+      const sorted = [...eligible].sort((a, b) => {
         const par0A = this.getCafPar(a, 'par0') || 0;
         const par0B = this.getCafPar(b, 'par0') || 0;
         return par0B - par0A;
       });
       return sorted.slice(0, 30).map((item, idx) => {
-        const par0 = this.getCafPar(item, 'par0') || 0;
         const encours = this.toSingleNumber(item.encoursCredit) || 0;
+        const encoursImpayes = this.toSingleNumber(item.encoursImpayes);
+        const nbreDossiers = this.toSingleNumber(item.nbreDossiers) || 0;
+        const nbreImpayes = this.toSingleNumber(item.nbreDossiersImpayes);
+        const ratioEncours = item.ratioEncoursImpayes != null
+          ? this.toSingleNumber(item.ratioEncoursImpayes)
+          : (encours > 0 ? (encoursImpayes / encours) * 100 : 0);
+        const ratioNbre = item.ratioNbreImpayes != null
+          ? this.toSingleNumber(item.ratioNbreImpayes)
+          : (nbreDossiers > 0 ? (nbreImpayes / nbreDossiers) * 100 : 0);
         return {
           ...item,
           rang: idx + 1,
-          encoursImpayes: item.encoursImpayes != null ? item.encoursImpayes : encours,
-          ratioEncoursImpayes: item.ratioEncoursImpayes != null ? item.ratioEncoursImpayes : par0,
-          nbreDossiersImpayes: item.nbreDossiersImpayes,
-          ratioNbreImpayes: item.ratioNbreImpayes
+          encoursImpayes,
+          ratioEncoursImpayes: ratioEncours,
+          nbreDossiersImpayes: nbreImpayes,
+          ratioNbreImpayes: ratioNbre
         };
       });
     },
@@ -1278,6 +1295,10 @@ export default {
         
         if (response.data && response.data.hierarchicalData) {
           this.hierarchicalDataFromBackend = response.data.hierarchicalData;
+          const territoires = this.hierarchicalDataFromBackend.TERRITOIRE || {};
+          Object.keys(territoires).forEach((key) => {
+            this.expandedSections[`TERRITOIRE_${key}`] = true;
+          });
         } else {
           this.hierarchicalDataFromBackend = {
             TERRITOIRE: {}
@@ -1510,6 +1531,7 @@ export default {
       if (item.encoursImpayes != null) out.encoursImpayes = this.toSingleNumber(item.encoursImpayes);
       if (item.ratioEncoursImpayes != null) out.ratioEncoursImpayes = this.toSingleNumber(item.ratioEncoursImpayes);
       if (item.ratioNbreImpayes != null) out.ratioNbreImpayes = this.toSingleNumber(item.ratioNbreImpayes);
+      if (item.nbreDossiersImpayes != null) out.nbreDossiersImpayes = Math.max(0, parseInt(this.toSingleNumber(item.nbreDossiersImpayes), 10) || 0);
       if (item.agence != null) out.agence = item.agence;
       // Encours par palier PAR (montants) : support camelCase (API), snake_case ou champs bruts PAR_*_M.
       const p0m = item.encoursPar0 ?? item.encours_par0 ?? item.PAR_0_M ?? item.par_0_m;
@@ -1536,11 +1558,12 @@ export default {
         const nom = (it.nom || '-').trim() || '-';
         const key = this.cafMergeKey(nom);
         if (!byKey[key]) {
-          byKey[key] = { nom, nbreDossiers: 0, encoursCredit: 0, encoursImpayesSum: 0, ratioNbreImpayesWeighted: 0, encoursPar0Sum: 0, encoursPar30Sum: 0, encoursPar90Sum: 0, encoursPar180Sum: 0, encoursPar360Sum: 0, par0Sum: 0, par30Sum: 0, par90Sum: 0, par180Sum: 0, par360Sum: 0 };
+          byKey[key] = { nom, nbreDossiers: 0, nbreDossiersImpayes: 0, encoursCredit: 0, encoursImpayesSum: 0, ratioNbreImpayesWeighted: 0, encoursPar0Sum: 0, encoursPar30Sum: 0, encoursPar90Sum: 0, encoursPar180Sum: 0, encoursPar360Sum: 0, par0Sum: 0, par30Sum: 0, par90Sum: 0, par180Sum: 0, par360Sum: 0 };
         }
         const r = byKey[key];
         const enc = Number(it.encoursCredit) || 0;
         r.nbreDossiers += Number(it.nbreDossiers) || 0;
+        r.nbreDossiersImpayes += Number(it.nbreDossiersImpayes) || 0;
         r.encoursCredit += enc;
         r.encoursImpayesSum += Number(it.encoursImpayes) || 0;
         r.encoursPar0Sum += Number(it.encoursPar0) || 0;
@@ -1560,10 +1583,13 @@ export default {
         const enc = r.encoursCredit || 0;
         const pct = (x) => (enc > 0 ? Math.round((x / enc) * 100) / 100 : 0);
         const ratioEncoursImpayes = enc > 0 && r.encoursImpayesSum != null ? Math.round((r.encoursImpayesSum / enc) * 10000) / 100 : null;
-        const ratioNbreImpayes = enc > 0 && r.ratioNbreImpayesWeighted != null ? Math.round((r.ratioNbreImpayesWeighted / enc) * 100) / 100 : null;
+        const ratioNbreImpayes = r.nbreDossiers > 0
+          ? Math.round((r.nbreDossiersImpayes / r.nbreDossiers) * 10000) / 100
+          : 0;
         return {
           nom: r.nom,
           nbreDossiers: r.nbreDossiers,
+          nbreDossiersImpayes: r.nbreDossiersImpayes,
           encoursCredit: r.encoursCredit,
           encoursPar0: r.encoursPar0Sum,
           encoursPar30: r.encoursPar30Sum,
@@ -2551,6 +2577,12 @@ export default {
   color: #6b7280;
 }
 
+.caf-count {
+  font-weight: 500;
+  font-size: 13px;
+  color: #6b7280;
+}
+
 .table-wrapper {
   overflow-x: auto;
   max-height: 600px;
@@ -2707,7 +2739,7 @@ export default {
 }
 
 .flop-30-header {
-  padding: 20px 24px;
+  padding: 10px 24px;
   background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
   border-bottom: 2px solid #fecaca;
 }
@@ -2754,6 +2786,7 @@ export default {
 }
 
 .flop-30-table .flop-rang { width: 60px; text-align: center; }
+.flop-30-table .flop-agence { min-width: 160px; }
 .flop-30-table .flop-caf { min-width: 180px; }
 .flop-30-table .flop-num { min-width: 100px; text-align: right; }
 .flop-30-table .flop-amount { min-width: 120px; text-align: right; }
@@ -2809,7 +2842,7 @@ export default {
 }
 
 .top-50-header {
-  padding: 20px 24px;
+  padding: 10px 20px;
   background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
   border-bottom: 2px solid #bbf7d0;
 }
@@ -2856,7 +2889,8 @@ export default {
 }
 
 .top-50-table .top-rang { width: 60px; text-align: center; }
-.top-50-table .top-caf { min-width: 200px; }
+.top-50-table .top-agence { min-width: 160px; }
+.top-50-table .top-caf { min-width: 180px; }
 .top-50-table .top-num { min-width: 100px; text-align: right; }
 .top-50-table .top-amount { min-width: 130px; text-align: right; }
 .top-50-table .top-par { min-width: 90px; text-align: center; }

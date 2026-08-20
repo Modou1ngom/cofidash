@@ -7,8 +7,9 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-from database.oracle import get_oracle_connection
+from database.oracle_pool import get_pool_flexcube
 from services.agencies_flexcube_query import AGENCIES_FROM_STTM_BRANCH_SQL
+from services.cache_service import TTL_REFERENCE, get_cache, set_cache
 from services.utils import (
     get_territory_from_agency,
     get_territory_from_branch_code,
@@ -58,27 +59,35 @@ def _row_to_agency_dict(code_raw: Any, name_raw: Any) -> Optional[dict[str, Any]
 
 def fetch_agencies_from_flexcube() -> list[dict[str, Any]]:
     """Agences distinctes depuis CFSFCUBS145.STTM_BRANCH (Flexcube)."""
-    conn = get_oracle_connection()
-    try:
-        cur = conn.cursor()
-        cur.execute(AGENCIES_FROM_STTM_BRANCH_SQL)
+    cache_key = "flexcube-agencies"
+    cached = get_cache(cache_key)
+    if cached is not None:
+        logger.info("⚡ Agences Flexcube cache hit (%s)", len(cached))
+        return cached
 
-        cols = [d[0] for d in cur.description]
-        rows_out: list[dict[str, Any]] = []
-        seen: set[tuple[str, str]] = set()
-        for row in cur.fetchall():
-            rec = dict(zip(cols, row))
-            code_raw = rec.get("BRANCH_CODE")
-            name_raw = rec.get("BRANCH_NAME")
-            d = _row_to_agency_dict(code_raw, name_raw)
-            if not d:
-                continue
-            key = (d["code"], d["name"])
-            if key in seen:
-                continue
-            seen.add(key)
-            rows_out.append(d)
-        logger.info("📊 Agences STTM_BRANCH (Flexcube): %s ligne(s)", len(rows_out))
-        return rows_out
-    finally:
-        conn.close()
+    pool = get_pool_flexcube()
+    with pool.get_connection_context() as conn:
+        cur = conn.cursor()
+        try:
+            cur.execute(AGENCIES_FROM_STTM_BRANCH_SQL)
+
+            cols = [d[0] for d in cur.description]
+            rows_out: list[dict[str, Any]] = []
+            seen: set[tuple[str, str]] = set()
+            for row in cur.fetchall():
+                rec = dict(zip(cols, row))
+                code_raw = rec.get("BRANCH_CODE")
+                name_raw = rec.get("BRANCH_NAME")
+                d = _row_to_agency_dict(code_raw, name_raw)
+                if not d:
+                    continue
+                key = (d["code"], d["name"])
+                if key in seen:
+                    continue
+                seen.add(key)
+                rows_out.append(d)
+            logger.info("📊 Agences STTM_BRANCH (Flexcube): %s ligne(s)", len(rows_out))
+            set_cache(cache_key, rows_out, TTL_REFERENCE)
+            return rows_out
+        finally:
+            cur.close()

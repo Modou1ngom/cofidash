@@ -13,7 +13,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from database.oracle import get_oracle_connection_flexcube
+from database.oracle_pool import get_pool_flexcube
 
 logger = logging.getLogger(__name__)
 
@@ -230,61 +230,68 @@ def refresh_new_deal_snapshot() -> Dict[str, Any]:
     started = time.monotonic()
     init_new_deal_local_db()
 
-    ora_conn = None
     ora_cur = None
     try:
-        ora_conn = get_oracle_connection_flexcube()
-        if hasattr(ora_conn, "callTimeout"):
-            ora_conn.callTimeout = _CALL_TIMEOUT_MS
+        pool = get_pool_flexcube()
+        with pool.get_connection_context() as ora_conn:
+            if hasattr(ora_conn, "callTimeout"):
+                ora_conn.callTimeout = _CALL_TIMEOUT_MS
 
-        ora_cur = ora_conn.cursor()
-        logger.info("New Deal: exécution requête Flexcube…")
-        ora_cur.execute(select_sql)
-        cols = [d[0] for d in ora_cur.description]
+            ora_cur = ora_conn.cursor()
+            try:
+                logger.info("New Deal: exécution requête Flexcube…")
+                ora_cur.execute(select_sql)
+                cols = [d[0] for d in ora_cur.description]
 
-        batch: List[Tuple] = []
-        total = 0
-        fetch_size = 1000
+                batch: List[Tuple] = []
+                total = 0
+                fetch_size = 1000
 
-        with _sqlite_connect() as local:
-            local.execute("DELETE FROM new_deal_rows")
-            insert_sql = """
+                with _sqlite_connect() as local:
+                    local.execute("DELETE FROM new_deal_rows")
+                    insert_sql = """
                 INSERT INTO new_deal_rows (
                     code_agence, nom_agence, no_pret, matricule_client, nom_client,
                     compte, amount_financed, field_char_2, ui_dr_prod_ac, trn_dt
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
-            while True:
-                rows = ora_cur.fetchmany(fetch_size)
-                if not rows:
-                    break
-                batch = [_normalize_row(cols, r) for r in rows]
-                local.executemany(insert_sql, batch)
-                total += len(batch)
+                    while True:
+                        rows = ora_cur.fetchmany(fetch_size)
+                        if not rows:
+                            break
+                        batch = [_normalize_row(cols, r) for r in rows]
+                        local.executemany(insert_sql, batch)
+                        total += len(batch)
 
-            elapsed = round(time.monotonic() - started, 1)
-            _set_meta(
-                local,
-                status="success",
-                row_count=total,
-                elapsed_seconds=elapsed,
+                    elapsed = round(time.monotonic() - started, 1)
+                    _set_meta(
+                        local,
+                        status="success",
+                        row_count=total,
+                        elapsed_seconds=elapsed,
+                    )
+                    local.commit()
+            finally:
+                try:
+                    ora_cur.close()
+                except Exception:
+                    pass
+                ora_cur = None
+
+            logger.info(
+                "New Deal snapshot OK (%s lignes, %.1fs) → %s",
+                total,
+                elapsed,
+                LOCAL_DB_PATH,
             )
-            local.commit()
-
-        logger.info(
-            "New Deal snapshot OK (%s lignes, %.1fs) → %s",
-            total,
-            elapsed,
-            LOCAL_DB_PATH,
-        )
-        return {
-            "status": "success",
-            "table": TABLE_NAME,
-            "storage": "sqlite",
-            "path": str(LOCAL_DB_PATH),
-            "row_count": total,
-            "elapsed_seconds": elapsed,
-        }
+            return {
+                "status": "success",
+                "table": TABLE_NAME,
+                "storage": "sqlite",
+                "path": str(LOCAL_DB_PATH),
+                "row_count": total,
+                "elapsed_seconds": elapsed,
+            }
     except Exception as exc:
         logger.error("Échec rafraîchissement New Deal: %s", exc, exc_info=True)
         try:
@@ -298,11 +305,6 @@ def refresh_new_deal_snapshot() -> Dict[str, Any]:
         if ora_cur is not None:
             try:
                 ora_cur.close()
-            except Exception:
-                pass
-        if ora_conn is not None:
-            try:
-                ora_conn.close()
             except Exception:
                 pass
 

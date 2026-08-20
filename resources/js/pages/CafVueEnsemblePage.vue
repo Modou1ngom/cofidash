@@ -317,7 +317,7 @@
                   </div>
                 </div>
 
-                <h3 class="detail-section-title">Top encours — {{ selectedParBucket.label }}</h3>
+                <h3 class="detail-section-title">Dossiers — {{ selectedParBucket.label }}</h3>
                 <div v-if="!selectedParTopEncours.length" class="empty-state compact">Aucun dossier.</div>
                 <div v-else class="detail-table-wrap">
                   <table>
@@ -513,7 +513,7 @@
                     <strong>{{ formatMoney(encoursSain) }}</strong>
                   </div>
                 </div>
-                <h3 class="detail-section-title">Top encours (tous paliers)</h3>
+                <h3 class="detail-section-title">Dossiers (tous paliers)</h3>
                 <div v-if="!allTopEncours.length" class="empty-state compact">Aucun dossier.</div>
                 <div v-else class="detail-table-wrap">
                   <table>
@@ -749,6 +749,8 @@ export default {
       loanDetailError: '',
       parBucketDefs: PAR_BUCKET_DEFS,
       user: readStoredUser(),
+      _overviewRequestKey: '',
+      _overviewRequestSeq: 0,
     };
   },
   computed: {
@@ -953,11 +955,14 @@ export default {
   },
   watch: {
     '$route.query'() {
+      const prevKey = `${this.selectedCafCode}|${this.selectedMonth}|${this.selectedYear}`;
       this.initFromRoute();
-      if (this.selectedCafCode) {
-        this.applyCachedOverview();
-        this.loadOverview({ force: !this.overview });
+      const nextKey = `${this.selectedCafCode}|${this.selectedMonth}|${this.selectedYear}`;
+      if (!this.selectedCafCode || prevKey === nextKey) {
+        return;
       }
+      this.applyCachedOverview();
+      this.loadOverview({ force: !this.overview });
     },
   },
   methods: {
@@ -972,7 +977,11 @@ export default {
       }
       if (this.selectedCafCode) {
         this.applyCachedOverview();
-        await this.loadOverview({ background: Boolean(this.overview) });
+        const truncated = this.isTopEncoursTruncated(this.overview);
+        await this.loadOverview({
+          background: Boolean(this.overview) && !truncated,
+          force: truncated,
+        });
       }
     },
     initFromRoute() {
@@ -1029,12 +1038,18 @@ export default {
     async loadOverview({ background = false, force = false } = {}) {
       if (!this.selectedCafCode) return;
 
+      const requestKey = `${this.selectedCafCode}|${this.selectedMonth}|${this.selectedYear}`;
+      if (this._overviewRequestKey === requestKey) {
+        return;
+      }
+
       const cached = getCachedOverview(
         this.selectedCafCode,
         this.selectedMonth,
         this.selectedYear,
       );
-      if (cached?.data && !force) {
+      const truncated = this.isTopEncoursTruncated(cached?.data);
+      if (cached?.data && !force && !truncated) {
         this.overview = cached.data;
         if (isOverviewCacheFresh(cached) && !background) {
           this.loading = false;
@@ -1049,6 +1064,9 @@ export default {
         this.refreshing = true;
       }
       this.error = '';
+      this._overviewRequestKey = requestKey;
+      const seq = this._overviewRequestSeq + 1;
+      this._overviewRequestSeq = seq;
 
       try {
         const response = await window.axios.get('/api/v1/dashboard/caf-overview', {
@@ -1056,9 +1074,13 @@ export default {
             caf_code: this.selectedCafCode,
             month: this.selectedMonth,
             year: this.selectedYear,
+            refresh: force ? 1 : undefined,
           },
         });
         const payload = response.data?.data || null;
+        if (this._overviewRequestSeq !== seq) {
+          return;
+        }
         this.overview = payload;
         if (!payload) {
           this.error = 'Aucune donnée reçue.';
@@ -1075,12 +1097,24 @@ export default {
           this.error = err.response?.data?.message || 'Erreur lors du chargement de la vue d\'ensemble.';
         }
       } finally {
+        if (this._overviewRequestSeq === seq) {
+          this._overviewRequestKey = '';
+        }
         this.loading = false;
         this.refreshing = false;
       }
     },
     topEncoursFor(key) {
       return (this.overview?.top_encours || {})[key] || [];
+    },
+    isTopEncoursTruncated(overview) {
+      const counts = overview?.par_dossier_counts || {};
+      const tops = overview?.top_encours || {};
+      return Object.keys(counts).some((key) => {
+        const total = Number(counts[key]) || 0;
+        const listed = (tops[key] || []).length;
+        return total > listed && listed > 0 && listed <= 20;
+      });
     },
     entreesCount(key) {
       return ((this.overview?.entrees_par || {})[key] || []).length;
@@ -1122,8 +1156,11 @@ export default {
       this.activeDetail = id;
       document.body.classList.add('caf-detail-open');
     },
-    openParDetail(key) {
+    async openParDetail(key) {
       this.activeParBucket = key;
+      if (this.isTopEncoursTruncated(this.overview)) {
+        await this.loadOverview({ force: true, background: true });
+      }
       this.openDetail('par_bucket');
     },
     async openLoanDetail(loanNumber) {

@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, date, timedelta
 import calendar
 from typing import Optional
+from services.cache_service import TTL_DASHBOARD, generate_cache_key, get_cache, set_cache
 from services.utils import get_territory_from_agency, get_territory_key, get_all_territories, SERVICE_POINT_MAPPING
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,12 @@ def get_production_nombre_data(
     Returns:
         Données de production par agence avec comparaison M vs M-1
     """
+    cache_key = f"prod-nombre:{generate_cache_key(date_m_debut, date_m_fin, month, year, period, ref_date)}"
+    cached = get_cache(cache_key)
+    if cached is not None:
+        logger.info("⚡ production nombre cache hit")
+        return cached
+
     # Calcul des dates si month et year sont fournis
     if month and year:
         date_m_debut_obj = date(year, month, 1)
@@ -304,7 +311,7 @@ def get_production_nombre_data(
         )
     
     # Construire la réponse dans le nouveau format hiérarchique
-    return {
+    payload = {
         "period": {
             "m": {
                 "debut": date_m_debut_str,
@@ -375,6 +382,8 @@ def get_production_nombre_data(
         "count": len(results),
         "chargeAffaireDetails": charge_affaire_by_agency  # Détails par charge d'affaire (CAF)
     }
+    set_cache(cache_key, payload, TTL_DASHBOARD)
+    return payload
 
 
 def get_production_volume_data(
@@ -398,6 +407,11 @@ def get_production_volume_data(
     Returns:
         Données de production en volume par agence avec comparaison M vs M-1, incluant les frais de dossier
     """
+    cache_key = f"prod-volume:{generate_cache_key(date_m_debut, date_m_fin, month, year, period, ref_date)}"
+    cached = get_cache(cache_key)
+    if cached is not None:
+        logger.info("⚡ production volume cache hit")
+        return cached
     # Calcul des dates si month et year sont fournis
     if month and year:
         date_m_debut_obj = date(year, month, 1)
@@ -661,7 +675,7 @@ def get_production_volume_data(
         )
     
     # Construire la réponse dans le nouveau format hiérarchique
-    return {
+    payload = {
         "period": {
             "m": {
                 "debut": date_m_debut_str,
@@ -733,6 +747,8 @@ def get_production_volume_data(
         "count": len(results),
         "chargeAffaireDetails": charge_affaire_by_agency  # Détails par charge d'affaire (CAF)
     }
+    set_cache(cache_key, payload, TTL_DASHBOARD)
+    return payload
 
 
 def get_encours_credit_data(
@@ -755,6 +771,12 @@ def get_encours_credit_data(
     Returns:
         Données d'évolution de l'encours crédit par agence avec PTF et Produit d'intérêt pour M et M-1
     """
+    cache_key = f"prod-encours:{generate_cache_key(month_m, year_m, month_m1, year_m1, period, ref_date)}"
+    cached = get_cache(cache_key)
+    if cached is not None:
+        logger.info("⚡ encours crédit cache hit")
+        return cached
+
     import calendar
     
     # Calcul des dates si month et year sont fournis
@@ -970,7 +992,7 @@ def get_encours_credit_data(
                 'total': territories_totals[territory_key]
             }
     
-    return {
+    payload = {
         "period": {
             "m": {
                 "debut": date_m_debut_str,
@@ -989,4 +1011,6 @@ def get_encours_credit_data(
         "data": results,
         "count": len(results)
     }
+    set_cache(cache_key, payload, TTL_DASHBOARD)
+    return payload
 

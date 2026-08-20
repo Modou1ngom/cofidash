@@ -1786,6 +1786,38 @@ class DataController extends Controller
     }
 
     /**
+     * Ouvertures de comptes (courants 251 + épargne 253) — dashboard exécutif.
+     */
+    public function getComptesOuvertsData(Request $request): JsonResponse
+    {
+        try {
+            $month = $request->input('month');
+            $year = $request->input('year');
+
+            $result = $this->oracleService->getComptesOuvertsData(
+                $month ? (int) $month : null,
+                $year ? (int) $year : null
+            );
+
+            if ($result['success']) {
+                return response()->json($result['data']);
+            }
+
+            return response()->json([
+                'error' => $result['error'],
+                'message' => $result['message']
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération des ouvertures de comptes: '.$e->getMessage());
+
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Récupère les entrées PAR et provisions pour un palier (0, 30, 90, 180, 360)
      */
     public function getEntreesParData(Request $request): JsonResponse

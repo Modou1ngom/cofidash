@@ -1,58 +1,151 @@
 from typing import Tuple
 
-# Entrées PAR : table DASH_ENTREE_PAR (snapshot Cofina)
-# Snapshot : dernier MIGRATION_DATETIME du mois calendaire (MM/YYYY), comme DASH_PAR_GLOBAL /
-# DASH_DEPOT_GARANTIE — évite 0 ligne si aucune ligne n’a exactement le dernier jour du mois.
+# Entrées PAR live Flexcube (CFSFCUBS145).
+# Palier : NBRE_JOUR_RETARD = 1 / 31 / 91 / 181 / 361 (PAR 0 / 30 / 90 / 180 / 360).
+# Date d'arrêté : :as_of_date (DD/MM/YYYY).
 
 ENTREES_PAR_QUERY = """
+WITH ECHEANCE_IMPY AS (
+    SELECT
+        CLS.ACCOUNT_NUMBER,
+        p.FIELD_CHAR_2 AS CODE_GESTION_PRET,
+        p.BRANCH_CODE,
+        BR.BRANCH_NAME,
+        p.PRIMARY_APPLICANT_NAME AS NOM_CLIENT,
+        p.USER_DEFINED_STATUS AS STATUT_DECLASSEMENT,
+        p.BOOK_DATE AS DATE_MISE_EN_PLACE,
+        TRUNC(
+            NVL(
+                TO_DATE(:as_of_date, 'DD/MM/YYYY')
+                - (
+                    SELECT MIN(TRUNC(Z.SCHEDULE_DUE_DATE))
+                    FROM CFSFCUBS145.CLTB_ACCOUNT_SCHEDULES Z
+                    WHERE Z.ACCOUNT_NUMBER = p.ACCOUNT_NUMBER
+                      AND Z.COMPONENT_NAME IN ('PRINCIPAL', 'MAIN_INT', 'TAF_INT')
+                      AND Z.SCHEDULE_DUE_DATE <= TO_DATE(:as_of_date, 'DD/MM/YYYY')
+                      AND (Z.AMOUNT_DUE - Z.AMOUNT_SETTLED) > 0
+                ),
+                0
+            )
+        ) AS NBRE_JOUR_RETARD,
+        (
+            SELECT MAX(u.LOV_DESC)
+            FROM CFSFCUBS145.UDTM_LOV u
+            WHERE u.FIELD_NAME = 'GESTION_PRET'
+              AND u.LOV = p.FIELD_CHAR_2
+        ) AS CHARGE_AFFAIRE,
+        CLS.AMOUNT_DUE - CLS.AMOUNT_SETTLED AS PAR_CAPITAL_IMPY_ECH,
+        TO_DATE(:as_of_date, 'DD/MM/YYYY') - TRUNC(CLS.SCHEDULE_DUE_DATE) AS NB_JOUR_IMPY
+    FROM CFSFCUBS145.CLTB_ACCOUNT_SCHEDULES CLS
+    JOIN CFSFCUBS145.CLTB_ACCOUNT_MASTER p
+        ON p.ACCOUNT_NUMBER = CLS.ACCOUNT_NUMBER
+    LEFT JOIN CFSFCUBS145.STTM_BRANCH BR
+        ON BR.BRANCH_CODE = p.BRANCH_CODE
+    WHERE CLS.COMPONENT_NAME = 'PRINCIPAL'
+      AND CLS.SCH_STATUS = 'IMPY'
+      AND p.ACCOUNT_STATUS NOT IN ('L', 'V')
+),
+FINAL_CLTB_ACCOUNT_SCHEDULES AS (
+    SELECT
+        ACCOUNT_NUMBER,
+        COMPONENT_NAME,
+        CASE
+            WHEN COMPONENT_NAME IN ('ODIN_PNTY', 'ODIN_PNTYT', 'ODPR_PNTY', 'ODPR_PNTYT')
+            THEN SCHEDULE_ST_DATE
+            ELSE SCHEDULE_DUE_DATE
+        END AS SCHEDULE_DUE_DATE,
+        AMOUNT_DUE,
+        AMOUNT_SETTLED
+    FROM CFSFCUBS145.CLTB_ACCOUNT_SCHEDULES
+),
+EXIGIBLE AS (
+    SELECT
+        c.ACCOUNT_NUMBER AS NO_PRET,
+        SUM(NVL(z.AMOUNT_DUE, 0) - NVL(z.AMOUNT_SETTLED, 0)) AS EXIGIBLE
+    FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER c
+    JOIN FINAL_CLTB_ACCOUNT_SCHEDULES z
+        ON z.ACCOUNT_NUMBER = c.ACCOUNT_NUMBER
+    WHERE c.ACCOUNT_STATUS NOT IN ('L', 'V')
+      AND z.COMPONENT_NAME IN (
+          'PRINCIPAL', 'MAIN_INT',
+          'ODIN_PNTY', 'ODIN_PNTYT', 'ODPR_PNTY', 'ODPR_PNTYT'
+      )
+      AND z.SCHEDULE_DUE_DATE <= TO_DATE(:as_of_date, 'DD/MM/YYYY')
+    GROUP BY c.ACCOUNT_NUMBER
+),
+PAR_DETAIL AS (
+    SELECT
+        EY.CODE_GESTION_PRET,
+        EY.CHARGE_AFFAIRE,
+        EY.BRANCH_NAME AS AGENCE,
+        EY.BRANCH_CODE AS CODE_AGENCE,
+        EY.ACCOUNT_NUMBER AS NO_DOSSIER,
+        EY.NOM_CLIENT,
+        EY.STATUT_DECLASSEMENT,
+        EY.DATE_MISE_EN_PLACE,
+        EY.NBRE_JOUR_RETARD,
+        SUM(CASE WHEN EY.NB_JOUR_IMPY > 0 THEN EY.PAR_CAPITAL_IMPY_ECH ELSE 0 END) AS ENCOURS_PAR,
+        MAX(NVL(ex.EXIGIBLE, 0)) AS EXIGIBLE
+    FROM ECHEANCE_IMPY EY
+    LEFT JOIN EXIGIBLE ex
+        ON ex.NO_PRET = EY.ACCOUNT_NUMBER
+    GROUP BY
+        EY.ACCOUNT_NUMBER,
+        EY.CODE_GESTION_PRET,
+        EY.CHARGE_AFFAIRE,
+        EY.BRANCH_NAME,
+        EY.BRANCH_CODE,
+        EY.NOM_CLIENT,
+        EY.STATUT_DECLASSEMENT,
+        EY.DATE_MISE_EN_PLACE,
+        EY.NBRE_JOUR_RETARD
+)
 SELECT
-    NO_PRET,
+    NO_DOSSIER AS NO_PRET,
+    CODE_GESTION_PRET AS BLOC,
     CHARGE_AFFAIRE,
-    BLOC,
-    STATUT AS STATUT_DECLASSEMENT,
+    STATUT_DECLASSEMENT,
     NOM_CLIENT,
     DATE_MISE_EN_PLACE,
     CODE_AGENCE,
     AGENCE,
-    VOLUME AS PRODUCTION_EN_VOLUME,
-    DATE_PREM_ECHEANCE,
-    ENCOURS_TOTAL,
-    ENCOURS_SAIN,
-    ENCOURS_IMPAYE,
-    DUREE_IMP_A_DATE AS DUREE_IMPAYE_A_DATE,
-    PROVISIONS,
-    MIGRATION_DATE,
-    MIGRATION_DATETIME,
-    MIGRATION_DATE_MINUS1
-FROM DASH_ENTREE_PAR
-WHERE MIGRATION_DATETIME = (
-    SELECT MAX(d.MIGRATION_DATETIME)
-    FROM DASH_ENTREE_PAR d
-    WHERE TO_CHAR(d.MIGRATION_DATE_MINUS1, 'MM/YYYY') = :month_year
-)
-AND (__PAR_BUCKET_WHERE__)
-ORDER BY AGENCE, NO_PRET
+    EXIGIBLE AS ENCOURS_TOTAL,
+    GREATEST(NVL(EXIGIBLE, 0) - NVL(ENCOURS_PAR, 0), 0) AS ENCOURS_SAIN,
+    NVL(ENCOURS_PAR, 0) AS ENCOURS_IMPAYE,
+    NBRE_JOUR_RETARD AS DUREE_IMPAYE_A_DATE,
+    ROUND(
+        NVL(ENCOURS_PAR, 0) * CASE
+            WHEN STATUT_DECLASSEMENT = 'DCL2' THEN 0.4
+            WHEN STATUT_DECLASSEMENT = 'DCL3' THEN 0.8
+            WHEN STATUT_DECLASSEMENT = 'DCL4' THEN 1
+            ELSE 0
+        END,
+        2
+    ) AS PROVISIONS
+FROM PAR_DETAIL
+WHERE NBRE_JOUR_RETARD = :par_entry_day
+ORDER BY AGENCE, CHARGE_AFFAIRE, NO_DOSSIER
 """
 
-# Durée d’impayé à date (jours) : égalités strates DASH (1 → PAR0, 31 → PAR30, …, 361 → PAR360).
-PAR_FILTERS = {
-    0: "(NVL(DUREE_IMP_A_DATE, 0) = 1)",
-    30: "(NVL(DUREE_IMP_A_DATE, 0) = 31)",
-    90: "(NVL(DUREE_IMP_A_DATE, 0) = 91)",
-    180: "(NVL(DUREE_IMP_A_DATE, 0) = 181)",
-    360: "(NVL(DUREE_IMP_A_DATE, 0) = 361)",
+PAR_ENTRY_DAYS = {
+    0: 1,
+    30: 31,
+    90: 91,
+    180: 181,
+    360: 361,
 }
 
 
-def get_query_entrees_par(month_year: str, par_bucket: int) -> Tuple[str, dict]:
+def get_query_entrees_par(as_of_date: str, par_bucket: int) -> Tuple[str, dict]:
     """
-    Retourne la requête Entrées PAR (DASH) et les binds Oracle.
+    Requête Entrées PAR live Flexcube.
 
     par_bucket: 0, 30, 90, 180 ou 360
-    month_year: mois calendaire du snapshot, format MM/YYYY (ex. 04/2026)
+    as_of_date: date d'arrêté DD/MM/YYYY
     """
-    if par_bucket not in PAR_FILTERS:
+    if par_bucket not in PAR_ENTRY_DAYS:
         raise ValueError("par_bucket doit être 0, 30, 90, 180 ou 360")
-    where_par = PAR_FILTERS[par_bucket]
-    sql = ENTREES_PAR_QUERY.replace("__PAR_BUCKET_WHERE__", where_par)
-    return sql, {"month_year": month_year}
+    return ENTREES_PAR_QUERY, {
+        "as_of_date": as_of_date,
+        "par_entry_day": PAR_ENTRY_DAYS[par_bucket],
+    }

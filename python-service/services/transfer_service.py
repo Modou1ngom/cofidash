@@ -5,7 +5,8 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 import calendar
-from database.oracle import get_oracle_connection
+from database.oracle_pool import get_pool
+from services.cache_service import TTL_DASHBOARD, generate_cache_key, get_cache, set_cache
 
 from services.orange_money_dash_query import (
     sql_dash_envoi_orange_money,
@@ -120,61 +121,61 @@ def _get_dash_transfer_envoi_paiement_merged(
     mode: str,
 ) -> List[Dict]:
     """Exécute deux requêtes DASH (envoi + paiement) et fusionne les volumes par CODE_AGENCE."""
-    conn = get_oracle_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute(sql_env, binds)
-        cols_e = [d[0] for d in cursor.description]
-        env_rows = [dict(zip(cols_e, r)) for r in cursor.fetchall()]
+    pool = get_pool()
+    with pool.get_connection_context() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute(sql_env, binds)
+            cols_e = [d[0] for d in cursor.description]
+            env_rows = [dict(zip(cols_e, r)) for r in cursor.fetchall()]
 
-        cursor.execute(sql_pay, binds)
-        cols_p = [d[0] for d in cursor.description]
-        pay_rows = [dict(zip(cols_p, r)) for r in cursor.fetchall()]
+            cursor.execute(sql_pay, binds)
+            cols_p = [d[0] for d in cursor.description]
+            pay_rows = [dict(zip(cols_p, r)) for r in cursor.fetchall()]
 
-        logger.info(
-            "📊 %s DASH: %s lignes envoi, %s lignes paiement (mode=%s)",
-            log_label,
-            len(env_rows),
-            len(pay_rows),
-            mode,
-        )
-
-        env_by = _rows_by_agence_sum_volumes(env_rows, env_m_key, env_m1_key)
-        pay_by = _rows_by_agence_sum_volumes(pay_rows, pay_m_key, pay_m1_key)
-
-        all_codes = set(env_by.keys()) | set(pay_by.keys())
-        result: List[Dict] = []
-        for code in sorted(all_codes):
-            e = env_by.get(code, {"vm": 0.0, "vm1": 0.0, "lib": ""})
-            p = pay_by.get(code, {"vm": 0.0, "vm1": 0.0, "lib": ""})
-            lib = e["lib"] or p["lib"] or ""
-            vm = e["vm"] + p["vm"]
-            vm1 = e["vm1"] + p["vm1"]
-            var_vol = vm - vm1
-            var_pct = round((var_vol / vm1 * 100), 2) if vm1 else 0.0
-            result.append(
-                {
-                    "agence": lib,
-                    "code_agence": code,
-                    "volume_m": round(vm, 2),
-                    "volume_m1": round(vm1, 2),
-                    "variation_volume": round(var_vol, 2),
-                    "variation_pct": var_pct,
-                }
+            logger.info(
+                "📊 %s DASH: %s lignes envoi, %s lignes paiement (mode=%s)",
+                log_label,
+                len(env_rows),
+                len(pay_rows),
+                mode,
             )
 
-        logger.info(f"✅ Données {log_label} (DASH): {len(result)} agences")
-        return result
+            env_by = _rows_by_agence_sum_volumes(env_rows, env_m_key, env_m1_key)
+            pay_by = _rows_by_agence_sum_volumes(pay_rows, pay_m_key, pay_m1_key)
 
-    except Exception as e:
-        logger.error(
-            f"❌ Erreur lors de la récupération des données {log_label}: {str(e)}",
-            exc_info=True,
-        )
-        raise
-    finally:
-        cursor.close()
-        conn.close()
+            all_codes = set(env_by.keys()) | set(pay_by.keys())
+            result: List[Dict] = []
+            for code in sorted(all_codes):
+                e = env_by.get(code, {"vm": 0.0, "vm1": 0.0, "lib": ""})
+                p = pay_by.get(code, {"vm": 0.0, "vm1": 0.0, "lib": ""})
+                lib = e["lib"] or p["lib"] or ""
+                vm = e["vm"] + p["vm"]
+                vm1 = e["vm1"] + p["vm1"]
+                var_vol = vm - vm1
+                var_pct = round((var_vol / vm1 * 100), 2) if vm1 else 0.0
+                result.append(
+                    {
+                        "agence": lib,
+                        "code_agence": code,
+                        "volume_m": round(vm, 2),
+                        "volume_m1": round(vm1, 2),
+                        "variation_volume": round(var_vol, 2),
+                        "variation_pct": var_pct,
+                    }
+                )
+
+            logger.info(f"✅ Données {log_label} (DASH): {len(result)} agences")
+            return result
+
+        except Exception as e:
+            logger.error(
+                f"❌ Erreur lors de la récupération des données {log_label}: {str(e)}",
+                exc_info=True,
+            )
+            raise
+        finally:
+            cursor.close()
 
 
 def get_orange_money_data(
@@ -459,8 +460,14 @@ def get_transfer_data(period: str = "month", month: Optional[int] = None, year: 
         year = year or now.year
     
     logger.info(f"📅 Paramètres de date finaux (après conversion): month={month} (type: {type(month)}), year={year} (type: {type(year)})")
-    
-    # Calculer les dates - IMPORTANT: recalculer à chaque appel pour éviter le cache
+
+    cache_key = f"transfers:{generate_cache_key(period, month, year, date, service)}"
+    cached = get_cache(cache_key)
+    if cached is not None:
+        logger.info("⚡ transfers cache hit service=%s period=%s", service, period)
+        return cached
+
+    # Calculer les dates
     dates = calculate_month_dates(month, year)
     
     logger.info(f"📅 Dates calculées: M={dates['m_debut']} à {dates['m_fin']}, M-1={dates['m1_debut']} à {dates['m1_fin']}")
@@ -548,6 +555,7 @@ def get_transfer_data(period: str = "month", month: Optional[int] = None, year: 
         }
         
         logger.info(f"✅ Données de transferts récupérées: {len(result_data['agencies'])} agences")
+        set_cache(cache_key, result_data, TTL_DASHBOARD)
         return result_data
         
     except Exception as e:

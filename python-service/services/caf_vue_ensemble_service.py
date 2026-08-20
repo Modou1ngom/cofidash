@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import logging
 import re
-from concurrent.futures import ThreadPoolExecutor
+import threading
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from database.oracle_pool import get_pool_flexcube
+from services.cache_service import generate_cache_key, get_cache, set_cache
 from services.new_deal import get_new_deal_for_caf
 
 logger = logging.getLogger(__name__)
@@ -48,6 +50,14 @@ _ENTREES_PAR_ENTRY_DAYS = {
     "par_360": 361,
 }
 
+# Une page vue-ensemble ne doit pas monopoliser le pool Flexcube (5+10).
+_FLEXCUBE_SLOTS = threading.Semaphore(4)
+_ORACLE_WORKERS = 3
+_ENCOURS_EVO_WORKERS = 2
+_VUE_ENSEMBLE_CACHE_TTL = 120
+_inflight_lock = threading.Lock()
+_inflight: Dict[str, Future] = {}
+
 
 def _load_query(filename: str) -> str:
     path = _QUERIES_DIR / filename
@@ -80,14 +90,15 @@ def _execute_flexcube(
     timeout_ms: int = 90_000,
 ) -> List[Dict[str, Any]]:
     pool = get_pool_flexcube()
-    with pool.get_connection_context() as conn:
-        cursor = conn.cursor()
-        try:
-            cursor.callTimeout = timeout_ms
-            cursor.execute(query, params or {})
-            return _rows_to_dicts(cursor)
-        finally:
-            cursor.close()
+    with _FLEXCUBE_SLOTS:
+        with pool.get_connection_context() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.callTimeout = timeout_ms
+                cursor.execute(query, params or {})
+                return _rows_to_dicts(cursor)
+            finally:
+                cursor.close()
 
 
 def _to_float(value: Any) -> float:
@@ -376,27 +387,25 @@ def _fetch_caf_encours_evolution_year(
         return m, _fetch_caf_encours_as_of_flexcube(code, as_of, branch_code)
 
     if months_to_fetch:
-        workers = min(6, len(months_to_fetch))
+        workers = min(_ENCOURS_EVO_WORKERS, len(months_to_fetch))
         with ThreadPoolExecutor(max_workers=workers) as pool:
             for m, amount in pool.map(_month_encours, months_to_fetch):
                 series[m - 1] = round(amount / 1_000_000, 3)
 
-    # Mois sélectionné : toujours à l'index calendaire (end_month - 1), jamais [-1].
+    # Mois sélectionné : as-of historique seulement (le live est aligné par l'appelant).
     live_amount = 0.0
     try:
-        if (selected_year, end_month) <= (today.year, today.month):
-            rows = get_portefeuille_caf(branch_code, code)
-            if rows:
-                live_amount = _to_float(rows[0].get("encours_total"))
-            if live_amount <= 0:
-                as_of = today if _is_current_month(end_month, selected_year) else date(
-                    selected_year,
-                    end_month,
-                    calendar.monthrange(selected_year, end_month)[1],
-                )
-                if as_of > today:
-                    as_of = today
-                live_amount = _fetch_caf_encours_as_of_flexcube(code, as_of, branch_code)
+        if (selected_year, end_month) <= (today.year, today.month) and not _is_current_month(
+            end_month, selected_year
+        ):
+            as_of = date(
+                selected_year,
+                end_month,
+                calendar.monthrange(selected_year, end_month)[1],
+            )
+            if as_of > today:
+                as_of = today
+            live_amount = _fetch_caf_encours_as_of_flexcube(code, as_of, branch_code)
     except Exception as exc:
         logger.warning(
             "Évolution encours live CAF indisponible pour %s: %s", code, exc
@@ -786,15 +795,22 @@ def _scoped_portefeuille_query(
     return sql, params
 
 
+_TOP_ENCOURS_MOBILE_LIMIT = 20
+_TOP_ENCOURS_WEB_LIMIT = 1_000_000
+
+
 def _scoped_top_encours_query(
     par_key: str,
     filename: str,
     caf_code: Optional[str],
     charge_affaire: Optional[str],
+    all_dossiers: bool = False,
 ) -> tuple[str, dict]:
     sql = _load_query(filename)
     conditions: List[str] = []
-    params: dict = {}
+    params: dict = {
+        "top_limit": _TOP_ENCOURS_WEB_LIMIT if all_dossiers else _TOP_ENCOURS_MOBILE_LIMIT,
+    }
     if caf_code:
         sql = _inject_early_caf_filter(sql, caf_code)
         conditions.append("CODE_GESTION_PRET = :caf_code")
@@ -1025,6 +1041,7 @@ def get_top_encours_par(
     branch_code: Optional[str] = None,
     caf_code: Optional[str] = None,
     charge_affaire: Optional[str] = None,
+    all_dossiers: bool = False,
 ) -> List[Dict[str, Any]]:
     filename = _TOP_ENCOURS_FILES.get(par_key)
     if not filename:
@@ -1032,7 +1049,7 @@ def get_top_encours_par(
     amount_key = f"encours_{par_key}"
     try:
         sql, params = _scoped_top_encours_query(
-            par_key, filename, caf_code, charge_affaire
+            par_key, filename, caf_code, charge_affaire, all_dossiers
         )
         rows = _execute_flexcube(sql, params)
         return [_normalize_top_encours_row(r, amount_key) for r in rows]
@@ -1047,7 +1064,7 @@ def _append_caf_filter_after_rn(sql: str, conditions: List[str]) -> str:
     clause = " AND ".join(conditions)
     if re.search(r"\bWHERE\s+RN\s*<=", sql, flags=re.IGNORECASE):
         return re.sub(
-            r"(\bWHERE\s+RN\s*<=\s*20[^\n]*)",
+            r"(\bWHERE\s+RN\s*<=\s*\S+[^\n]*)",
             rf"\1\n  AND {clause}",
             sql,
             count=1,
@@ -1086,23 +1103,79 @@ def get_caf_vue_ensemble(
     charge_affaire: Optional[str] = None,
     month: Optional[int] = None,
     year: Optional[int] = None,
+    all_dossiers: bool = False,
+    refresh: bool = False,
 ) -> Dict[str, Any]:
     """
     Agrège les données vue d'ensemble CAF — Flexcube uniquement.
 
     - portefeuille / tops / entrées PAR : live Flexcube (snapshot courant)
     - production : décaissements Flexcube du mois sélectionné
+    - all_dossiers : True = tous les dossiers PAR (web) ; False = top 20 (mobile)
     """
     branch_code = branch_codes[0] if branch_codes else None
     selected_month, selected_year = _resolve_month_year(month, year)
+    cache_key = (
+        "caf-vue-ensemble:"
+        + generate_cache_key(
+            branch_code,
+            caf_code,
+            charge_affaire,
+            selected_month,
+            selected_year,
+            bool(all_dossiers),
+        )
+    )
+    cached = None if refresh else get_cache(cache_key)
+    if cached is not None:
+        logger.info(
+            "⚡ vue-ensemble cache hit caf=%s month=%s year=%s",
+            caf_code,
+            selected_month,
+            selected_year,
+        )
+        return cached
+
+    owner = False
+    with _inflight_lock:
+        inflight = _inflight.get(cache_key)
+        if inflight is None:
+            inflight = Future()
+            _inflight[cache_key] = inflight
+            owner = True
+
+    if not owner:
+        logger.info(
+            "⏳ vue-ensemble coalesced caf=%s month=%s year=%s",
+            caf_code,
+            selected_month,
+            selected_year,
+        )
+        try:
+            return inflight.result(timeout=180)
+        except Exception:
+            logger.warning(
+                "vue-ensemble coalesced timeout caf=%s month=%s year=%s",
+                caf_code,
+                selected_month,
+                selected_year,
+            )
+            return _empty_caf_vue_ensemble(
+                branch_code, caf_code, charge_affaire, selected_month, selected_year
+            )
+
     try:
-        return _build_caf_vue_ensemble(
+        data = _build_caf_vue_ensemble(
             branch_code=branch_code,
             caf_code=caf_code,
             charge_affaire=charge_affaire,
             selected_month=selected_month,
             selected_year=selected_year,
+            all_dossiers=all_dossiers,
         )
+        set_cache(cache_key, data, _VUE_ENSEMBLE_CACHE_TTL)
+        inflight.set_result(data)
+        return data
     except Exception as exc:
         logger.error(
             "vue ensemble CAF échouée (mois=%s/%s, caf=%s): %s",
@@ -1112,9 +1185,14 @@ def get_caf_vue_ensemble(
             exc,
             exc_info=True,
         )
-        return _empty_caf_vue_ensemble(
+        empty = _empty_caf_vue_ensemble(
             branch_code, caf_code, charge_affaire, selected_month, selected_year
         )
+        inflight.set_result(empty)
+        return empty
+    finally:
+        with _inflight_lock:
+            _inflight.pop(cache_key, None)
 
 
 def _build_caf_vue_ensemble(
@@ -1123,6 +1201,7 @@ def _build_caf_vue_ensemble(
     charge_affaire: Optional[str],
     selected_month: int,
     selected_year: int,
+    all_dossiers: bool = False,
 ) -> Dict[str, Any]:
     if _is_future_month(selected_month, selected_year):
         return _empty_caf_vue_ensemble(
@@ -1131,7 +1210,7 @@ def _build_caf_vue_ensemble(
 
     current_month = _is_current_month(selected_month, selected_year)
 
-    with ThreadPoolExecutor(max_workers=5) as pool:
+    with ThreadPoolExecutor(max_workers=_ORACLE_WORKERS) as pool:
         fut_portefeuille = (
             pool.submit(get_portefeuille_caf, branch_code, caf_code) if caf_code else None
         )
@@ -1233,7 +1312,7 @@ def _build_caf_vue_ensemble(
     # Tops / entrées PAR : snapshot live Flexcube (utile surtout pour le mois courant).
     if caf_code and current_month:
         try:
-            with ThreadPoolExecutor(max_workers=3) as pool:
+            with ThreadPoolExecutor(max_workers=_ORACLE_WORKERS) as pool:
                 entree_futs = {
                     key: pool.submit(
                         get_entrees_par,
@@ -1251,10 +1330,15 @@ def _build_caf_vue_ensemble(
             logger.warning("Entrées PAR live CAF indisponibles: %s", exc)
 
         try:
-            with ThreadPoolExecutor(max_workers=3) as pool:
+            with ThreadPoolExecutor(max_workers=_ORACLE_WORKERS) as pool:
                 top_futs = {
                     key: pool.submit(
-                        get_top_encours_par, key, branch_code, caf_code, charge_affaire
+                        get_top_encours_par,
+                        key,
+                        branch_code,
+                        caf_code,
+                        charge_affaire,
+                        all_dossiers,
                     )
                     for key in _TOP_ENCOURS_FILES
                 }

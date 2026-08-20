@@ -5,11 +5,7 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List
 import logging
 from datetime import datetime
-from database.oracle import (
-    get_oracle_connection,
-    get_oracle_connection_cofina,
-    get_oracle_connection_flexcube,
-)
+from database.oracle_pool import get_pool, get_pool_flexcube
 from services.clients_service import get_clients_data
 from services.production_service import get_production_nombre_data, get_production_volume_data, get_encours_credit_data
 from services.collection_service import get_collection_data
@@ -25,6 +21,7 @@ from services.portefeuille_risque_service import (
     get_portefeuille_risque_caf_data,
 )
 from services.entrees_par_service import get_entrees_par_data
+from services.comptes_ouverts_service import get_comptes_ouverts_data
 from services.reference_compte_service import get_gl_by_code, search_gl
 from services.cr_par_agence_service import get_cr_data_by_parent_gl
 from services.agencies_from_flexcube_service import fetch_agencies_from_flexcube
@@ -49,21 +46,26 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/oracle", tags=["oracle"])
 
 
+def _ping_pool(pool):
+    with pool.get_connection_context() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT 1 FROM DUAL")
+            return cursor.fetchone()
+        finally:
+            cursor.close()
+
+
 @router.get("/test")
 async def test_oracle_connection():
     """Teste la connexion Oracle Flexcube (compatibilité historique)."""
     try:
-        conn = get_oracle_connection_flexcube()
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1 FROM DUAL")
-        result = cursor.fetchone()
-        cursor.close()
-        conn.close()
+        result = _ping_pool(get_pool_flexcube())
         return {
             "status": "success",
             "database": "flexcube",
             "message": "Connexion Oracle Flexcube réussie",
-            "result": result[0],
+            "result": result[0] if result else None,
         }
     except HTTPException:
         raise
@@ -78,17 +80,12 @@ async def test_both_oracle_connections():
     """Teste les deux connexions Oracle : DASH (REPORT_GROUPE) et Flexcube."""
     results = {}
 
-    for name, connect_fn in (
-        ("cofina_dash", get_oracle_connection_cofina),
-        ("flexcube", get_oracle_connection_flexcube),
+    for name, pool in (
+        ("cofina_dash", get_pool()),
+        ("flexcube", get_pool_flexcube()),
     ):
         try:
-            conn = connect_fn()
-            cursor = conn.cursor()
-            cursor.execute("SELECT 1 FROM DUAL")
-            row = cursor.fetchone()
-            cursor.close()
-            conn.close()
+            row = _ping_pool(pool)
             results[name] = {"status": "ok", "result": row[0] if row else None}
         except HTTPException as exc:
             results[name] = {"status": "error", "detail": exc.detail}
@@ -106,12 +103,7 @@ async def test_both_oracle_connections():
 async def test_cofina_connection():
     """Teste la connexion Oracle DASH (REPORT_GROUPE)."""
     try:
-        conn = get_oracle_connection_cofina()
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1 FROM DUAL")
-        result = cursor.fetchone()
-        cursor.close()
-        conn.close()
+        result = _ping_pool(get_pool())
         return {"status": "success", "message": "Connexion Oracle réussie", "result": result[0]}
     except HTTPException:
         # Propager les HTTPException directement (elles contiennent déjà le message détaillé)
@@ -130,46 +122,44 @@ async def test_cofina_connection():
 async def get_oracle_tables(schema: Optional[str] = None, limit: Optional[int] = 1000):
     """Récupère la liste des tables disponibles"""
     try:
-        conn = get_oracle_connection()
-        cursor = conn.cursor()
-        tables = []
-        
-        # Si un schéma est spécifié, filtrer par schéma
-        if schema:
-            query = """
+        pool = get_pool_flexcube()
+        with pool.get_connection_context() as conn:
+            cursor = conn.cursor()
+            try:
+                tables = []
+
+                if schema:
+                    query = """
                 SELECT owner || '.' || table_name as table_name 
                 FROM all_tables 
                 WHERE owner = UPPER(:schema)
                 ORDER BY owner, table_name
             """
-            if limit:
-                query += f" FETCH FIRST {limit} ROWS ONLY"
-            cursor.execute(query, [schema])
-            tables = [row[0] for row in cursor.fetchall()]
-        else:
-            # D'abord essayer user_tables (tables du schéma de l'utilisateur)
-            query = """
+                    if limit:
+                        query += f" FETCH FIRST {limit} ROWS ONLY"
+                    cursor.execute(query, [schema])
+                    tables = [row[0] for row in cursor.fetchall()]
+                else:
+                    query = """
                 SELECT table_name 
                 FROM user_tables 
                 ORDER BY table_name
             """
-            cursor.execute(query)
-            tables = [row[0] for row in cursor.fetchall()]
-            
-            # Si aucune table dans user_tables, récupérer toutes les tables accessibles
-            if len(tables) == 0:
-                query = """
+                    cursor.execute(query)
+                    tables = [row[0] for row in cursor.fetchall()]
+
+                    if len(tables) == 0:
+                        query = """
                     SELECT DISTINCT owner || '.' || table_name as table_name 
                     FROM all_tables 
                     ORDER BY owner, table_name
                 """
-                if limit:
-                    query += f" FETCH FIRST {limit} ROWS ONLY"
-                cursor.execute(query)
-                tables = [row[0] for row in cursor.fetchall()]
-        
-        cursor.close()
-        conn.close()
+                        if limit:
+                            query += f" FETCH FIRST {limit} ROWS ONLY"
+                        cursor.execute(query)
+                        tables = [row[0] for row in cursor.fetchall()]
+            finally:
+                cursor.close()
         return {"tables": tables, "count": len(tables)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des tables: {str(e)}")
@@ -183,22 +173,17 @@ async def execute_oracle_query(query: dict):
         if not sql:
             raise HTTPException(status_code=400, detail="La requête SQL est requise")
         
-        conn = get_oracle_connection()
-        cursor = conn.cursor()
-        cursor.execute(sql)
-        
-        # Récupérer les noms de colonnes
-        columns = [desc[0] for desc in cursor.description]
-        
-        # Récupérer les données
-        rows = cursor.fetchall()
-        
-        # Convertir en liste de dictionnaires
-        results = [dict(zip(columns, row)) for row in rows]
-        
-        cursor.close()
-        conn.close()
-        
+        pool = get_pool_flexcube()
+        with pool.get_connection_context() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(sql)
+                columns = [desc[0] for desc in cursor.description]
+                rows = cursor.fetchall()
+                results = [dict(zip(columns, row)) for row in rows]
+            finally:
+                cursor.close()
+
         return {"data": results, "count": len(results)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lors de l'exécution de la requête: {str(e)}")
@@ -953,6 +938,31 @@ async def get_portefeuille_risque_caf_endpoint(
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de la récupération des données PAR | CAF: {error_message}",
+        )
+
+
+@router.get("/data/comptes-ouverts")
+async def get_comptes_ouverts_endpoint(
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+):
+    """
+    Ouvertures de comptes (251 courants + 253 épargne) par agence, territoire et mois.
+    Dates dynamiques : YTD du 1er janvier jusqu'à la fin du mois sélectionné.
+    """
+    try:
+        data = get_comptes_ouverts_data(month=month, year=year)
+        return data
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_message = str(e) if str(e) else repr(e)
+        logger.error("Erreur comptes-ouverts: %s", error_message, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors de la récupération des ouvertures de comptes: {error_message}",
         )
 
 

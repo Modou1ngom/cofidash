@@ -15,7 +15,7 @@ from config.settings import (
     ORACLE_DASH_EXIGIBLE_TABLE,
     ORACLE_DASH_TOMBE_MOIS_TABLE,
 )
-from database.oracle import get_oracle_connection_cofina
+from database.oracle_pool import get_pool
 from services.volume_dat_service import (
     _ref_month_year,
     _week_range_dd_mm_yyyy,
@@ -251,33 +251,31 @@ def get_domiciliation_flux_data(
         exig_tbl,
     )
 
-    conn = get_oracle_connection_cofina()
-    try:
+    pool = get_pool()
+    with pool.get_connection_context() as conn:
         cursor = conn.cursor()
-        cursor.arraysize = 500
-        cursor.execute(sql, binds)
-        columns = [d[0] for d in cursor.description]
-        data = [dict(zip(columns, row)) for row in cursor.fetchall()]
-        data = _rows_to_json_serializable(data)
-
-        out = {
-            "data": data,
-            "meta": {
-                "period": period,
-                "binds": binds,
-                "rowCount": len(data),
-                "tables": {
-                    "etat_cpt": etat_tbl,
-                    "tombe_mois": tombe_tbl,
-                    "exigible": exig_tbl,
-                },
-            },
-        }
-        set_cache(cache_key, out, ttl=300)
-        logger.info("📊 Domiciliation flux — %s lignes", len(data))
-        return out
-    finally:
         try:
-            conn.close()
-        except Exception:
-            pass
+            cursor.arraysize = 500
+            cursor.execute(sql, binds)
+            columns = [d[0] for d in cursor.description]
+            data = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            data = _rows_to_json_serializable(data)
+
+            out = {
+                "data": data,
+                "meta": {
+                    "period": period,
+                    "binds": binds,
+                    "rowCount": len(data),
+                    "tables": {
+                        "etat_cpt": etat_tbl,
+                        "tombe_mois": tombe_tbl,
+                        "exigible": exig_tbl,
+                    },
+                },
+            }
+            set_cache(cache_key, out, ttl=300)
+            logger.info("📊 Domiciliation flux — %s lignes", len(data))
+            return out
+        finally:
+            cursor.close()

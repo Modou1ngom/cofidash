@@ -5,7 +5,8 @@ import logging
 from typing import List, Dict, Optional
 from datetime import datetime
 import calendar
-from database.oracle import get_oracle_connection
+from database.oracle_pool import get_pool_flexcube
+from services.cache_service import TTL_DASHBOARD, generate_cache_key, get_cache, set_cache
 from services.utils import AGENCY_TERRITORY_MAPPING, SERVICE_POINT_MAPPING
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,12 @@ def get_stock_provision_data(month: Optional[int] = None, year: Optional[int] = 
     date_end_sql = date_end.strftime("%Y-%m-%d")
     
     logger.info(f"📅 Date utilisée: {date_end_str} (SQL: {date_end_sql})")
+
+    cache_key = f"stock-provision:{generate_cache_key(month, year)}"
+    cached = get_cache(cache_key)
+    if cached is not None:
+        logger.info("⚡ stock provision cache hit month=%s year=%s", month, year)
+        return cached
     
     # Construire la requête avec les dates formatées
     query = f"""
@@ -198,46 +205,41 @@ def get_stock_provision_data(month: Optional[int] = None, year: Optional[int] = 
     """
     
     try:
-        connection = get_oracle_connection()
-        cursor = connection.cursor()
-        
-        logger.info("📊 Exécution de la requête Stock Provision...")
-        logger.info(f"📝 Date utilisée dans la requête: date_end_str={date_end_str}, date_end_sql={date_end_sql}")
-        logger.debug(f"📝 Requête SQL (premiers 1000 caractères): {query[:1000]}...")
-        try:
-            cursor.execute(query)
-        except Exception as sql_error:
-            logger.error(f"❌ Erreur SQL détaillée: {str(sql_error)}")
-            logger.error(f"❌ Requête SQL complète:\n{query}")
-            raise
-        
-        # Récupérer les noms de colonnes
-        columns = [desc[0] for desc in cursor.description]
-        
-        # Récupérer toutes les lignes
-        rows = cursor.fetchall()
-        
-        # Convertir en liste de dictionnaires
-        result = []
-        for row in rows:
-            row_dict = {}
-            for i, col in enumerate(columns):
-                value = row[i]
-                # Convertir les nombres en float si nécessaire
-                if isinstance(value, (int, float)):
-                    row_dict[col] = float(value) if value is not None else 0
-                else:
-                    row_dict[col] = value
-            result.append(row_dict)
-        
-        cursor.close()
-        connection.close()
+        pool = get_pool_flexcube()
+        with pool.get_connection_context() as connection:
+            cursor = connection.cursor()
+            try:
+                logger.info("📊 Exécution de la requête Stock Provision...")
+                logger.info(f"📝 Date utilisée dans la requête: date_end_str={date_end_str}, date_end_sql={date_end_sql}")
+                logger.debug(f"📝 Requête SQL (premiers 1000 caractères): {query[:1000]}...")
+                try:
+                    cursor.execute(query)
+                except Exception as sql_error:
+                    logger.error(f"❌ Erreur SQL détaillée: {str(sql_error)}")
+                    logger.error(f"❌ Requête SQL complète:\n{query}")
+                    raise
+
+                columns = [desc[0] for desc in cursor.description]
+                rows = cursor.fetchall()
+
+                result = []
+                for row in rows:
+                    row_dict = {}
+                    for i, col in enumerate(columns):
+                        value = row[i]
+                        if isinstance(value, (int, float)):
+                            row_dict[col] = float(value) if value is not None else 0
+                        else:
+                            row_dict[col] = value
+                    result.append(row_dict)
+            finally:
+                cursor.close()
         
         logger.info(f"✅ {len(result)} lignes récupérées pour Stock Provision")
         
         # Organiser les données par territoire
         hierarchical_data = organize_stock_data_by_territory(result)
-        
+        set_cache(cache_key, hierarchical_data, TTL_DASHBOARD)
         return hierarchical_data
         
     except Exception as e:

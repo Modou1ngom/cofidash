@@ -7,7 +7,7 @@ from datetime import date as dt_date
 from datetime import datetime, timedelta
 from typing import Optional
 
-from database.oracle import get_oracle_connection_cofina
+from database.oracle_pool import get_pool
 from services.utils import get_territory_from_agency, get_territory_from_branch_code, get_territory_key
 
 logger = logging.getLogger(__name__)
@@ -277,8 +277,8 @@ def get_volume_dat_data(period: str = "month", zone: Optional[str] = None,
         logger.info("✅ Données Volume DAT récupérées depuis le cache")
         return cached_result
     
-    conn = get_oracle_connection_cofina()
-    try:
+    pool = get_pool()
+    with pool.get_connection_context() as conn:
         cursor = conn.cursor()
         
         cursor.arraysize = 1000
@@ -471,8 +471,5 @@ def get_volume_dat_data(period: str = "month", zone: Optional[str] = None,
         except Exception as e:
             logger.error(f"❌ Erreur lors de la récupération des données Volume DAT: {str(e)}", exc_info=True)
             raise
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        finally:
+            cursor.close()

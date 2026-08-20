@@ -1,11 +1,12 @@
 const TTL_MS = 5 * 60 * 1000;
+const CACHE_VERSION = 'all-dossiers-v2';
 
 const overviewCache = new Map();
 let managersCache = null;
 let managersCacheAt = 0;
 
 export function overviewCacheKey(cafCode, month, year) {
-  return `${String(cafCode || '').trim()}|${month}|${year}`;
+  return `${CACHE_VERSION}|${String(cafCode || '').trim()}|${month}|${year}`;
 }
 
 export function getCachedOverview(cafCode, month, year) {

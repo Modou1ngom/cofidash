@@ -6,7 +6,7 @@ from datetime import date as dt_date
 from datetime import timedelta
 from typing import Optional
 
-from database.oracle import get_oracle_connection_cofina
+from database.oracle_pool import get_pool
 from services.utils import get_territory_from_agency, get_territory_from_branch_code, get_territory_key
 from services.volume_dat_service import (
     _dedupe_dash_encours_rows,
@@ -152,8 +152,8 @@ def get_depot_garantie_data(period: str = "month", zone: Optional[str] = None,
         logger.info("✅ Données Dépôt de Garantie récupérées depuis le cache")
         return cached_result
 
-    conn = get_oracle_connection_cofina()
-    try:
+    pool = get_pool()
+    with pool.get_connection_context() as conn:
         cursor = conn.cursor()
         cursor.arraysize = 1000
         cursor.prefetchrows = 1000
@@ -313,8 +313,5 @@ def get_depot_garantie_data(period: str = "month", zone: Optional[str] = None,
         except Exception as e:
             logger.error(f"❌ Erreur lors de la récupération des données Dépôt de Garantie: {str(e)}", exc_info=True)
             raise
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        finally:
+            cursor.close()
