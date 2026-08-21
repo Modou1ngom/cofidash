@@ -1,22 +1,32 @@
 <template>
   <div class="comptes-ouverts">
     <div class="toolbar-row">
-      <div class="view-tabs">
+      <div class="toolbar-nav">
+        <div class="view-tabs">
+          <button
+            type="button"
+            class="view-tab"
+            :class="{ active: viewMode === 'dashboard' }"
+            @click="viewMode = 'dashboard'"
+          >
+            Dashboard
+          </button>
+          <button
+            type="button"
+            class="view-tab"
+            :class="{ active: viewMode === 'performance' }"
+            @click="viewMode = 'performance'"
+          >
+            Performance
+          </button>
+        </div>
         <button
+          v-if="canOpenSettings"
           type="button"
-          class="view-tab"
-          :class="{ active: viewMode === 'dashboard' }"
-          @click="viewMode = 'dashboard'"
+          class="btn-settings"
+          @click="openSettings"
         >
-          Dashboard
-        </button>
-        <button
-          type="button"
-          class="view-tab"
-          :class="{ active: viewMode === 'performance' }"
-          @click="viewMode = 'performance'"
-        >
-          Performance
+          Paramétrage
         </button>
       </div>
 
@@ -54,37 +64,47 @@
             <span class="kpi-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 3v18M3 12h18" stroke-linecap="round"/></svg>
             </span>
-            <span class="kpi-label">Obj. annuel</span>
-            <strong class="kpi-value">{{ formatObj(kpis.objAnnuel) }}</strong>
+            <div class="kpi-body">
+              <span class="kpi-label">Obj. annuel</span>
+              <strong class="kpi-value">{{ formatObj(kpis.objAnnuel) }}</strong>
+            </div>
           </article>
           <article class="kpi kpi-ytd">
             <span class="kpi-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 19V5M4 19h16M8 15l3-3 3 2 4-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </span>
-            <span class="kpi-label">Obj. YTD</span>
-            <strong class="kpi-value">{{ formatObj(kpis.objYtd) }}</strong>
+            <div class="kpi-body">
+              <span class="kpi-label">Obj. YTD</span>
+              <strong class="kpi-value">{{ formatObj(kpis.objYtd) }}</strong>
+            </div>
           </article>
           <article class="kpi kpi-realise">
             <span class="kpi-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke-linecap="round"/></svg>
             </span>
-            <span class="kpi-label">Réalisé YTD</span>
-            <strong class="kpi-value">{{ formatNumber(kpis.realiseYtd) }}</strong>
-            <span class="kpi-meta">{{ formatNumber(kpis.courantsYtd) }} courants · {{ formatNumber(kpis.epargneYtd) }} épargne</span>
+            <div class="kpi-body">
+              <span class="kpi-label">Réalisé YTD</span>
+              <strong class="kpi-value">{{ formatNumber(kpis.realiseYtd) }}</strong>
+            </div>
+            <span class="kpi-meta">{{ formatNumber(kpis.courantsYtd) }} cour. · {{ formatNumber(kpis.epargneYtd) }} ép.</span>
           </article>
           <article class="kpi" :class="ecartClass(kpis.ecartYtd)">
             <span class="kpi-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M7 17l5-5 5 5M7 7l5 5 5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </span>
-            <span class="kpi-label">Écart YTD</span>
-            <strong class="kpi-value">{{ kpis.tro === null ? '—' : formatSigned(kpis.ecartYtd) }}</strong>
+            <div class="kpi-body">
+              <span class="kpi-label">Écart YTD</span>
+              <strong class="kpi-value">{{ kpis.tro === null ? '—' : formatSigned(kpis.ecartYtd) }}</strong>
+            </div>
           </article>
           <article class="kpi" :class="troTone(kpis.tro)">
             <span class="kpi-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" stroke-linecap="round"/></svg>
             </span>
-            <span class="kpi-label">TRO YTD</span>
-            <strong class="kpi-value">{{ formatTro(kpis.tro) }}</strong>
+            <div class="kpi-body">
+              <span class="kpi-label">TRO YTD</span>
+              <strong class="kpi-value">{{ formatTro(kpis.tro) }}</strong>
+            </div>
           </article>
         </section>
 
@@ -95,12 +115,12 @@
                 <span class="dash-card-accent" />
                 <h3>Évolution mensuelle</h3>
               </div>
-              <span class="dash-card-meta">Ouvertures cumulées par mois</span>
+              <span class="dash-card-meta">{{ monthlyChartMeta }}</span>
             </div>
             <div class="dash-card-chart-body">
               <PythonChart
-                :key="`co-bar-${selectedMonth}-${selectedYear}`"
-                chart-type="bar"
+                :key="`co-${monthlyChartType}-${selectedMonth}-${selectedYear}-${hasObjectives}`"
+                :chart-type="monthlyChartType"
                 :chart-data="monthlyChartData"
                 :height="180"
               />
@@ -108,65 +128,128 @@
           </section>
 
           <div class="dash-col-stack">
+            <div class="dash-mode-bar">
+              <span class="dash-mode-bar-label">Vue dashboard</span>
+              <div class="perf-mode-toggle">
+                <button
+                  type="button"
+                  :class="{ active: dashboardMode === 'ytd' }"
+                  @click="dashboardMode = 'ytd'"
+                >
+                  YTD
+                </button>
+                <button
+                  type="button"
+                  :class="{ active: dashboardMode === 'month' }"
+                  @click="dashboardMode = 'month'"
+                >
+                  Mois
+                </button>
+              </div>
+            </div>
             <section class="dash-card">
               <div class="dash-card-head">
                 <div class="dash-card-title">
                   <span class="dash-card-accent" />
                   <h3>Performance territoire</h3>
                 </div>
-                <span class="dash-card-meta">{{ hasObjectives ? 'TRO YTD' : 'Réalisé YTD' }}</span>
+                <span class="dash-card-meta">{{ dashboardTerritoryMeta }}</span>
               </div>
-              <ul class="territory-rank">
-                <li v-for="(row, idx) in dashboardTerritoryRows" :key="row.key">
-                  <span class="territory-num">{{ idx + 1 }}</span>
-                  <div class="territory-body">
-                    <div class="territory-top">
-                      <span class="name">{{ row.name }}</span>
-                      <span v-if="hasObjectives" :class="troBadge(row.tro)">{{ formatTro(row.tro) }}</span>
-                      <span v-else class="badge good">{{ formatNumber(row.realise_ytd) }}</span>
-                    </div>
-                    <div class="territory-bar-track">
-                      <div
-                        class="territory-bar-fill"
-                        :class="hasObjectives ? troBarClass(row.tro) : 'bar-good'"
-                        :style="{ width: `${territoryBarWidth(row)}%` }"
-                      />
-                    </div>
-                  </div>
-                </li>
-                <li v-if="!dashboardTerritoryRows.length" class="empty">Aucune donnée</li>
-              </ul>
+              <div class="territory-table-wrap">
+                <table class="territory-table">
+                  <thead>
+                    <tr>
+                      <th>Territoire</th>
+                      <th class="num col-objectif">{{ dashboardMode === 'ytd' ? 'Obj. YTD' : 'Obj. mensuel' }}</th>
+                      <th class="num">{{ dashboardMode === 'ytd' ? 'Réalisé YTD' : 'Réalisé mois' }}</th>
+                      <th class="num">TRO</th>
+                      <th class="col-status">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="(row, idx) in dashboardTerritoryRows"
+                      :key="row.key"
+                      :class="{ 'is-lead': idx === 0 }"
+                    >
+                      <td>
+                        <strong v-if="idx === 0">{{ row.name }}</strong>
+                        <template v-else>{{ row.name }}</template>
+                      </td>
+                      <td class="num col-objectif">{{ formatObj(dashboardTerritoryObj(row)) }}</td>
+                      <td class="num">{{ formatNumber(dashboardTerritoryRealise(row)) }}</td>
+                      <td class="num col-tro">
+                        <template v-if="dashboardTerritoryTro(row) !== null">{{ formatTro(dashboardTerritoryTro(row)) }}</template>
+                        <template v-else>—</template>
+                      </td>
+                      <td class="col-status">
+                        <span
+                          class="status-orb"
+                          :class="territoryStatusClass(dashboardTerritoryTro(row))"
+                          :title="formatTro(dashboardTerritoryTro(row))"
+                        />
+                      </td>
+                    </tr>
+                    <tr v-if="!dashboardTerritoryRows.length">
+                      <td colspan="5" class="empty">Aucune donnée</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="status-legend"></div>
+              </div>
             </section>
 
-            <section class="dash-card dash-card--alerts">
-              <div class="dash-card-head">
-                <div class="dash-card-title">
-                  <span class="dash-card-accent dash-card-accent--warn" />
-                  <h3>Alertes management</h3>
-                </div>
+            <section class="dash-card dash-card--resume">
+              <div class="resume-card-head">
+                <h3>Résumé période</h3>
+                <span class="dash-card-meta">{{ dashboardTerritoryMeta }}</span>
               </div>
-              <ul class="alerts-list">
-                <li v-for="(alert, idx) in managementAlerts" :key="idx" :class="['alert-item', alert.type]">
-                  <span class="alert-icon" aria-hidden="true">
-                    <svg v-if="alert.type === 'good'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <ul class="dash-resume-list">
+                <li class="resume-agency">
+                  <span class="dash-resume-icon" aria-hidden="true">🏆</span>
+                  <div class="dash-resume-text">
+                    <span class="dash-resume-label">Meilleure agence</span>
+                    <strong class="dash-resume-value">{{ dashboardBestAgency?.name || '—' }}</strong>
+                  </div>
+                  <span
+                    v-if="dashboardBestAgency"
+                    :class="hasObjectives && dashboardAgencyTro(dashboardBestAgency) !== null ? troBadge(dashboardAgencyTro(dashboardBestAgency)) : 'badge good'"
+                  >
+                    {{ hasObjectives && dashboardAgencyTro(dashboardBestAgency) !== null ? formatTro(dashboardAgencyTro(dashboardBestAgency)) : formatNumber(dashboardAgencyRealise(dashboardBestAgency)) }}
                   </span>
-                  <p>{{ alert.text }}</p>
                 </li>
-                <li v-if="!managementAlerts.length" class="empty">Aucune alerte</li>
+                <li class="resume-zone">
+                  <span class="dash-resume-icon" aria-hidden="true">🎖️</span>
+                  <div class="dash-resume-text">
+                    <span class="dash-resume-label">Meilleur territoire</span>
+                    <strong class="dash-resume-value">{{ dashboardBestTerritory?.name || '—' }}</strong>
+                  </div>
+                  <span
+                    v-if="dashboardBestTerritory"
+                    :class="hasObjectives && dashboardTerritoryTro(dashboardBestTerritory) !== null ? troBadge(dashboardTerritoryTro(dashboardBestTerritory)) : 'badge good'"
+                  >
+                    {{ hasObjectives && dashboardTerritoryTro(dashboardBestTerritory) !== null ? formatTro(dashboardTerritoryTro(dashboardBestTerritory)) : formatNumber(dashboardTerritoryRealise(dashboardBestTerritory)) }}
+                  </span>
+                </li>
               </ul>
+              <div class="status-legend"></div>
             </section>
           </div>
         </div>
 
-        <div class="dash-row dash-row--2">
+        <div class="dash-rank-section">
+          <div class="dash-rank-toolbar">
+            <span class="dash-rank-toolbar-label">Classement agences</span>
+            <span class="dash-rank-toolbar-meta">{{ dashboardAgencyRankMeta }}</span>
+          </div>
+          <div class="dash-row dash-row--2">
           <section class="dash-card dash-card--top">
             <div class="dash-card-head">
               <div class="dash-card-title">
                 <span class="dash-card-accent dash-card-accent--top" />
                 <h3>Top 5 agences</h3>
               </div>
-              <span class="dash-card-meta">{{ hasObjectives ? 'TRO YTD' : 'Ouvertures YTD' }}</span>
+              <span class="dash-card-meta">{{ dashboardAgencyRankMeta }}</span>
             </div>
             <ol class="agency-rank">
               <li v-for="(row, idx) in dashboardTopAgencies" :key="row.id">
@@ -175,8 +258,13 @@
                   <strong>{{ row.name }}</strong>
                   <span>{{ row.territory }}</span>
                 </div>
-                <span v-if="hasObjectives" :class="troBadge(row.tro)">{{ formatTro(row.tro) }}</span>
-                <span v-else class="badge good">{{ formatNumber(row.realise_ytd) }}</span>
+                <span
+                  v-if="hasObjectives && dashboardAgencyTro(row) !== null"
+                  :class="troBadge(dashboardAgencyTro(row))"
+                >
+                  {{ formatTro(dashboardAgencyTro(row)) }}
+                </span>
+                <span v-else class="badge good">{{ formatNumber(dashboardAgencyRealise(row)) }}</span>
               </li>
               <li v-if="!dashboardTopAgencies.length" class="empty">Aucune donnée</li>
             </ol>
@@ -186,9 +274,9 @@
             <div class="dash-card-head">
               <div class="dash-card-title">
                 <span class="dash-card-accent dash-card-accent--flop" />
-                <h3>Bottom 5 agences</h3>
+                <h3>Flop 5 agences</h3>
               </div>
-              <span class="dash-card-meta">{{ hasObjectives ? 'TRO YTD' : 'Ouvertures YTD' }}</span>
+              <span class="dash-card-meta">{{ dashboardAgencyRankMeta }}</span>
             </div>
             <ol class="agency-rank">
               <li v-for="(row, idx) in dashboardFlopAgencies" :key="row.id">
@@ -197,12 +285,18 @@
                   <strong>{{ row.name }}</strong>
                   <span>{{ row.territory }}</span>
                 </div>
-                <span v-if="hasObjectives" :class="troBadge(row.tro)">{{ formatTro(row.tro) }}</span>
-                <span v-else class="badge warn">{{ formatNumber(row.realise_ytd) }}</span>
+                <span
+                  v-if="hasObjectives && dashboardAgencyTro(row) !== null"
+                  :class="troBadge(dashboardAgencyTro(row))"
+                >
+                  {{ formatTro(dashboardAgencyTro(row)) }}
+                </span>
+                <span v-else class="badge warn">{{ formatNumber(dashboardAgencyRealise(row)) }}</span>
               </li>
               <li v-if="!dashboardFlopAgencies.length" class="empty">Aucune donnée</li>
             </ol>
           </section>
+          </div>
         </div>
       </div>
 
@@ -210,23 +304,43 @@
       <div v-if="viewMode === 'performance'" class="perf-view">
         <section class="perf-kpi-grid">
           <article class="perf-kpi perf-kpi--month">
-            <span class="perf-kpi-label">Réalisé du mois</span>
-            <strong class="perf-kpi-value">{{ formatNumber(kpis.realiseM) }}</strong>
-            <span class="perf-kpi-meta">{{ monthLabel }} {{ selectedYear }}</span>
+            <div class="perf-kpi-main">
+              <span class="perf-kpi-label">Réalisé du mois</span>
+              <strong class="perf-kpi-value">{{ formatNumber(kpis.realiseM) }}</strong>
+            </div>
+            <div class="perf-kpi-side">
+              <span class="perf-kpi-obj">
+                Obj. {{ formatObj(kpis.objMensuel) }}
+                <span v-if="kpis.troM !== null" :class="troBadge(kpis.troM)">{{ formatTro(kpis.troM) }}</span>
+              </span>
+              <span class="perf-kpi-meta">{{ monthLabel }} {{ selectedYear }}</span>
+            </div>
           </article>
           <article class="perf-kpi perf-kpi--ytd">
-            <span class="perf-kpi-label">Réalisé YTD</span>
-            <strong class="perf-kpi-value">{{ formatNumber(kpis.realiseYtd) }}</strong>
-            <span class="perf-kpi-meta">Jan. → {{ monthLabel }}</span>
+            <div class="perf-kpi-main">
+              <span class="perf-kpi-label">Réalisé YTD</span>
+              <strong class="perf-kpi-value">{{ formatNumber(kpis.realiseYtd) }}</strong>
+            </div>
+            <div class="perf-kpi-side">
+              <span class="perf-kpi-obj">
+                Obj. {{ formatObj(kpis.objYtd) }}
+                <span v-if="kpis.tro !== null" :class="troBadge(kpis.tro)">{{ formatTro(kpis.tro) }}</span>
+              </span>
+              <span class="perf-kpi-meta">Jan. → {{ monthLabel }}</span>
+            </div>
           </article>
           <article class="perf-kpi perf-kpi--courants">
-            <span class="perf-kpi-label">Courants</span>
-            <strong class="perf-kpi-value">{{ formatNumber(kpis.courantsYtd) }}</strong>
+            <div class="perf-kpi-main">
+              <span class="perf-kpi-label">Courants</span>
+              <strong class="perf-kpi-value">{{ formatNumber(kpis.courantsYtd) }}</strong>
+            </div>
             <span class="perf-kpi-meta">Mois : {{ formatNumber(kpis.courantsM) }}</span>
           </article>
           <article class="perf-kpi perf-kpi--epargne">
-            <span class="perf-kpi-label">Épargne</span>
-            <strong class="perf-kpi-value">{{ formatNumber(kpis.epargneYtd) }}</strong>
+            <div class="perf-kpi-main">
+              <span class="perf-kpi-label">Épargne</span>
+              <strong class="perf-kpi-value">{{ formatNumber(kpis.epargneYtd) }}</strong>
+            </div>
             <span class="perf-kpi-meta">Mois : {{ formatNumber(kpis.epargneM) }} · Mix {{ formatTro(kpis.mixCourants) }}</span>
           </article>
         </section>
@@ -245,7 +359,7 @@
                   <tr>
                     <th>Mois</th>
                     <th class="num col-highlight">Total</th>
-                    <th class="num">Obj. YTD</th>
+                    <th class="num col-objectif">Obj. YTD</th>
                     <th class="num">Courants</th>
                     <th class="num">Épargne</th>
                     <th class="num">TRO cumulé</th>
@@ -263,7 +377,7 @@
                       </span>
                     </td>
                     <td class="num col-highlight"><strong>{{ formatNumber(row.total) }}</strong></td>
-                    <td class="num">{{ formatObj(row.objYtd) }}</td>
+                    <td class="num col-objectif">{{ formatObj(row.objYtd) }}</td>
                     <td class="num">{{ formatNumber(row.courants) }}</td>
                     <td class="num">{{ formatNumber(row.epargne) }}</td>
                     <td class="num">
@@ -275,7 +389,7 @@
                   <tr class="perf-tfoot">
                     <td><strong>Total période</strong></td>
                     <td class="num col-highlight"><strong>{{ formatNumber(kpis.realiseYtd) }}</strong></td>
-                    <td class="num"><strong>{{ formatObj(kpis.objYtd) }}</strong></td>
+                    <td class="num col-objectif"><strong>{{ formatObj(kpis.objYtd) }}</strong></td>
                     <td class="num"><strong>{{ formatNumber(kpis.courantsYtd) }}</strong></td>
                     <td class="num"><strong>{{ formatNumber(kpis.epargneYtd) }}</strong></td>
                     <td class="num"><span :class="troBadge(kpis.tro)">{{ formatTro(kpis.tro) }}</span></td>
@@ -317,7 +431,7 @@
                 <thead>
                   <tr>
                     <th>Territoire</th>
-                    <th class="num">{{ perfTableMode === 'ytd' ? 'Obj. YTD' : 'Obj. mensuel' }}</th>
+                    <th class="num col-objectif">{{ perfTableMode === 'ytd' ? 'Obj. YTD' : 'Obj. mensuel' }}</th>
                     <th class="num col-highlight">{{ perfTableMode === 'ytd' ? 'Réalisé YTD' : 'Réalisé mois' }}</th>
                     <th class="num">TRO</th>
                     <th class="num">Courants</th>
@@ -346,7 +460,7 @@
                           <strong>{{ territory.name }}</strong>
                         </div>
                       </td>
-                      <td class="num">{{ formatObj(perfObjSecondary(territory)) }}</td>
+                      <td class="num col-objectif">{{ formatObj(perfObjSecondary(territory)) }}</td>
                       <td class="num col-highlight"><strong>{{ formatNumber(perfRealise(territory)) }}</strong></td>
                       <td class="num"><span :class="troBadge(perfTro(territory))">{{ formatTro(perfTro(territory)) }}</span></td>
                       <td class="num">{{ formatNumber(perfCourants(territory)) }}</td>
@@ -359,7 +473,7 @@
                         class="agency-row"
                       >
                         <td class="agency-name">{{ agency.branch_name }}</td>
-                        <td class="num">{{ formatObj(perfObjSecondary(agency)) }}</td>
+                        <td class="num col-objectif">{{ formatObj(perfObjSecondary(agency)) }}</td>
                         <td class="num col-highlight">{{ formatNumber(perfRealise(agency)) }}</td>
                         <td class="num"><span :class="troBadge(perfTro(agency))">{{ formatTro(perfTro(agency)) }}</span></td>
                         <td class="num">{{ formatNumber(perfCourants(agency)) }}</td>
@@ -371,7 +485,7 @@
                 <tfoot>
                   <tr class="perf-tfoot">
                     <td><strong>TOTAL</strong></td>
-                    <td class="num"><strong>{{ formatObj(perfTotals.objSecondary) }}</strong></td>
+                    <td class="num col-objectif"><strong>{{ formatObj(perfTotals.objSecondary) }}</strong></td>
                     <td class="num col-highlight"><strong>{{ formatNumber(perfTotals.realise) }}</strong></td>
                     <td class="num"><span :class="troBadge(perfTotals.tro)">{{ formatTro(perfTotals.tro) }}</span></td>
                     <td class="num"><strong>{{ formatNumber(perfTotals.courants) }}</strong></td>
@@ -384,23 +498,184 @@
         </div>
       </div>
     </template>
+
+    <Teleport to="body">
+      <div v-if="showSettings" class="co-modal-overlay" @click.self="closeSettings">
+        <div class="co-modal" role="dialog" aria-labelledby="co-settings-title">
+          <div class="co-modal-head">
+            <h2 id="co-settings-title">Paramétrage — Comptes ouverts</h2>
+            <button type="button" class="co-modal-close" aria-label="Fermer" @click="closeSettings">×</button>
+          </div>
+          <div class="co-modal-tabs" v-if="canEditSeuils">
+            <button
+              type="button"
+              :class="{ active: settingsTab === 'seuils' }"
+              @click="settingsTab = 'seuils'"
+            >
+              Seuils TRO
+            </button>
+            <button
+              type="button"
+              :class="{ active: settingsTab === 'objectifs' }"
+              @click="settingsTab = 'objectifs'"
+            >
+              Objectifs
+            </button>
+          </div>
+
+          <div v-if="settingsTab === 'seuils' && canEditSeuils" class="co-modal-body">
+            <p class="co-modal-intro">Seuils TRO — réservés au DGA. Ils colorent le statut du tableau Performance territoire.</p>
+            <ul class="seuil-editor">
+              <li>
+                <span class="status-orb good" />
+                <label>
+                  <span>≥</span>
+                  <input v-model.number="seuilDraft.reached" type="number" min="1" max="200" step="0.1" />
+                  <span>%</span>
+                </label>
+                <span class="seuil-label">objectif atteint/dépassé</span>
+              </li>
+              <li>
+                <span class="status-orb close" />
+                <label>
+                  <input v-model.number="seuilDraft.close" type="number" min="1" max="200" step="0.1" />
+                  <span>%</span>
+                </label>
+                <span class="seuil-label">proche de l'objectif</span>
+              </li>
+              <li>
+                <span class="status-orb mid" />
+                <label>
+                  <input v-model.number="seuilDraft.vigilance" type="number" min="1" max="200" step="0.1" />
+                  <span>%</span>
+                </label>
+                <span class="seuil-label">vigilance</span>
+              </li>
+              <li>
+                <span class="status-orb bad" />
+                <span class="seuil-fixed">&lt; {{ formatSeuil(seuilDraft.vigilance) }}</span>
+                <span class="seuil-label">alerte</span>
+              </li>
+            </ul>
+            <p v-if="seuilError" class="co-modal-error">{{ seuilError }}</p>
+          </div>
+
+          <div v-else class="co-modal-body">
+            <p class="co-modal-intro">{{ objectivesIntro }}</p>
+            <div v-if="dgaEnvelopeStats" class="co-modal-envelope" :class="{ 'is-over': dgaEnvelopeStats.isOver }">
+              <span class="envelope-item">
+                <span class="envelope-label">Objectif DGA</span>
+                <strong class="envelope-value envelope-value--obj">{{ formatNumber(dgaEnvelopeStats.envelope) }}</strong>
+              </span>
+              <span class="envelope-sep">·</span>
+              <span class="envelope-item">
+                <span class="envelope-label">Réparti</span>
+                <strong class="envelope-value" :class="{ 'envelope-value--over': dgaEnvelopeStats.isOver }">
+                  {{ formatNumber(dgaEnvelopeStats.distributed) }}
+                </strong>
+              </span>
+              <span class="envelope-sep">·</span>
+              <span class="envelope-item">
+                <span class="envelope-label">Reste</span>
+                <strong class="envelope-value" :class="dgaEnvelopeStats.remaining < 0 ? 'envelope-value--over' : 'envelope-value--ok'">
+                  {{ formatSigned(dgaEnvelopeStats.remaining) }}
+                </strong>
+              </span>
+            </div>
+            <p v-else-if="dgaEnvelopeMissingLabel" class="co-modal-envelope co-modal-envelope--muted">
+              {{ dgaEnvelopeMissingLabel }}
+            </p>
+            <div v-if="canToggleObjectiveLevel" class="perf-mode-toggle" style="margin-bottom: 0.75rem;">
+              <button
+                type="button"
+                :class="{ active: objectiveLevel === 'territoire' }"
+                @click="switchObjectiveLevel('territoire')"
+              >
+                Territoires
+              </button>
+              <button
+                type="button"
+                :class="{ active: objectiveLevel === 'agence' }"
+                @click="switchObjectiveLevel('agence')"
+              >
+                Agences
+              </button>
+            </div>
+            <div class="obj-editor-wrap">
+              <table class="obj-editor">
+                <thead>
+                  <tr>
+                    <th>{{ objectiveLevel === 'territoire' ? 'Territoire' : 'Agence' }}</th>
+                    <th v-if="objectiveLevel === 'agence'">Territoire</th>
+                    <th class="num col-objectif">Objectif mensuel</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in objectiveDrafts" :key="row.key">
+                    <td>{{ objectiveLevel === 'territoire' ? row.territory : row.agency_name }}</td>
+                    <td v-if="objectiveLevel === 'agence'">{{ row.territory }}</td>
+                    <td class="num">
+                      <input
+                        v-model.number="row.value"
+                        type="number"
+                        min="0"
+                        step="1"
+                        class="obj-input"
+                      />
+                    </td>
+                  </tr>
+                  <tr v-if="!objectiveDrafts.length">
+                    <td :colspan="objectiveLevel === 'agence' ? 3 : 2" class="empty">{{ emptyObjectivesLabel }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p v-if="objectiveError" class="co-modal-error">{{ objectiveError }}</p>
+            <p v-if="objectiveSuccess" class="co-modal-ok">{{ objectiveSuccess }}</p>
+          </div>
+
+          <div class="co-modal-foot">
+            <button type="button" class="btn-ghost" @click="closeSettings">Fermer</button>
+            <button
+              v-if="settingsTab === 'seuils'"
+              type="button"
+              class="btn-refresh"
+              :disabled="savingSeuils || !canEditSeuils"
+              @click="saveThresholds"
+            >
+              {{ savingSeuils ? 'Enregistrement…' : 'Enregistrer les seuils' }}
+            </button>
+            <button
+              v-if="settingsTab === 'objectifs'"
+              type="button"
+              class="btn-refresh"
+              :disabled="savingObjectives || !canEditCurrentObjectives"
+              @click="saveObjectives"
+            >
+              {{ savingObjectives ? 'Enregistrement…' : 'Enregistrer les objectifs' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script>
 import PythonChart from './charts/PythonChart.vue';
+import { ProfileManager, PROFILES } from '../utils/profiles';
 
-const MONTH_BAR_COLORS = [
-  '#c8ddd4', '#b5d0c4', '#a2c3b4', '#8fb6a4', '#7ca994',
-  '#5f9478', '#1a4d3a', '#174434', '#143b2e', '#153528',
-  '#122e22', '#0f271c',
-];
-
-function barColorForMonth(month, selectedMonth) {
-  if (month === selectedMonth) return '#1a4d3a';
-  const idx = month - 1;
-  return MONTH_BAR_COLORS[idx] || '#94a3b8';
-}
+const DEFAULT_THRESHOLDS = { reached: 100, close: 90, vigilance: 70 };
+const THRESHOLDS_STORAGE_KEY = 'comptes-ouverts-seuils';
+const THRESHOLDS_API_KEY = 'comptes-ouverts-seuils';
+const OBJECTIVE_TYPE = 'COMPTES_OUVERTS';
+const TERRITORY_CODES = new Set([
+  'DAKAR_VILLE',
+  'DAKAR_BANLIEUE',
+  'PROVINCE_CENTRE_SUD',
+  'PROVINCE_NORD',
+  'GRAND_COMPTE',
+]);
 
 export default {
   name: 'CompteOuvertSection',
@@ -412,6 +687,7 @@ export default {
       errorMessage: '',
       viewMode: 'dashboard',
       perfTableMode: 'ytd',
+      dashboardMode: 'ytd',
       selectedMonth: now.getMonth() + 1,
       selectedYear: now.getFullYear(),
       months: [
@@ -419,12 +695,86 @@ export default {
         'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
       ],
       payload: null,
-      objectivesByCode: {},
-      objectivesByName: {},
+      objectivesCatalog: [],
       expanded: {},
+      showSettings: false,
+      settingsTab: 'seuils',
+      objectiveLevel: 'agence',
+      thresholds: { ...DEFAULT_THRESHOLDS },
+      seuilDraft: { ...DEFAULT_THRESHOLDS },
+      seuilError: '',
+      savingSeuils: false,
+      objectiveDrafts: [],
+      savingObjectives: false,
+      objectiveError: '',
+      objectiveSuccess: '',
     };
   },
+  created() {
+    this.loadStoredThresholds();
+    this.loadRemoteThresholds();
+  },
   computed: {
+    profileCode() {
+      return String(ProfileManager.getProfileCode() || '').toUpperCase();
+    },
+    canEditSeuils() {
+      return this.profileCode === PROFILES.DGA || this.profileCode === PROFILES.ADMIN;
+    },
+    canEditTerritoryObjectives() {
+      return this.profileCode === PROFILES.DGA || this.profileCode === PROFILES.ADMIN;
+    },
+    canEditAgencyObjectives() {
+      return this.profileCode === PROFILES.RESPONSABLE_ZONE || this.profileCode === PROFILES.ADMIN;
+    },
+    canOpenSettings() {
+      return this.canEditSeuils || this.canEditTerritoryObjectives || this.canEditAgencyObjectives;
+    },
+    canToggleObjectiveLevel() {
+      return this.canEditTerritoryObjectives && this.canEditAgencyObjectives;
+    },
+    canEditCurrentObjectives() {
+      return this.objectiveLevel === 'territoire'
+        ? this.canEditTerritoryObjectives
+        : this.canEditAgencyObjectives;
+    },
+    userTerritory() {
+      return ProfileManager.getCurrentUser()?.territory || null;
+    },
+    userTerritoryCode() {
+      const territory = this.userTerritory;
+      const code = String(territory?.code || '').toUpperCase().trim();
+      if (code && TERRITORY_CODES.has(code)) return code;
+      if (territory?.name) return this.territoryFormCode(territory.name);
+      return '';
+    },
+   
+    emptyObjectivesLabel() {
+      if (this.objectiveLevel === 'agence' && this.profileCode === PROFILES.RESPONSABLE_ZONE && !this.userTerritoryCode) {
+        return 'Aucun territoire n’est associé à votre profil.';
+      }
+      return this.objectiveLevel === 'territoire'
+        ? 'Chargez d’abord les données pour lister les territoires.'
+        : 'Aucune agence à paramétrer pour votre territoire.';
+    },
+    dgaEnvelopeStats() {
+      if (this.objectiveLevel !== 'agence' || !this.userTerritoryCode) return null;
+      const envelope = Number(this.territoryObjectiveForCode(this.userTerritoryCode, this.selectedMonth) || 0);
+      if (!envelope) return null;
+      const distributed = this.objectiveDrafts.reduce((sum, row) => sum + (Number(row.value) || 0), 0);
+      return {
+        envelope,
+        distributed,
+        remaining: envelope - distributed,
+        isOver: distributed > envelope,
+      };
+    },
+    dgaEnvelopeMissingLabel() {
+      if (this.objectiveLevel !== 'agence' || !this.userTerritoryCode) return '';
+      const envelope = Number(this.territoryObjectiveForCode(this.userTerritoryCode, this.selectedMonth) || 0);
+      if (envelope) return '';
+      return 'Aucun objectif territoire n’a encore été fixé par le DGA.';
+    },
     years() {
       const current = new Date().getFullYear();
       const years = [];
@@ -437,19 +787,42 @@ export default {
     rawKpis() {
       return this.payload?.kpis || {};
     },
+    objectiveMapsByMonth() {
+      const maps = {};
+      for (let month = 1; month <= 12; month += 1) {
+        maps[month] = this.buildObjectiveMaps(month);
+      }
+      return maps;
+    },
+    monthlyObjectiveTotals() {
+      const totals = Array(13).fill(0);
+      for (let month = 1; month <= 12; month += 1) {
+        totals[month] = this.totalObjMensuelForMonth(month);
+      }
+      return totals;
+    },
+    cumulativeObjectiveYtdByMonth() {
+      const cumulative = Array(13).fill(0);
+      let running = 0;
+      for (let month = 1; month <= 12; month += 1) {
+        running += this.monthlyObjectiveTotals[month];
+        cumulative[month] = running;
+      }
+      return cumulative;
+    },
     kpis() {
       const realiseYtd = Number(this.rawKpis.realise_ytd || 0);
       const realiseM = Number(this.rawKpis.realise_m || 0);
       const courantsYtd = Number(this.rawKpis.realise_ytd_251 || 0);
       const epargneYtd = Number(this.rawKpis.realise_ytd_253 || 0);
-      const objMensuel = this.totalObjMensuel;
-      const hasObj = objMensuel > 0;
-      const objAnnuel = hasObj ? objMensuel * 12 : 0;
-      const objYtd = hasObj ? objMensuel * this.selectedMonth : 0;
+      const objMensuel = this.monthlyObjectiveTotals[this.selectedMonth] || 0;
+      const objYtd = this.cumulativeObjectiveYtdByMonth[this.selectedMonth] || 0;
+      const hasObj = objYtd > 0;
+      const objAnnuel = this.cumulativeObjectiveYtdByMonth[12] || 0;
       const tro = hasObj ? (realiseYtd / objYtd) * 100 : null;
       const courantsM = Number(this.rawKpis.realise_m_251 || 0);
       const epargneM = Number(this.rawKpis.realise_m_253 || 0);
-      const troM = hasObj ? (realiseM / objMensuel) * 100 : null;
+      const troM = objMensuel > 0 ? (realiseM / objMensuel) * 100 : null;
       return {
         realiseM,
         realiseYtd,
@@ -467,20 +840,24 @@ export default {
       };
     },
     totalObjMensuel() {
-      return this.territories.reduce((sum, t) => sum + (Number(t.objMensuel) || 0), 0);
+      return this.monthlyObjectiveTotals[this.selectedMonth] || 0;
     },
     hasObjectives() {
-      return this.totalObjMensuel > 0;
+      return (this.cumulativeObjectiveYtdByMonth[this.selectedMonth] || 0) > 0;
     },
     monthlyRows() {
       const rows = this.payload?.monthly || [];
-      const objMensuel = this.kpis.objMensuel;
       return rows.map((row) => {
-        const objYtd = row.month <= this.selectedMonth ? objMensuel * row.month : 0;
+        const objMensuel = row.month <= this.selectedMonth
+          ? (this.monthlyObjectiveTotals[row.month] || 0)
+          : 0;
+        const objYtd = row.month <= this.selectedMonth
+          ? (this.cumulativeObjectiveYtdByMonth[row.month] || 0)
+          : 0;
         const tro = objYtd > 0 ? (Number(row.ytd || 0) / objYtd) * 100 : null;
         return {
           ...row,
-          objMensuel: row.month <= this.selectedMonth ? objMensuel : 0,
+          objMensuel,
           objYtd,
           tro,
         };
@@ -511,23 +888,26 @@ export default {
       const list = this.payload?.territories || [];
       return list.map((territory) => {
         const agencies = (territory.agencies || []).map((agency) => {
-          const objMensuel = this.objectiveForAgency(agency);
+          const objMensuel = this.agencyObjMensuel(agency, this.selectedMonth);
+          const objYtd = this.agencyObjYtd(agency, this.selectedMonth);
           return {
             ...agency,
             objMensuel,
-            objYtd: objMensuel * this.selectedMonth,
-            objAnnuel: objMensuel * 12,
-            tro: this.tro(agency.realise_ytd, objMensuel * this.selectedMonth),
+            objYtd,
+            objAnnuel: this.agencyObjYtd(agency, 12),
+            tro: this.tro(agency.realise_ytd, objYtd),
           };
         });
-        const objMensuel = agencies.reduce((sum, a) => sum + a.objMensuel, 0);
+        const objMensuel = this.territoryObjMensuel(territory, this.selectedMonth);
+        const objYtd = this.territoryObjYtd(territory, this.selectedMonth);
         return {
           ...territory,
           agencies,
           objMensuel,
-          objYtd: objMensuel * this.selectedMonth,
-          objAnnuel: objMensuel * 12,
-          tro: this.tro(territory.realise_ytd, objMensuel * this.selectedMonth),
+          objYtd,
+          objAnnuel: this.territoryObjYtd(territory, 12),
+          tro: this.tro(territory.realise_ytd, objYtd),
+          troM: this.tro(territory.realise_m, objMensuel),
         };
       });
     },
@@ -540,113 +920,156 @@ export default {
             name: a.branch_name,
             territory: t.name,
             realise_ytd: a.realise_ytd,
+            realise_m: a.realise_m,
+            objMensuel: a.objMensuel,
             objYtd: a.objYtd,
             tro: a.tro,
+            troM: this.tro(a.realise_m, a.objMensuel),
           });
         }
       }
       return list;
     },
-    rankedAgenciesByTro() {
-      return [...this.allAgencies]
-        .filter((a) => a.tro !== null && a.objYtd > 0)
-        .sort((a, b) => b.tro - a.tro);
+    rankedAgenciesForDashboard() {
+      const isMonth = this.dashboardMode === 'month';
+      const ranked = [...this.allAgencies]
+        .map((agency) => ({
+          agency,
+          metric: this.agencyRankMetric(agency, isMonth),
+        }))
+        .filter((item) => item.metric !== null)
+        .sort((a, b) => {
+          if (a.metric.kind !== b.metric.kind) {
+            return a.metric.kind === 'tro' ? -1 : 1;
+          }
+          return b.metric.value - a.metric.value;
+        });
+      return ranked.map((item) => item.agency);
     },
-    rankedAgenciesByRealise() {
-      return [...this.allAgencies]
-        .filter((a) => Number(a.realise_ytd) > 0)
-        .sort((a, b) => b.realise_ytd - a.realise_ytd);
+    dashboardTerritoryMeta() {
+      if (!this.hasObjectives) {
+        return this.dashboardMode === 'month' ? 'Réalisé mois' : 'Réalisé YTD';
+      }
+      return this.dashboardMode === 'month' ? 'TRO mois' : 'TRO YTD';
+    },
+    dashboardAgencyRankMeta() {
+      if (!this.hasObjectives) {
+        return this.dashboardMode === 'month' ? 'Ouvertures mois' : 'Ouvertures YTD';
+      }
+      return this.dashboardMode === 'month' ? 'TRO mois' : 'TRO YTD';
     },
     dashboardTopAgencies() {
-      const list = this.hasObjectives ? this.rankedAgenciesByTro : this.rankedAgenciesByRealise;
-      return list.slice(0, 5);
+      return this.rankedAgenciesForDashboard.slice(0, 5);
     },
     dashboardFlopAgencies() {
-      const list = this.hasObjectives ? this.rankedAgenciesByTro : this.rankedAgenciesByRealise;
-      return [...list].reverse().slice(0, 5);
+      return [...this.rankedAgenciesForDashboard].reverse().slice(0, 5);
     },
     dashboardTerritoryRows() {
-      const rows = this.territories.filter((t) => Number(t.realise_ytd) > 0);
-      if (this.hasObjectives) {
-        return rows
-          .filter((t) => t.tro !== null)
-          .sort((a, b) => b.tro - a.tro);
-      }
-      return rows.sort((a, b) => b.realise_ytd - a.realise_ytd);
+      const isMonth = this.dashboardMode === 'month';
+      const ranked = [...this.territories]
+        .map((territory) => ({
+          territory,
+          metric: this.territoryRankMetric(territory, isMonth),
+        }))
+        .filter((item) => item.metric !== null)
+        .sort((a, b) => {
+          if (a.metric.kind !== b.metric.kind) {
+            return a.metric.kind === 'tro' ? -1 : 1;
+          }
+          return b.metric.value - a.metric.value;
+        });
+      return ranked.map((item) => item.territory);
+    },
+    dashboardBestAgency() {
+      return this.dashboardTopAgencies[0] || null;
+    },
+    dashboardBestTerritory() {
+      return this.dashboardTerritoryRows[0] || null;
+    },
+    monthlyChartType() {
+      return 'multiseries';
+    },
+    monthlyChartMeta() {
+      return this.hasObjectives
+        ? 'Cumul objectif vs réalisé'
+        : 'Ouvertures cumulées';
     },
     monthlyChartData() {
       const rows = this.monthlyRowsVisible;
+      const labels = rows.map((r) => r.label);
+      const realiseYtd = rows.map((r) => Number(r.ytd != null ? r.ytd : r.total) || 0);
+      if (this.hasObjectives) {
+        return {
+          labels,
+          series: {
+            Objectif: rows.map((r) => Number(r.objYtd) || 0),
+            Réalisé: realiseYtd,
+          },
+          title: '',
+          xlabel: 'Mois',
+          ylabel: 'Ouvertures',
+          colors: ['#2563EB', '#16a34a'],
+        };
+      }
       return {
-        labels: rows.map((r) => r.label),
-        values: rows.map((r) => r.total),
+        labels,
+        series: {
+          Réalisé: realiseYtd,
+        },
         title: '',
         xlabel: 'Mois',
         ylabel: 'Ouvertures',
-        colors: rows.map((r) => barColorForMonth(r.month, this.selectedMonth)),
+        colors: ['#16a34a'],
       };
-    },
-    managementAlerts() {
-      const alerts = [];
-      if (this.hasObjectives && this.kpis.tro !== null && this.kpis.ecartYtd < 0) {
-        alerts.push({
-          type: 'bad',
-          text: `Déficit YTD de ${this.formatSigned(this.kpis.ecartYtd)} comptes ouverts`,
-        });
-      }
-      const sortedTerritories = this.hasObjectives
-        ? [...this.territories].filter((t) => t.tro !== null).sort((a, b) => a.tro - b.tro)
-        : [...this.dashboardTerritoryRows].reverse();
-      const worst = sortedTerritories[0];
-      const best = this.dashboardTerritoryRows[0];
-      if (this.hasObjectives) {
-        if (worst && worst.tro < 75) {
-          alerts.push({
-            type: 'bad',
-            text: `${worst.name} en sous-performance (${this.formatTro(worst.tro)})`,
-          });
-        }
-        const flop = this.dashboardFlopAgencies[0];
-        if (flop && flop.tro < 60) {
-          alerts.push({
-            type: 'bad',
-            text: `${flop.name} — TRO ${this.formatTro(flop.tro)}`,
-          });
-        }
-        if (best && best.tro >= 90) {
-          alerts.push({
-            type: 'good',
-            text: `${best.name} performant (${this.formatTro(best.tro)})`,
-          });
-        }
-      } else if (best) {
-        alerts.push({
-          type: 'good',
-          text: `${best.name} — leader avec ${this.formatNumber(best.realise_ytd)} ouvertures YTD`,
-        });
-        if (worst && worst.key !== best.key) {
-          alerts.push({
-            type: 'bad',
-            text: `${worst.name} — ${this.formatNumber(worst.realise_ytd)} ouvertures YTD`,
-          });
-        }
-      }
-      const months = this.monthlyRowsVisible.filter((r) => r.total > 0);
-      if (months.length >= 2) {
-        const last = months[months.length - 1].total;
-        const prev = months[months.length - 2].total;
-        if (last >= prev) {
-          alerts.push({ type: 'good', text: 'Tendance mensuelle en amélioration depuis janvier' });
-        } else {
-          alerts.push({ type: 'bad', text: 'Baisse des ouvertures sur le dernier mois' });
-        }
-      }
-      return alerts;
     },
   },
   mounted() {
     this.loadData();
   },
   methods: {
+    agencyRankMetric(agency, isMonth = this.dashboardMode === 'month') {
+      const realise = Number(isMonth ? agency.realise_m : agency.realise_ytd) || 0;
+      if (this.hasObjectives) {
+        const tro = isMonth ? agency.troM : agency.tro;
+        const obj = Number(isMonth ? agency.objMensuel : agency.objYtd) || 0;
+        if (tro !== null && obj > 0) {
+          return { kind: 'tro', value: Number(tro) };
+        }
+      }
+      if (realise > 0) {
+        return { kind: 'realise', value: realise };
+      }
+      return null;
+    },
+    territoryRankMetric(territory, isMonth = this.dashboardMode === 'month') {
+      const realise = Number(isMonth ? territory.realise_m : territory.realise_ytd) || 0;
+      if (this.hasObjectives) {
+        const tro = isMonth ? territory.troM : territory.tro;
+        const obj = Number(isMonth ? territory.objMensuel : territory.objYtd) || 0;
+        if (tro !== null && obj > 0) {
+          return { kind: 'tro', value: Number(tro) };
+        }
+      }
+      if (realise > 0) {
+        return { kind: 'realise', value: realise };
+      }
+      return null;
+    },
+    dashboardAgencyTro(row) {
+      return this.dashboardMode === 'month' ? row.troM : row.tro;
+    },
+    dashboardAgencyRealise(row) {
+      return this.dashboardMode === 'month' ? row.realise_m : row.realise_ytd;
+    },
+    dashboardTerritoryObj(row) {
+      return this.dashboardMode === 'month' ? row.objMensuel : row.objYtd;
+    },
+    dashboardTerritoryRealise(row) {
+      return this.dashboardMode === 'month' ? row.realise_m : row.realise_ytd;
+    },
+    dashboardTerritoryTro(row) {
+      return this.dashboardMode === 'month' ? row.troM : row.tro;
+    },
     formatNumber(value) {
       const n = Number(value || 0);
       return new Intl.NumberFormat('fr-FR').format(Math.round(n));
@@ -665,7 +1088,18 @@ export default {
     },
     formatTro(value) {
       if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-      return `${Number(value).toFixed(1)} %`;
+      return `${Number(value).toLocaleString('fr-FR', {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })} %`;
+    },
+    formatSeuil(value) {
+      const n = Number(value);
+      if (Number.isNaN(n)) return '—';
+      return `${n.toLocaleString('fr-FR', {
+        minimumFractionDigits: Number.isInteger(n) ? 0 : 1,
+        maximumFractionDigits: 1,
+      })} %`;
     },
     tro(realise, objectif) {
       const obj = Number(objectif || 0);
@@ -673,17 +1107,31 @@ export default {
       return (Number(realise || 0) / obj) * 100;
     },
     troTone(value) {
-      if (value === null || value === undefined) return 'kpi-neutral';
-      if (value >= 100) return 'kpi-good';
-      if (value >= 75) return 'kpi-warn';
-      return 'kpi-bad';
+      const level = this.troLevel(value);
+      if (level === 'good') return 'kpi-good';
+      if (level === 'close') return 'kpi-close';
+      if (level === 'mid') return 'kpi-warn';
+      if (level === 'bad') return 'kpi-bad';
+      return 'kpi-neutral';
     },
     troBadge(value) {
-      if (value === null || value === undefined) return 'badge muted';
-      if (value >= 100) return 'badge good';
-      if (value >= 75) return 'badge mid';
-      if (value >= 50) return 'badge warn';
-      return 'badge bad';
+      const level = this.troLevel(value);
+      if (level === 'good') return 'badge good';
+      if (level === 'close') return 'badge close';
+      if (level === 'mid') return 'badge mid';
+      if (level === 'bad') return 'badge bad';
+      return 'badge muted';
+    },
+    territoryStatusClass(value) {
+      return this.troLevel(value);
+    },
+    troLevel(value) {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) return 'muted';
+      const n = Number(value);
+      if (n >= this.thresholds.reached) return 'good';
+      if (n >= this.thresholds.close) return 'close';
+      if (n >= this.thresholds.vigilance) return 'mid';
+      return 'bad';
     },
     ecartClass(value) {
       if (value > 0) return 'kpi-good';
@@ -706,35 +1154,253 @@ export default {
     perfEpargne(row) {
       return this.perfTableMode === 'ytd' ? row.realise_ytd_253 : row.realise_m_253;
     },
-    territoryBarWidth(row) {
-      const rows = this.dashboardTerritoryRows;
-      if (!rows.length) return 0;
-      if (this.hasObjectives) {
-        const max = Math.max(...rows.map((r) => Number(r.tro) || 0), 100);
-        return Math.min(100, Math.round(((Number(row.tro) || 0) / max) * 100));
-      }
-      const max = Number(rows[0]?.realise_ytd) || 1;
-      return Math.min(100, Math.round((Number(row.realise_ytd) / max) * 100));
-    },
-    troBarClass(value) {
-      if (value === null || value === undefined) return 'bar-neutral';
-      if (value >= 100) return 'bar-good';
-      if (value >= 75) return 'bar-warn';
-      return 'bar-bad';
-    },
     toggleTerritory(key) {
       this.expanded = { ...this.expanded, [key]: !this.expanded[key] };
     },
-    objectiveForAgency(agency) {
+    objectiveForAgency(agency, month = this.selectedMonth) {
+      return this.agencyObjMensuel(agency, month);
+    },
+    agencyObjMensuel(agency, month) {
+      const maps = this.objectiveMapsByMonth[month] || this.buildObjectiveMaps(month);
       const code = String(agency.branch_code || '').trim();
-      if (code && this.objectivesByCode[code] != null) {
-        return Number(this.objectivesByCode[code]) || 0;
+      if (code && maps.byCode[code] != null) {
+        return Number(maps.byCode[code]) || 0;
       }
       const name = String(agency.branch_name || '').toUpperCase().trim();
-      if (name && this.objectivesByName[name] != null) {
-        return Number(this.objectivesByName[name]) || 0;
+      if (name && maps.byName[name] != null) {
+        return Number(maps.byName[name]) || 0;
       }
       return 0;
+    },
+    agencyObjYtd(agency, month) {
+      let sum = 0;
+      for (let m = 1; m <= month; m += 1) {
+        sum += this.agencyObjMensuel(agency, m);
+      }
+      return sum;
+    },
+    territoryObjectiveForCode(territoryCode, month) {
+      const maps = this.objectiveMapsByMonth[month] || this.buildObjectiveMaps(month);
+      return Number(maps.byTerritory[String(territoryCode || '').toUpperCase()] || 0);
+    },
+    territoryObjMensuel(territory, month) {
+      const agencies = territory.agencies || [];
+      const agencySum = agencies.reduce(
+        (sum, agency) => sum + this.agencyObjMensuel(agency, month),
+        0,
+      );
+      if (agencySum > 0) return agencySum;
+      return this.territoryObjectiveForCode(this.territoryFormCode(territory.name), month);
+    },
+    territoryObjYtd(territory, month) {
+      let sum = 0;
+      for (let m = 1; m <= month; m += 1) {
+        sum += this.territoryObjMensuel(territory, m);
+      }
+      return sum;
+    },
+    totalObjMensuelForMonth(month) {
+      const list = this.payload?.territories || [];
+      return list.reduce((sum, territory) => sum + this.territoryObjMensuel(territory, month), 0);
+    },
+    loadStoredThresholds() {
+      try {
+        const raw = localStorage.getItem(THRESHOLDS_STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        const next = this.normalizeThresholds(parsed);
+        if (next) {
+          this.thresholds = next;
+          this.seuilDraft = { ...next };
+        }
+      } catch {
+        /* ignore */
+      }
+    },
+    normalizeThresholds(input) {
+      const reached = Number(input?.reached);
+      const close = Number(input?.close);
+      const vigilance = Number(input?.vigilance);
+      if (![reached, close, vigilance].every((n) => Number.isFinite(n) && n > 0 && n <= 200)) {
+        return null;
+      }
+      if (!(reached > close && close > vigilance)) return null;
+      return { reached, close, vigilance };
+    },
+    openSettings() {
+      this.seuilDraft = { ...this.thresholds };
+      this.seuilError = '';
+      this.objectiveError = '';
+      this.objectiveSuccess = '';
+      this.objectiveLevel = this.canEditAgencyObjectives && !this.canEditTerritoryObjectives
+        ? 'agence'
+        : 'territoire';
+      this.settingsTab = this.canEditSeuils ? 'seuils' : 'objectifs';
+      this.objectiveDrafts = this.buildObjectiveDrafts();
+      this.showSettings = true;
+    },
+    closeSettings() {
+      this.showSettings = false;
+    },
+    switchObjectiveLevel(level) {
+      this.objectiveLevel = level;
+      this.objectiveError = '';
+      this.objectiveSuccess = '';
+      this.objectiveDrafts = this.buildObjectiveDrafts();
+    },
+    async saveThresholds() {
+      const next = this.normalizeThresholds(this.seuilDraft);
+      if (!next) {
+        this.seuilError = 'Les seuils doivent être décroissants : atteint > proche > vigilance, entre 1 et 200.';
+        return;
+      }
+      this.savingSeuils = true;
+      this.seuilError = '';
+      try {
+        const response = await window.axios.put(`/api/settings/${THRESHOLDS_API_KEY}`, next, {
+          headers: this.authHeaders(),
+        });
+        const saved = this.normalizeThresholds(response.data?.data) || next;
+        this.applyThresholds(saved);
+        this.showSettings = false;
+      } catch (err) {
+        this.seuilError =
+          err?.response?.data?.message ||
+          err?.message ||
+          'Impossible d’enregistrer les seuils.';
+      } finally {
+        this.savingSeuils = false;
+      }
+    },
+    applyThresholds(next) {
+      this.thresholds = next;
+      this.seuilDraft = { ...next };
+      localStorage.setItem(THRESHOLDS_STORAGE_KEY, JSON.stringify(next));
+    },
+    async loadRemoteThresholds() {
+      try {
+        const response = await window.axios.get(`/api/settings/${THRESHOLDS_API_KEY}`, {
+          headers: this.authHeaders(),
+        });
+        const next = this.normalizeThresholds(response.data?.data);
+        if (next) this.applyThresholds(next);
+      } catch {
+        /* keep local / defaults */
+      }
+    },
+    buildObjectiveDrafts() {
+      if (this.objectiveLevel === 'territoire') {
+        return this.territories.map((territory) => {
+          const code = this.territoryFormCode(territory.name);
+          return {
+            key: `territory-${territory.key || code}`,
+            level: 'territoire',
+            territory: territory.name,
+            territoryCode: code,
+            category: this.agencyCategory(territory.name),
+            agency_code: code,
+            agency_name: territory.name,
+            value: Number(this.territoryObjectiveForCode(code, this.selectedMonth) || 0) || null,
+          };
+        });
+      }
+      const rows = [];
+      for (const territory of this.territories) {
+        const territoryCode = this.territoryFormCode(territory.name);
+        if (this.profileCode === PROFILES.RESPONSABLE_ZONE && this.userTerritoryCode
+          && territoryCode !== this.userTerritoryCode) {
+          continue;
+        }
+        for (const agency of territory.agencies || []) {
+          const code = String(agency.branch_code || '').trim();
+          const name = String(agency.branch_name || '').trim();
+          if (!code && !name) continue;
+          rows.push({
+            key: `${territory.key}-${code || name}`,
+            level: 'agence',
+            territory: territory.name,
+            territoryCode,
+            category: this.agencyCategory(territory.name),
+            agency_code: code || name,
+            agency_name: name || code,
+            value: this.objectiveForAgency(agency) || null,
+          });
+        }
+      }
+      return rows;
+    },
+    territoryFormCode(name) {
+      const n = String(name || '').toUpperCase();
+      if (n.includes('BANLIEUE')) return 'DAKAR_BANLIEUE';
+      if (n.includes('GRAND')) return 'GRAND_COMPTE';
+      if (n.includes('NORD')) return 'PROVINCE_NORD';
+      if (n.includes('CENTRE SUD') || n.includes('CENTRE-SUD')) return 'PROVINCE_CENTRE_SUD';
+      if (n.includes('DAKAR') || n.includes('VILLE')) return 'DAKAR_VILLE';
+      return n.replace(/\s+/g, '_');
+    },
+    agencyCategory(name) {
+      return String(name || '').toUpperCase().includes('GRAND') ? 'GRAND COMPTE' : 'TERRITOIRE';
+    },
+    authHeaders() {
+      const token = localStorage.getItem('token');
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    },
+    objectivePriorityScoreForMonth(obj, month) {
+      const period = String(obj?.period || 'month');
+      if (period === 'month') {
+        return Number(obj.month) === month ? 300 : 0;
+      }
+      if (period === 'quarter') {
+        const quarter = Math.ceil(month / 3);
+        return Number(obj.quarter) === quarter ? 200 : 0;
+      }
+      if (period === 'year') return 100;
+      return 0;
+    },
+    monthlyObjectiveValue(obj) {
+      const value = Number(obj?.value || 0);
+      if (!value) return 0;
+      const period = String(obj?.period || 'month');
+      if (period === 'year') return value / 12;
+      if (period === 'quarter') return value / 3;
+      return value;
+    },
+    buildObjectiveMaps(month) {
+      const byCode = {};
+      const byName = {};
+      const byTerritory = {};
+      const ranked = (Array.isArray(this.objectivesCatalog) ? this.objectivesCatalog : [])
+        .filter((obj) => ['validated', 'pending_validation'].includes(String(obj?.status || 'validated')))
+        .map((obj) => ({
+          obj,
+          score: this.objectivePriorityScoreForMonth(obj, month),
+          monthly: this.monthlyObjectiveValue(obj),
+        }))
+        .filter((item) => item.score > 0 && item.monthly > 0)
+        .sort((a, b) => b.score - a.score);
+
+      ranked.forEach(({ obj, monthly }) => {
+        const code = String(obj.agency_code || '').trim().toUpperCase();
+        const name = String(obj.agency_name || '').toUpperCase().trim();
+        if (TERRITORY_CODES.has(code)) {
+          if (byTerritory[code] == null) byTerritory[code] = monthly;
+          return;
+        }
+        if (code && byCode[code] == null) byCode[code] = monthly;
+        if (name && byName[name] == null) byName[name] = monthly;
+      });
+
+      return { byCode, byName, byTerritory };
+    },
+    async fetchObjectives(type) {
+      const response = await window.axios.get('/api/objectives', {
+        params: {
+          type,
+          year: this.selectedYear,
+        },
+        headers: this.authHeaders(),
+      });
+      return response.data?.success ? response.data.data : [];
     },
     async loadData() {
       this.loading = true;
@@ -760,29 +1426,50 @@ export default {
     },
     async loadObjectives() {
       try {
-        const token = localStorage.getItem('token');
-        const response = await window.axios.get('/api/objectives', {
-          params: {
-            type: 'CLIENT',
-            period: 'month',
-            month: this.selectedMonth,
-            year: this.selectedYear,
-          },
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        const list = response.data?.success ? response.data.data : [];
-        const byCode = {};
-        const byName = {};
-        (Array.isArray(list) ? list : []).forEach((obj) => {
-          const value = Number(obj.value || 0);
-          if (obj.agency_code) byCode[String(obj.agency_code).trim()] = value;
-          if (obj.agency_name) byName[String(obj.agency_name).toUpperCase().trim()] = value;
-        });
-        this.objectivesByCode = byCode;
-        this.objectivesByName = byName;
+        this.objectivesCatalog = await this.fetchObjectives(OBJECTIVE_TYPE);
       } catch {
-        this.objectivesByCode = {};
-        this.objectivesByName = {};
+        this.objectivesCatalog = [];
+      }
+    },
+    async saveObjectives() {
+      this.objectiveError = '';
+      this.objectiveSuccess = '';
+      const rows = this.objectiveDrafts.filter((row) => row.value !== null && row.value !== '' && Number(row.value) >= 0);
+      if (!rows.length) {
+        this.objectiveError = 'Saisissez au moins un objectif mensuel.';
+        return;
+      }
+      if (this.dgaEnvelopeStats?.isOver) {
+        this.objectiveError = `La répartition (${this.formatNumber(this.dgaEnvelopeStats.distributed)}) dépasse l’objectif DGA (${this.formatNumber(this.dgaEnvelopeStats.envelope)}).`;
+        return;
+      }
+      this.savingObjectives = true;
+      try {
+        const results = await Promise.all(rows.map((row) => window.axios.post('/api/objectives', {
+          type: OBJECTIVE_TYPE,
+          category: row.level === 'territoire' ? 'TERRITOIRE' : row.category,
+          territory: row.territoryCode,
+          agency_code: row.agency_code,
+          agency_name: row.agency_name,
+          value: Number(row.value) || 0,
+          period: 'month',
+          month: this.selectedMonth,
+          year: this.selectedYear,
+        }, { headers: this.authHeaders() })));
+        const pending = results.some((res) => res.data?.data?.status === 'pending_validation');
+        await this.loadObjectives();
+        this.objectiveDrafts = this.buildObjectiveDrafts();
+        this.objectiveSuccess = pending
+          ? 'Objectifs enregistrés et en attente de validation.'
+          : 'Objectifs enregistrés.';
+      } catch (err) {
+        this.objectiveError =
+          err?.response?.data?.message ||
+          err?.response?.data?.error ||
+          err?.message ||
+          'Impossible d’enregistrer les objectifs.';
+      } finally {
+        this.savingObjectives = false;
       }
     },
   },
@@ -790,14 +1477,36 @@ export default {
 </script>
 
 <style scoped>
-.comptes-ouverts {
-  --ink: #0f172a;
+.comptes-ouverts,
+.co-modal-overlay {
+  --ink: #1e293b;
   --muted: #64748b;
   --line: #e2e8f0;
-  --green: #1a4d3a;
-  --green-light: #ecfdf5;
-  --surface: #f8fafc;
-  --card-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 4px 16px rgba(15, 23, 42, 0.04);
+  --brand: #dc2626;
+  --brand-dark: #b91c1c;
+  --row-dark: #2a2a2a;
+  --row-mid: #4a4a4a;
+  --green: #16a34a;
+  --green-soft: #dcfce7;
+  --green-dark: #166534;
+  --green-mid: #22c55e;
+  --green-light: #f0fdf4;
+  --green-bar: #4ade80;
+  --slate: #475569;
+  --slate-soft: #94a3b8;
+  --gold: #ca8a04;
+  --gold-soft: #fef9c3;
+  --gold-dark: #854d0e;
+  --warn: #d97706;
+  --warn-soft: #fef3c7;
+  --bad: #dc2626;
+  --bad-soft: #fef2f2;
+  --surface: #f8fafb;
+  --head-bg: #dc2626;
+  --card-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 2px 8px rgba(15, 23, 42, 0.03);
+}
+
+.comptes-ouverts {
   padding: 0 0 2rem;
   color: var(--ink);
 }
@@ -806,7 +1515,7 @@ export default {
 .toolbar-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 0.85rem;
   margin-bottom: 1.25rem;
@@ -814,10 +1523,23 @@ export default {
   border-bottom: 1px solid var(--line);
 }
 
+.toolbar-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.toolbar-nav .btn-settings {
+  min-height: auto;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.84rem;
+}
+
 .period-toolbar {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   justify-content: flex-end;
   gap: 0.65rem;
   margin-bottom: 0;
@@ -840,7 +1562,8 @@ export default {
 }
 
 .filter-field select,
-.btn-refresh {
+.btn-refresh,
+.btn-settings {
   min-height: 38px;
   border-radius: 8px;
   border: 1px solid var(--line);
@@ -853,8 +1576,8 @@ export default {
 
 .filter-field select:focus {
   outline: none;
-  border-color: var(--green);
-  box-shadow: 0 0 0 3px rgba(26, 77, 58, 0.12);
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
 }
 
 .btn-refresh {
@@ -863,20 +1586,27 @@ export default {
   gap: 0.45rem;
   cursor: pointer;
   font-weight: 600;
-  background: var(--green);
+  background: var(--brand);
   color: #fff;
-  border-color: var(--green);
+  border-color: var(--brand);
   padding: 0 1.1rem;
 }
 
 .btn-refresh:hover:not(:disabled) {
-  background: #153d2a;
-  border-color: #153d2a;
+  background: var(--brand-dark);
+  border-color: var(--brand-dark);
 }
 
 .btn-refresh:disabled {
   opacity: 0.65;
   cursor: default;
+}
+
+.btn-settings {
+  cursor: pointer;
+  font-weight: 600;
+  background: #fff;
+  color: var(--ink);
 }
 
 .btn-spinner,
@@ -891,8 +1621,8 @@ export default {
 }
 
 .state-spinner {
-  border-color: rgba(26, 77, 58, 0.2);
-  border-top-color: var(--green);
+  border-color: rgba(220, 38, 38, 0.2);
+  border-top-color: var(--brand);
   margin-right: 0.5rem;
 }
 
@@ -924,15 +1654,15 @@ export default {
 }
 
 .view-tab:hover {
-  color: var(--green);
-  background: rgba(26, 77, 58, 0.06);
+  color: var(--brand);
+  background: rgba(220, 38, 38, 0.06);
 }
 
 .view-tab.active {
   color: #fff;
   font-weight: 600;
-  background: var(--green);
-  box-shadow: 0 2px 6px rgba(26, 77, 58, 0.25);
+  background: var(--brand);
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25);
 }
 
 .state-msg {
@@ -953,81 +1683,181 @@ export default {
 
 /* ── KPIs ── */
 .kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.85rem;
-  margin-bottom: 1.1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.65rem;
 }
 
-.kpi-grid--5 {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+.kpi-grid--5 .kpi {
+  flex: 1 1 180px;
 }
 
 .kpi {
-  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
   background: #fff;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 0.95rem 1rem 0.95rem 1.1rem;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
   box-shadow: var(--card-shadow);
   overflow: hidden;
-  transition: box-shadow 0.18s, transform 0.18s;
 }
 
-.kpi:hover {
-  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
-  transform: translateY(-1px);
+.kpi-body {
+  flex: 1;
+  min-width: 0;
 }
 
 .kpi-icon {
-  position: absolute;
-  top: 0.85rem;
-  right: 0.85rem;
-  width: 1.65rem;
-  height: 1.65rem;
-  color: rgba(26, 77, 58, 0.18);
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 8px;
 }
 
 .kpi-icon svg {
-  width: 100%;
-  height: 100%;
+  width: 0.95rem;
+  height: 0.95rem;
 }
 
 .kpi-label {
   display: block;
-  font-size: 0.68rem;
-  letter-spacing: 0.06em;
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 0.3rem;
-  font-weight: 600;
+  color: var(--slate);
+  margin-bottom: 0.08rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .kpi-value {
   display: block;
-  font-size: 1.45rem;
+  font-size: 1.15rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  line-height: 1.2;
+  line-height: 1.1;
+  color: var(--ink);
 }
 
 .kpi-meta {
-  display: block;
-  margin-top: 0.35rem;
-  font-size: 0.72rem;
+  flex-shrink: 0;
+  font-size: 0.62rem;
   color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+  line-height: 1.25;
 }
 
-.kpi-obj { border-top: 3px solid #2563eb; }
-.kpi-ytd { border-top: 3px solid #0f766e; }
-.kpi-realise { border-top: 3px solid #1a4d3a; }
-.kpi-good { border-top: 3px solid #059669; }
-.kpi-warn { border-top: 3px solid #d97706; }
-.kpi-bad { border-top: 3px solid #dc2626; }
-.kpi-neutral { border-top: 3px solid #94a3b8; }
+.kpi-obj {
+  box-shadow: inset 3px 0 0 #2563eb, var(--card-shadow);
+}
 
-.kpi-good .kpi-value { color: #047857; }
-.kpi-bad .kpi-value { color: #b91c1c; }
+.kpi-obj .kpi-icon {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.kpi-obj .kpi-value {
+  color: #1d4ed8;
+}
+
+.kpi-ytd {
+  box-shadow: inset 3px 0 0 #2563eb, var(--card-shadow);
+}
+
+.kpi-ytd .kpi-icon {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.kpi-ytd .kpi-value {
+  color: #1d4ed8;
+}
+
+.kpi-realise {
+  box-shadow: inset 3px 0 0 var(--brand), var(--card-shadow);
+}
+
+.kpi-realise .kpi-icon {
+  background: #fef2f2;
+  color: var(--brand);
+}
+
+.kpi-realise .kpi-value {
+  color: var(--ink);
+}
+
+.kpi-good {
+  box-shadow: inset 3px 0 0 var(--green), var(--card-shadow);
+}
+
+.kpi-good .kpi-icon {
+  background: #ecfdf5;
+  color: var(--green);
+}
+
+.kpi-good .kpi-value {
+  color: var(--green-dark);
+}
+
+.kpi-close {
+  box-shadow: inset 3px 0 0 var(--gold), var(--card-shadow);
+}
+
+.kpi-close .kpi-icon {
+  background: var(--gold-soft);
+  color: var(--gold);
+}
+
+.kpi-close .kpi-value {
+  color: var(--gold-dark);
+}
+
+.kpi-warn {
+  box-shadow: inset 3px 0 0 var(--warn), var(--card-shadow);
+}
+
+.kpi-warn .kpi-icon {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.kpi-warn .kpi-value {
+  color: #b45309;
+}
+
+.kpi-bad {
+  box-shadow: inset 3px 0 0 var(--brand), var(--card-shadow);
+}
+
+.kpi-bad .kpi-icon {
+  background: #fef2f2;
+  color: var(--brand);
+}
+
+.kpi-bad .kpi-value {
+  color: var(--brand);
+}
+
+.kpi-neutral {
+  box-shadow: inset 3px 0 0 var(--slate-soft), var(--card-shadow);
+}
+
+.kpi-neutral .kpi-icon {
+  background: #f1f5f9;
+  color: var(--slate);
+}
+
+.kpi-neutral .kpi-value {
+  color: var(--ink);
+}
 
 /* ── Dashboard layout ── */
 .dash-row {
@@ -1040,6 +1870,30 @@ export default {
 .dash-row--chart {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
+}
+
+.dash-rank-section {
+  margin-bottom: 0.85rem;
+}
+
+.dash-rank-section .dash-row--2 {
+  margin-bottom: 0;
+}
+
+.dash-rank-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-bottom: 0.45rem;
+}
+
+.dash-rank-toolbar-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .dash-card {
@@ -1056,27 +1910,23 @@ export default {
   min-height: 0;
 }
 
-.dash-card-head {
+.dash-card-head,
+.panel-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.85rem 1rem;
-  background: linear-gradient(135deg, #1a4d3a 0%, #236b4e 100%);
-  color: #fff;
-  border-bottom: none;
+  padding: 0.8rem 1rem;
+  background: #fff;
+  color: var(--ink);
+  border-bottom: 2px solid var(--brand);
 }
 
-.dash-card--alerts .dash-card-head {
-  background: linear-gradient(135deg, #b45309 0%, #d97706 100%);
-}
-
-.dash-card--top .dash-card-head {
-  background: linear-gradient(135deg, #047857 0%, #059669 100%);
-}
-
-.dash-card--flop .dash-card-head {
-  background: linear-gradient(135deg, #991b1b 0%, #b91c1c 100%);
+.dash-card--top .dash-card-head,
+.dash-card--flop .dash-card-head,
+.panel--territory .panel-head {
+  background: #fff;
+  border-bottom-color: var(--brand);
 }
 
 .dash-card-title {
@@ -1089,18 +1939,20 @@ export default {
   display: none;
 }
 
-.dash-card-head h3 {
+.dash-card-head h3,
+.panel-head h3 {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #fff;
+  color: var(--ink);
 }
 
-.dash-card-meta {
+.dash-card-meta,
+.panel-head-meta {
   font-size: 0.72rem;
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--muted);
   white-space: nowrap;
 }
 
@@ -1137,128 +1989,257 @@ export default {
   min-height: 100%;
 }
 
-/* ── Territoire ── */
-.territory-rank {
-  list-style: none;
-  margin: 0;
-  padding: 0.65rem 1rem 0.75rem;
-}
-
-.territory-rank li {
+.dash-mode-bar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.65rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 0.35rem 0.15rem 0;
 }
 
-.territory-rank li:last-child {
+.dash-mode-bar-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.dash-rank-toolbar-meta {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* ── Territoire ── */
+.territory-table-wrap {
+  overflow-x: auto;
+}
+
+.territory-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.territory-table th,
+.territory-table td {
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid #eef2f6;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.territory-table thead th {
+  background: #f1f5f9;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.territory-table tbody tr:last-child td {
   border-bottom: none;
 }
 
-.territory-num {
-  width: 1.35rem;
-  height: 1.35rem;
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 0.72rem;
+.territory-table tbody tr.is-lead td:first-child {
+  color: var(--ink);
+}
+
+.territory-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.territory-table .col-tro {
   font-weight: 700;
+  color: var(--ink);
+}
+
+.territory-table .col-objectif,
+.perf-table .col-objectif {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.perf-table thead .col-objectif {
+  color: #fff;
+}
+
+.territory-table .col-status {
+  text-align: center;
+  width: 3.2rem;
+}
+
+.territory-table .empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 0.85rem 0.5rem;
+}
+
+.status-orb {
+  display: inline-block;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  vertical-align: middle;
+  box-shadow:
+    inset -1px -1px 3px rgba(0, 0, 0, 0.18),
+    inset 1px 1px 2px rgba(255, 255, 255, 0.5);
+}
+
+.status-orb.good {
+  background: radial-gradient(circle at 32% 28%, #86efac, #16a34a 70%);
+}
+
+.status-orb.close {
+  background: radial-gradient(circle at 32% 28%, #fde047, #ca8a04 70%);
+}
+
+.status-orb.mid {
+  background: radial-gradient(circle at 32% 28%, #fdba74, #ea580c 70%);
+}
+
+.status-orb.bad {
+  background: radial-gradient(circle at 32% 28%, #fca5a5, #dc2626 70%);
+}
+
+.status-orb.muted {
+  background: radial-gradient(circle at 32% 28%, #e2e8f0, #94a3b8 70%);
+}
+
+.status-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0.55rem 0.7rem 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.85rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.status-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
+/* ── Résumé période ── */
+.dash-card--resume {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #f8fafc;
+}
+
+.resume-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem 0.55rem;
+  background: #fff;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.resume-card-head h3 {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0f172a;
+  position: relative;
+  padding-left: 0.65rem;
+  letter-spacing: -0.01em;
+}
+
+.resume-card-head h3::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 0.95rem;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #1a4d3a 0%, #0f766e 100%);
+}
+
+.dash-resume-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.65rem 1rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.dash-resume-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.6rem;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+}
+
+.dash-resume-list li.resume-agency {
+  background: linear-gradient(90deg, #fff7ed 0%, #f8fafc 55%);
+  border-color: #ffedd5;
+}
+
+.dash-resume-list li.resume-zone {
+  background: linear-gradient(90deg, #ecfdf5 0%, #f8fafc 55%);
+  border-color: #d1fae5;
+}
+
+.dash-resume-icon {
+  flex: 0 0 auto;
+  width: 1.85rem;
+  height: 1.85rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  margin-top: 0.1rem;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 1rem;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
-.territory-body {
-  flex: 1;
+.dash-resume-text {
+  flex: 1 1 auto;
   min-width: 0;
 }
 
-.territory-top {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.35rem;
+.dash-resume-label {
+  display: block;
+  font-size: 0.68rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  margin-bottom: 0.15rem;
 }
 
-.territory-top .name {
-  flex: 1;
-  font-size: 0.84rem;
-  font-weight: 600;
-  color: var(--ink);
-  min-width: 0;
-}
-
-.territory-bar-track {
-  height: 4px;
-  background: #f1f5f9;
-  border-radius: 999px;
+.dash-resume-value {
+  display: block;
+  font-size: 0.86rem;
+  color: #0f172a;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.territory-bar-fill {
-  height: 100%;
-  border-radius: 999px;
-  transition: width 0.4s ease;
+.dash-resume-list .badge {
+  flex: 0 0 auto;
 }
-
-.bar-good { background: linear-gradient(90deg, #34d399, #059669); }
-.bar-warn { background: linear-gradient(90deg, #fbbf24, #d97706); }
-.bar-bad { background: linear-gradient(90deg, #f87171, #dc2626); }
-.bar-neutral { background: #94a3b8; }
-
-/* ── Alertes ── */
-.alerts-list {
-  list-style: none;
-  margin: 0;
-  padding: 0.65rem 1rem 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-}
-
-.alert-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.6rem;
-  padding: 0.55rem 0.65rem;
-  border-radius: 8px;
-  font-size: 0.82rem;
-  line-height: 1.45;
-}
-
-.alert-item p {
-  margin: 0;
-}
-
-.alert-item.good {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  color: #166534;
-}
-
-.alert-item.bad {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #991b1b;
-}
-
-.alert-icon {
-  width: 1.1rem;
-  height: 1.1rem;
-  flex-shrink: 0;
-  margin-top: 0.05rem;
-}
-
-.alert-icon svg {
-  width: 100%;
-  height: 100%;
-}
-
-.alert-item.good .alert-icon { color: #059669; }
-.alert-item.bad .alert-icon { color: #dc2626; }
 
 /* ── Agences ── */
 .agency-rank {
@@ -1318,31 +2299,31 @@ export default {
 }
 
 .rank-top {
-  background: var(--green-light);
-  color: #047857;
+  background: #fee2e2;
+  color: var(--brand);
 }
 
 .rank-gold {
-  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  background: #fef3c7;
   color: #92400e;
   box-shadow: 0 0 0 1px #fcd34d;
 }
 
 .rank-silver {
-  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
-  color: #475569;
-  box-shadow: 0 0 0 1px #cbd5e1;
+  background: #f1f4f6;
+  color: var(--slate);
+  box-shadow: 0 0 0 1px #dde3e8;
 }
 
 .rank-bronze {
-  background: linear-gradient(135deg, #ffedd5, #fed7aa);
-  color: #9a3412;
-  box-shadow: 0 0 0 1px #fdba74;
+  background: #f3eeea;
+  color: #7a6555;
+  box-shadow: 0 0 0 1px #e0d5cc;
 }
 
 .rank-flop {
-  background: #fef2f2;
-  color: #b91c1c;
+  background: #f5f5f5;
+  color: var(--row-mid);
 }
 
 .empty {
@@ -1365,11 +2346,12 @@ export default {
   flex-shrink: 0;
 }
 
-.badge.good { background: #d1fae5; color: #047857; }
-.badge.mid { background: #fef3c7; color: #b45309; }
-.badge.warn { background: #ffedd5; color: #c2410c; }
-.badge.bad { background: #fee2e2; color: #b91c1c; }
-.badge.muted, .muted { color: #94a3b8; }
+.badge.good { background: var(--green-soft); color: var(--green-dark); }
+.badge.close { background: var(--gold-soft); color: var(--gold-dark); }
+.badge.mid { background: var(--warn-soft); color: var(--warn); }
+.badge.warn { background: #f3ece0; color: #7a6538; }
+.badge.bad { background: var(--bad-soft); color: var(--brand-dark); }
+.badge.muted, .muted { color: var(--slate-soft); }
 
 /* ── Performance view ── */
 .perf-view {
@@ -1379,55 +2361,100 @@ export default {
 }
 
 .perf-kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.85rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.65rem;
 }
 
 .perf-kpi {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 100%;
   background: #fff;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 0.95rem 1.05rem;
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
   box-shadow: var(--card-shadow);
-  transition: box-shadow 0.18s, transform 0.18s;
 }
 
-.perf-kpi:hover {
-  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.08);
-  transform: translateY(-1px);
+.perf-kpi-main {
+  min-width: 0;
+}
+
+.perf-kpi-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+  flex-shrink: 0;
+  text-align: right;
 }
 
 .perf-kpi-label {
   display: block;
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 0.35rem;
+  color: var(--slate);
+  margin-bottom: 0.1rem;
+  white-space: nowrap;
 }
 
 .perf-kpi-value {
   display: block;
-  font-size: 1.5rem;
+  font-size: 1.15rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  line-height: 1.15;
+  line-height: 1.1;
   color: var(--ink);
 }
 
 .perf-kpi-meta {
   display: block;
-  margin-top: 0.35rem;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   color: var(--muted);
+  white-space: nowrap;
 }
 
-.perf-kpi--month { border-top: 3px solid #1a4d3a; }
-.perf-kpi--ytd { border-top: 3px solid #0f766e; }
-.perf-kpi--courants { border-top: 3px solid #2563eb; }
-.perf-kpi--epargne { border-top: 3px solid #7c3aed; }
+.perf-kpi-obj {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 650;
+  color: #2563eb;
+  white-space: nowrap;
+}
+
+.perf-kpi-obj .badge {
+  min-width: 2.6rem;
+  padding: 0.12rem 0.35rem;
+  font-size: 0.62rem;
+}
+
+.perf-kpi--month {
+  box-shadow: inset 3px 0 0 var(--brand), var(--card-shadow);
+}
+
+.perf-kpi--ytd {
+  box-shadow: inset 3px 0 0 #2563eb, var(--card-shadow);
+}
+
+.perf-kpi--courants {
+  box-shadow: inset 3px 0 0 #64748b, var(--card-shadow);
+}
+
+.perf-kpi--epargne {
+  box-shadow: inset 3px 0 0 #16a34a, var(--card-shadow);
+}
 
 .panels {
   display: grid;
@@ -1447,13 +2474,10 @@ export default {
   justify-content: space-between;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.85rem 1rem;
-  background: linear-gradient(135deg, #1a4d3a 0%, #236b4e 100%);
-  color: #fff;
-}
-
-.panel--territory .panel-head {
-  background: linear-gradient(135deg, #047857 0%, #059669 100%);
+  padding: 0.8rem 1rem;
+  background: #fff;
+  color: var(--ink);
+  border-bottom: 2px solid var(--brand);
 }
 
 .panel-head-title {
@@ -1464,15 +2488,16 @@ export default {
 
 .panel-head h3 {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
+  color: var(--ink);
 }
 
 .panel-head-meta {
   font-size: 0.72rem;
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--muted);
 }
 
 .panel-head--split {
@@ -1483,7 +2508,8 @@ export default {
 .perf-mode-toggle {
   display: inline-flex;
   padding: 3px;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 8px;
   gap: 2px;
   flex-shrink: 0;
@@ -1493,7 +2519,7 @@ export default {
   padding: 0.35rem 0.85rem;
   font-size: 0.72rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--muted);
   background: transparent;
   border: none;
   border-radius: 6px;
@@ -1502,14 +2528,14 @@ export default {
 }
 
 .perf-mode-toggle button:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.12);
+  color: var(--ink);
+  background: #fff;
 }
 
 .perf-mode-toggle button.active {
-  color: var(--green);
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  color: #fff;
+  background: var(--brand);
+  box-shadow: 0 1px 3px rgba(220, 38, 38, 0.25);
 }
 
 .table-wrap {
@@ -1524,8 +2550,8 @@ export default {
 
 .perf-table th,
 .perf-table td {
-  padding: 0.62rem 0.85rem;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid #eef2f6;
   text-align: left;
 }
 
@@ -1533,13 +2559,21 @@ export default {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: #f8fafc;
-  font-size: 0.67rem;
-  letter-spacing: 0.05em;
+  background: var(--head-bg);
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #64748b;
-  font-weight: 700;
+  color: #fff;
+  font-weight: 600;
   white-space: nowrap;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: none;
+  text-align: center;
+  padding: 0.7rem 0.9rem;
+}
+
+.perf-table thead th:first-child {
+  text-align: left;
 }
 
 .perf-table tbody tr:nth-child(even) {
@@ -1547,7 +2581,7 @@ export default {
 }
 
 .perf-table tbody tr:hover {
-  background: #f1f5f9;
+  background: #f4f6f8;
 }
 
 .perf-table .num {
@@ -1555,22 +2589,28 @@ export default {
   font-variant-numeric: tabular-nums;
 }
 
-.perf-table .col-highlight {
-  background: rgba(26, 77, 58, 0.04);
+.perf-table tbody .col-highlight {
+  background: transparent;
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .perf-table thead .col-highlight {
-  background: #eef6f2;
-  color: #1a4d3a;
+  background: var(--brand-dark);
+  color: #fff;
 }
 
 .perf-table .row-current {
-  background: #ecfdf5 !important;
-  box-shadow: inset 3px 0 0 #1a4d3a;
+  background: #fff !important;
+  box-shadow: inset 3px 0 0 var(--brand);
 }
 
 .perf-table .row-current:hover {
-  background: #d1fae5 !important;
+  background: #fafafa !important;
+}
+
+.perf-table .row-current .col-highlight {
+  color: var(--brand);
 }
 
 .month-tag {
@@ -1580,15 +2620,15 @@ export default {
   padding: 0.15rem 0.45rem;
   border-radius: 6px;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.03em;
-  color: #475569;
+  color: var(--slate);
   background: #f1f5f9;
 }
 
 .month-tag--current {
   color: #fff;
-  background: #1a4d3a;
+  background: var(--brand);
 }
 
 .perf-table--territory tbody tr:nth-child(even) {
@@ -1596,21 +2636,21 @@ export default {
 }
 
 .perf-table--territory .territory-row td {
-  background: #e8f5ef;
-  color: #0f172a;
+  background: #f5f5f5;
+  color: var(--ink);
   font-weight: 600;
   font-size: 0.84rem;
-  border-bottom: 1px solid #c6e0d4;
-  box-shadow: inset 4px 0 0 #1a4d3a;
+  border-bottom: 1px solid #eee;
+  box-shadow: inset 3px 0 0 var(--brand);
 }
 
 .perf-table--territory .territory-row:hover td {
-  background: #d8efe4;
+  background: #efefef;
 }
 
 .perf-table--territory .territory-row--open td {
-  background: #d1fae5;
-  border-bottom-color: #a7d4bc;
+  background: #f0f0f0;
+  border-bottom-color: #e5e5e5;
 }
 
 .territory-row {
@@ -1630,40 +2670,40 @@ export default {
 
 .territory-cell strong {
   min-width: 0;
-  color: #1a4d3a;
-  letter-spacing: 0.03em;
+  color: var(--ink);
+  letter-spacing: 0.02em;
   text-transform: uppercase;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
 }
 
 .perf-table--territory .territory-row .col-highlight {
-  background: rgba(26, 77, 58, 0.12);
-  color: #1a4d3a;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 700;
 }
 
 .perf-table--territory .agency-row .col-highlight {
-  background: #f8fafc;
+  background: transparent;
   font-weight: 500;
-  color: #64748b;
+  color: var(--slate);
 }
 
 .perf-table--territory .agency-row td {
   background: #fff;
-  color: #64748b;
+  color: var(--slate);
   font-weight: 400;
-  font-size: 0.78rem;
-  border-bottom: 1px solid #eef2f6;
+  font-size: 0.82rem;
+  border-bottom: 1px solid #f1f5f9;
   box-shadow: none;
 }
 
 .perf-table--territory .agency-row:hover td {
-  background: #f8fafc;
-  color: #475569;
+  background: #fafbfc;
 }
 
 .perf-table--territory .agency-row td:first-child {
-  background: #fafbfc;
-  border-left: 3px solid #d1fae5;
+  background: #fff;
+  border-left: 3px solid #f1f5f9;
 }
 
 .agency-name {
@@ -1696,7 +2736,7 @@ export default {
 }
 
 .perf-tfoot {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  background: var(--row-dark);
   color: #fff;
 }
 
@@ -1707,7 +2747,8 @@ export default {
 }
 
 .perf-tfoot .col-highlight {
-  background: rgba(255, 255, 255, 0.06);
+  background: transparent;
+  color: #fff;
 }
 
 .expand-btn {
@@ -1737,14 +2778,32 @@ export default {
 }
 
 .expand-btn.open {
-  background: #1a4d3a;
-  border-color: #1a4d3a;
+  background: var(--brand);
+  border-color: var(--brand);
   color: #fff;
 }
 
 .expand-btn:hover {
-  border-color: #1a4d3a;
-  color: #1a4d3a;
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.perf-table--territory .territory-row .expand-btn {
+  border-color: #ccc;
+  background: #fff;
+  color: var(--slate);
+}
+
+.perf-table--territory .territory-row .expand-btn:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: #fff;
+}
+
+.perf-table--territory .territory-row .expand-btn.open {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
 }
 
 /* Legacy table styles (dashboard) */
@@ -1789,8 +2848,8 @@ tr.future {
 }
 
 @media (max-width: 1100px) {
-  .kpi-grid--5 {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .kpi-grid--5 .kpi {
+    flex: 1 1 calc(33.333% - 0.45rem);
   }
   .dash-row--2,
   .dash-row--chart {
@@ -1798,7 +2857,11 @@ tr.future {
   }
   .kpi-mini,
   .perf-kpi-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex-direction: column;
+  }
+
+  .perf-kpi {
+    flex-basis: auto;
   }
 }
 
@@ -1815,6 +2878,9 @@ tr.future {
     flex: 1;
     min-width: 0;
   }
+  .toolbar-nav {
+    width: 100%;
+  }
   .view-tabs {
     width: 100%;
     display: flex;
@@ -1823,10 +2889,295 @@ tr.future {
     flex: 1;
     text-align: center;
   }
-  .kpi-grid--5,
-  .kpi-mini,
-  .perf-kpi-grid {
-    grid-template-columns: 1fr;
+  .kpi-grid--5 .kpi,
+  .kpi-mini {
+    flex: 1 1 100%;
   }
+
+  .perf-kpi-grid {
+    flex-direction: column;
+  }
+}
+
+.co-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.co-modal {
+  width: min(760px, 100%);
+  max-height: min(90vh, 820px);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.22);
+  overflow: hidden;
+}
+
+.co-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.95rem 1.1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.co-modal-head h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.co-modal-close {
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: var(--slate);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.co-modal-tabs {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.65rem 1.1rem 0;
+}
+
+.co-modal-tabs button {
+  border: none;
+  background: transparent;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.co-modal-tabs button.active {
+  color: var(--brand);
+  border-bottom-color: var(--brand);
+}
+
+.co-modal-body {
+  padding: 0.9rem 1.1rem 1rem;
+  overflow: auto;
+  min-height: 0;
+}
+
+.co-modal-intro {
+  margin: 0 0 0.85rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.co-modal-envelope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+  margin: -0.2rem 0 0.65rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+.co-modal-envelope.is-over {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.co-modal-envelope--muted {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: #f8fafc;
+  border-color: var(--line);
+}
+
+.envelope-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.envelope-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.envelope-value {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.envelope-value--obj {
+  color: #2563eb;
+}
+
+.envelope-value--ok {
+  color: var(--green-dark);
+}
+
+.envelope-value--over {
+  color: var(--brand);
+}
+
+.envelope-sep {
+  color: #cbd5e1;
+  font-weight: 700;
+}
+
+.co-modal-error {
+  margin: 0.75rem 0 0;
+  color: var(--brand-dark);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.co-modal-ok {
+  margin: 0.75rem 0 0;
+  color: var(--green-dark);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.seuil-editor {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.seuil-editor li {
+  display: grid;
+  grid-template-columns: 1.1rem minmax(8rem, auto) 1fr;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.seuil-editor label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 650;
+  font-size: 0.84rem;
+}
+
+.seuil-editor input {
+  width: 4.5rem;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 0.45rem;
+  font-size: 0.88rem;
+}
+
+.seuil-label,
+.seuil-fixed {
+  font-size: 0.82rem;
+  color: var(--ink);
+}
+
+.obj-editor-wrap {
+  overflow: auto;
+  max-height: 22rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.obj-editor {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.obj-editor th,
+.obj-editor td {
+  padding: 0.3rem 0.55rem;
+  border-bottom: 1px solid #eef2f6;
+  text-align: left;
+}
+
+.obj-editor thead th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.obj-editor .num {
+  text-align: right;
+  width: 8.5rem;
+}
+
+.obj-input {
+  width: 5.5rem;
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 0.4rem;
+  text-align: right;
+  font-size: 0.82rem;
+}
+
+.co-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  padding: 0.8rem 1.1rem;
+  border-top: 1px solid var(--line);
+  background: #f8fafc;
+}
+
+.co-modal-foot .btn-refresh {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
+
+.co-modal-foot .btn-refresh:hover:not(:disabled) {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+
+.btn-ghost {
+  min-height: 38px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  padding: 0 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-settings:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
 }
 </style>

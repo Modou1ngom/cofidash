@@ -20,14 +20,12 @@
             Vue d'ensemble
           </a>
           <a v-if="!isCaf" href="#" @click.stop.prevent="selectSection('client')" class="nav-link indent" :class="{ active: activeSection === 'client' }">
-            Données
+            Clients
           </a>
           <a href="#" @click.stop.prevent="selectSection('comptes-ouverts')" class="nav-link indent" :class="{ active: activeSection === 'comptes-ouverts' }">
             Comptes ouverts
           </a>
-          <a v-if="!isCaf" href="#" @click.stop.prevent="selectSection('performance-client')" class="nav-link indent" :class="{ active: activeSection === 'performance-client' }">
-            📊 Performance
-          </a>
+         
         </div>
         <div class="nav-section-header" @click.stop="toggleDepot" :class="{ active: activeSection === 'collection' || activeSection === 'performance-collection' || activeSection === 'domiciliation-flux' || activeSection === 'encours-dat' || activeSection === 'encours-epargne' || activeSection === 'depot-garantie' || activeSection === 'collecte-epargne-a-vue' }">
           <span class="nav-title">
@@ -123,9 +121,9 @@
         <div v-if="prepaidCardsExpanded" class="nav-section-items">
           <a href="#" @click.stop.prevent="handlePrepaidCardSection('sales')" class="nav-link indent" :class="{ active: activeSection === 'prepaid-cards' && activeSubSection === 'sales' }">Vente</a>
           <a href="#" @click.stop.prevent="handlePrepaidCardSection('recharge')" class="nav-link indent" :class="{ active: activeSection === 'prepaid-cards' && activeSubSection === 'recharge' }">Rechargement</a>
-          <a href="#" @click.stop.prevent="selectSection('performance-prepaid-cards')" class="nav-link indent" :class="{ active: activeSection === 'performance-prepaid-cards' }">
+          <!--<a href="#" @click.stop.prevent="selectSection('performance-prepaid-cards')" class="nav-link indent" :class="{ active: activeSection === 'performance-prepaid-cards' }">
             📊 Performance
-          </a>
+          </a>-->
         </div>
         <div class="nav-section-header" @click.stop="toggleMoneyTransfers" :class="{ active: activeSection === 'money-transfers' || activeSection === 'performance-money-transfers' }">
           <span class="nav-title">
@@ -138,9 +136,9 @@
           <a href="#" @click.stop.prevent="selectSection('money-transfers')" class="nav-link indent" :class="{ active: activeSection === 'money-transfers' }">
             Données
           </a>
-          <a href="#" @click.stop.prevent="selectSection('performance-money-transfers')" class="nav-link indent" :class="{ active: activeSection === 'performance-money-transfers' }">
+         <!-- <a href="#" @click.stop.prevent="selectSection('performance-money-transfers')" class="nav-link indent" :class="{ active: activeSection === 'performance-money-transfers' }">
             📊 Performance
-          </a>
+          </a>-->
         </div>
         <div class="nav-section-header" @click.stop="toggleEps" :class="{ active: activeSection === 'eps' || activeSection === 'performance-eps' }">
           <span class="nav-title">
@@ -153,9 +151,9 @@
           <a href="#" @click.stop.prevent="selectSection('eps')" class="nav-link indent" :class="{ active: activeSection === 'eps' }">
             Données
           </a>
-          <a href="#" @click.stop.prevent="selectSection('performance-eps')" class="nav-link indent" :class="{ active: activeSection === 'performance-eps' }">
+          <!--<a href="#" @click.stop.prevent="selectSection('performance-eps')" class="nav-link indent" :class="{ active: activeSection === 'performance-eps' }">
             📊 Performance
-          </a>
+          </a>-->
         </div>
 
           <div class="nav-section-header" @click.stop="toggleDivers" :class="{ active: activeSection === 'divers' || activeSection === 'performance-divers' }">
@@ -169,9 +167,9 @@
           <a href="#" @click.stop.prevent="selectSection('divers')" class="nav-link indent" :class="{ active: activeSection === 'divers' }">
             Données
           </a>
-          <a href="#" @click.stop.prevent="selectSection('performance-divers')" class="nav-link indent" :class="{ active: activeSection === 'performance-divers' }">
+         <!-- <a href="#" @click.stop.prevent="selectSection('performance-divers')" class="nav-link indent" :class="{ active: activeSection === 'performance-divers' }">
             📊 Performance
-          </a>
+          </a>-->
         </div>
         <div class="nav-section-header" @click.stop="toggleObjectives" :class="{ active: activeSection === 'objectives' }">
           <span class="nav-title">

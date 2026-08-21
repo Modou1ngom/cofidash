@@ -357,7 +357,7 @@ class OracleService
     /**
      * Collecte d'épargne à vue (Flexcube — détail client)
      */
-    public function getCollecteEpargneAVueData(?int $month = null, ?int $year = null, bool $refresh = false): array
+    public function getCollecteEpargneAVueData(?int $month = null, ?int $year = null, bool $refresh = false, bool $lite = false): array
     {
         $params = [];
         if ($month !== null) {
@@ -368,6 +368,9 @@ class OracleService
         }
         if ($refresh) {
             $params['refresh'] = 1;
+        }
+        if ($lite) {
+            $params['lite'] = 1;
         }
 
         // Lecture directe : le snapshot SQLite Python est déjà rapide (job 06h).

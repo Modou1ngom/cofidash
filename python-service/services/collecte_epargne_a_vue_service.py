@@ -15,6 +15,7 @@ from services.collecte_epargne_a_vue_backup_service import (
     has_collecte_display,
     has_collecte_snapshot,
     load_collecte_display_payload,
+    load_collecte_monthly_series,
     load_collecte_snapshot_rows,
     materialize_collecte_display,
     refresh_collecte_epv_vue_snapshot,
@@ -302,11 +303,28 @@ def _build_hierarchical(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     return hierarchical
 
 
+def _lite_hierarchy(hierarchical: Dict[str, Any]) -> Dict[str, Any]:
+    """Retire les listes clients (lourdes) en conservant clientCount par CAF."""
+    if not hierarchical:
+        return hierarchical
+    territoire = hierarchical.get("TERRITOIRE") or {}
+    for territory in territoire.values():
+        if not isinstance(territory, dict):
+            continue
+        for agency in territory.get("agencies") or []:
+            for charge in agency.get("chargeAffaireDetails") or []:
+                clients = charge.get("clients") or []
+                charge["clientCount"] = len(clients)
+                charge["clients"] = []
+    return hierarchical
+
+
 def get_collecte_epargne_a_vue_data(
     month: Optional[int] = None,
     year: Optional[int] = None,
     refresh: bool = False,
     include_rows: bool = False,
+    lite: bool = False,
 ) -> Dict[str, Any]:
     """
     Structure hiérarchique (territoire → agence → CAF → clients) pour le dashboard DEPOT.
@@ -353,6 +371,10 @@ def get_collecte_epargne_a_vue_data(
             payload = materialize_collecte_display(m, y, data_source="snapshot")
         if payload is not None:
             payload = dict(payload)
+            payload["monthly"] = load_collecte_monthly_series(y)
+            if lite and payload.get("hierarchicalData"):
+                payload["hierarchicalData"] = _lite_hierarchy(payload["hierarchicalData"])
+                payload["lite"] = True
             payload["elapsed_seconds"] = round(time.monotonic() - started, 2)
             payload["data_source"] = data_source if refresh else "display"
             payload["display_cached"] = True
@@ -409,6 +431,9 @@ def get_collecte_epargne_a_vue_data(
         data_source,
     )
 
+    if lite:
+        hierarchical = _lite_hierarchy(hierarchical)
+
     return {
         "data": rows if include_rows else [],
         "hierarchicalData": hierarchical,
@@ -430,4 +455,6 @@ def get_collecte_epargne_a_vue_data(
             "col_ep_vue": total_col,
             "tro": _tro(total_col, total_objectif),
         },
+        "monthly": load_collecte_monthly_series(y),
+        "lite": bool(lite),
     }

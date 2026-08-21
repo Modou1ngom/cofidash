@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # Pools statiques : taille fixe, pas de sessions « overflow ».
 FLEXCUBE_POOL_SIZE = 8
-DASH_POOL_SIZE = 4
+DASH_POOL_SIZE = 0  # base DASH / REPORT_GROUPE désactivée
 MAX_OVERFLOW = 0
 POOL_SIZE = FLEXCUBE_POOL_SIZE  # alias historique (Flexcube)
 # Ping SELECT 1 uniquement si la connexion a dormi plus longtemps.
@@ -36,9 +36,9 @@ class OracleConnectionPool:
         self.name = name
         self.pool_size = pool_size
         self.max_overflow = max_overflow
-        self.max_total = pool_size + max(0, max_overflow)
-        # Idle = pool de base (+ overflow si activé) : une connexion rendue est toujours réutilisable.
-        self._pool = Queue(maxsize=self.max_total)
+        self.max_total = max(0, pool_size) + max(0, max_overflow)
+        # Queue(maxsize=0) = file infinie en Python : on force au moins 1 si le pool est actif.
+        self._pool = Queue(maxsize=self.max_total if self.max_total > 0 else 1)
         self._lock = threading.Lock()
         self._created = 0
         self._checked_out = 0
@@ -205,17 +205,20 @@ class OracleConnectionPool:
 
 _pool_cofina: Optional[OracleConnectionPool] = None
 _pool_flexcube: Optional[OracleConnectionPool] = None
+_dash_disabled = True
+
+
+class DashPoolDisabled(RuntimeError):
+    """La base DASH (REPORT_GROUPE) n'est plus ouverte par Cofidash."""
 
 
 def get_pool_cofina() -> OracleConnectionPool:
-    """Pool REPORT_GROUPE — tables DASH (CUSTOMERS, DASH_PRET, …)."""
+    """Pool REPORT_GROUPE — tables DASH. Désactivé : plus aucune session."""
     global _pool_cofina
-    if _pool_cofina is None:
-        _pool_cofina = OracleConnectionPool(
-            get_oracle_connection_cofina,
-            pool_size=DASH_POOL_SIZE,
-            max_overflow=MAX_OVERFLOW,
-            name="cofina-dash",
+    if _dash_disabled or _pool_cofina is None:
+        raise DashPoolDisabled(
+            "La base DASH n'est plus utilisée. "
+            "Les écrans reporting DASH (production, DAT, transferts…) sont indisponibles."
         )
     return _pool_cofina
 
@@ -245,21 +248,27 @@ def init_pools(
     flexcube_size: int = FLEXCUBE_POOL_SIZE,
     dash_size: int = DASH_POOL_SIZE,
 ):
-    """Initialise les pools statiques Flexcube et DASH (warmup = taille du pool)."""
-    global _pool_cofina, _pool_flexcube
+    """Initialise le pool Flexcube. Le pool DASH n'est créé que si dash_size > 0."""
+    global _pool_cofina, _pool_flexcube, _dash_disabled
     close_pools()
     if pool_size is not None:
         flexcube_size = pool_size
-        dash_size = pool_size
-    dash_warmup = dash_size if warmup is None else warmup
+        if dash_size != 0:
+            dash_size = pool_size
+    _dash_disabled = dash_size <= 0
     flex_warmup = flexcube_size if warmup is None else warmup
-    _pool_cofina = OracleConnectionPool(
-        get_oracle_connection_cofina,
-        pool_size=dash_size,
-        max_overflow=max_overflow,
-        name="cofina-dash",
-        warmup=dash_warmup,
-    )
+    if not _dash_disabled:
+        dash_warmup = dash_size if warmup is None else warmup
+        _pool_cofina = OracleConnectionPool(
+            get_oracle_connection_cofina,
+            pool_size=dash_size,
+            max_overflow=max_overflow,
+            name="cofina-dash",
+            warmup=dash_warmup,
+        )
+    else:
+        _pool_cofina = None
+        logger.info("Pool DASH désactivé : aucune session REPORT_GROUPE")
     _pool_flexcube = OracleConnectionPool(
         get_oracle_connection_flexcube,
         pool_size=flexcube_size,
@@ -270,7 +279,7 @@ def init_pools(
     logger.info(
         "Pools Oracle statiques: flexcube=%s dash=%s overflow=%s",
         flexcube_size,
-        dash_size,
+        0 if _dash_disabled else dash_size,
         max_overflow,
     )
 

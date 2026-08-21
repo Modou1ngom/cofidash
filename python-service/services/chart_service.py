@@ -52,30 +52,53 @@ def generate_multiseries_chart(data: MultiSeriesData):
     fig = go.Figure()
     
     colors = data.colors if data.colors else ['#2563EB', '#16A34A', '#0066CC', '#FF6600', '#9932CC']
-    color_idx = 0
+    series_items = list(data.series.items())
 
-    for series_name, series_values in data.series.items():
+    use_dual_axis = False
+    if len(series_items) == 2:
+        left_vals = [float(v or 0) for v in series_items[0][1]]
+        right_vals = [float(v or 0) for v in series_items[1][1]]
+        left_max = max(left_vals) if left_vals else 0
+        right_max = max(right_vals) if right_vals else 0
+        if left_max > 0 and right_max > 0:
+            ratio = max(left_max / right_max, right_max / left_max)
+            use_dual_axis = ratio >= 5
+
+    for color_idx, (series_name, series_values) in enumerate(series_items):
+        yaxis = 'y2' if use_dual_axis and color_idx == 1 else 'y'
         fig.add_trace(go.Scatter(
             x=data.labels,
             y=series_values,
             mode='lines+markers',
             name=series_name,
+            yaxis=yaxis,
             line=dict(color=colors[color_idx % len(colors)], width=2.5),
-            marker=dict(size=7)
+            marker=dict(size=7),
+            connectgaps=False,
         ))
-        color_idx += 1
 
-    fig.update_layout(
+    layout_kwargs = dict(
         title=data.title,
         xaxis_title=data.xlabel,
-        yaxis_title=data.ylabel,
+        yaxis_title=data.ylabel if not use_dual_axis else series_items[0][0],
         template="plotly_white",
         hovermode='x unified',
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         font=dict(family="Arial", size=12),
         plot_bgcolor='white',
-        paper_bgcolor='white'
+        paper_bgcolor='white',
+        xaxis=dict(tickangle=-25 if len(data.labels or []) > 6 else 0),
     )
+
+    if use_dual_axis:
+        layout_kwargs["yaxis2"] = dict(
+            title=series_items[1][0],
+            overlaying="y",
+            side="right",
+            showgrid=False,
+        )
+
+    fig.update_layout(**layout_kwargs)
     
     graph_json = json.dumps(fig, cls=PlotlyJSONEncoder)
     return json.loads(graph_json)
@@ -205,7 +228,7 @@ def generate_pie_chart(data: PieChartData):
             textinfo='percent',
             textposition='inside',
             insidetextorientation='horizontal',
-            hole=0.42,
+            hole=0.32,
             hovertemplate='<b>%{label}</b><br>Montant: %{value:,.0f}<br>Part: %{percent}<extra></extra>',
         )
     ])

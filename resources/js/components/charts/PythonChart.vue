@@ -1,18 +1,22 @@
 <template>
-  <div class="python-chart-container">
-    <div v-if="loading && !error" class="chart-loading">
+  <div class="python-chart-container" :style="containerStyle">
+    <div v-if="loading && !error" class="chart-loading" :style="containerStyle">
       <p>Chargement du graphique...</p>
     </div>
-    <div v-if="error" class="chart-error">
+    <div v-if="error" class="chart-error" :style="containerStyle">
       <p>{{ error }}</p>
       <button @click="loadChart" class="retry-btn">Réessayer</button>
     </div>
-    <div ref="chartContainer" class="chart-wrapper" :style="{ display: loading || error ? 'none' : 'block' }"></div>
+    <div
+      ref="chartContainer"
+      class="chart-wrapper"
+      :style="{ ...wrapperStyle, display: loading || error ? 'none' : 'block' }"
+    ></div>
   </div>
 </template>
 
 <script>
-import { ref, onMounted, watch, onBeforeUnmount, nextTick } from 'vue';
+import { ref, onMounted, watch, onBeforeUnmount, nextTick, computed } from 'vue';
 import axios from 'axios';
 import Plotly from 'plotly.js-dist';
 
@@ -35,8 +39,18 @@ export default {
   },
   setup(props) {
     const chartContainer = ref(null);
-    const loading = ref(true); // Commencer par true pour afficher le loader
+    const loading = ref(true);
     const error = ref(null);
+
+    const containerStyle = computed(() => ({
+      minHeight: `${props.height}px`,
+      height: `${props.height}px`,
+    }));
+
+    const wrapperStyle = computed(() => ({
+      minHeight: `${props.height}px`,
+      height: `${props.height}px`,
+    }));
 
     const loadChart = async () => {
       loading.value = true;
@@ -104,25 +118,27 @@ export default {
             let layout = {
               ...chartData.layout,
               autosize: true,
-              width: null // Laisser Plotly calculer automatiquement
+              width: null,
+              height: props.height,
             };
             
             // Ajuster les marges selon le type de graphique
             const hasTitle = Boolean(chartData.layout?.title?.text);
+            const compact = props.height <= 220;
 
             if (props.chartType === 'pie') {
               layout.margin = {
-                l: 10,
-                r: 10,
-                t: hasTitle ? 50 : 10,
-                b: 60
+                l: 8,
+                r: 8,
+                t: hasTitle ? 40 : 8,
+                b: compact ? 72 : 60,
               };
             } else {
               layout.margin = {
-                l: 72,
-                r: 16,
-                t: hasTitle ? 60 : 34,
-                b: 55
+                l: compact ? 56 : 72,
+                r: compact ? 48 : 16,
+                t: hasTitle ? 52 : 28,
+                b: compact ? 48 : 55,
               };
             }
             
@@ -203,7 +219,7 @@ export default {
       window.addEventListener('resize', resizeChart);
     });
 
-    watch([() => props.chartType, () => props.chartData], () => {
+    watch([() => props.chartType, () => props.chartData, () => props.height], () => {
       loadChart();
     }, { deep: true });
 
@@ -218,7 +234,9 @@ export default {
       chartContainer,
       loading,
       error,
-      loadChart
+      loadChart,
+      containerStyle,
+      wrapperStyle,
     };
   }
 }
@@ -227,8 +245,6 @@ export default {
 <style scoped>
 .python-chart-container {
   width: 100%;
-  height: 100%;
-  min-height: 500px;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -239,8 +255,6 @@ export default {
 
 .chart-wrapper {
   width: 100% !important;
-  height: 100%;
-  min-height: 500px;
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -252,8 +266,6 @@ export default {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 500px;
-  height: 100%;
   width: 100%;
   background: #f5f5f5;
   border-radius: 4px;

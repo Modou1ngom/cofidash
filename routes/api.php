@@ -10,6 +10,7 @@ use App\Http\Controllers\ObjectiveController;
 use App\Http\Controllers\ReferenceCompteController;
 use App\Http\Controllers\TerritoryController;
 use App\Http\Controllers\AgencyController;
+use App\Http\Controllers\AppSettingController;
 
 // Routes publiques
 Route::post('/login', [AuthController::class, 'login']);
@@ -97,6 +98,9 @@ Route::middleware('auth:sanctum')->prefix('objectives')->group(function () {
 
 // Routes protégées
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/settings/{key}', [AppSettingController::class, 'show']);
+    Route::put('/settings/{key}', [AppSettingController::class, 'upsert']);
+
     Route::get('/user', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);

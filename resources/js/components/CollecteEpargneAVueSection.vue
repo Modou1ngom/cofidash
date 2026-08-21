@@ -1,19 +1,40 @@
 <template>
   <div class="collecte-epargne-a-vue-section">
-    <div class="section-header">
-      <div class="title-block">
-        <h2 class="section-title">Collecte d'épargne à vue</h2>
-        <p class="section-subtitle">{{ periodTitle }}</p>
+    <div class="section-toolbar">
+      <div class="epv-view-tabs">
+        <button
+          type="button"
+          class="epv-view-tab"
+          :class="{ active: viewMode === 'dashboard' }"
+          :disabled="!hasTerritoires && !loading"
+          @click="viewMode = 'dashboard'"
+        >
+          Dashboard
+        </button>
+        <button
+          type="button"
+          class="epv-view-tab"
+          :class="{ active: viewMode === 'collecte' }"
+          @click="viewMode = 'collecte'"
+        >
+          Collecte d'épargne à vue
+        </button>
+        <button
+          type="button"
+          class="epv-view-tab"
+          :class="{ active: viewMode === 'evolution' }"
+          :disabled="!hasTerritoires && !loading"
+          @click="viewMode = 'evolution'"
+        >
+          Évolution
+        </button>
       </div>
-      <div class="period-selector">
-        <label class="period-label">
-          Période
-          <select v-model.number="selectedMonth" class="month-select" @change="loadData(false)">
-            <option v-for="(month, index) in months" :key="index" :value="index + 1">
-              {{ month }}
-            </option>
-          </select>
-        </label>
+      <div class="toolbar-controls">
+        <select v-model.number="selectedMonth" class="month-select" @change="loadData(false)">
+          <option v-for="(month, index) in months" :key="index" :value="index + 1">
+            {{ month }}
+          </option>
+        </select>
         <select v-model.number="selectedYear" class="year-select" @change="loadData(false)">
           <option v-for="year in years" :key="year" :value="year">
             {{ year }}
@@ -47,35 +68,6 @@
           {{ freezing ? 'Figement…' : 'Figer objectifs' }}
         </button>
       </div>
-    </div>
-
-    <div class="epv-view-tabs">
-      <button
-        type="button"
-        class="epv-view-tab"
-        :class="{ active: viewMode === 'dashboard' }"
-        :disabled="!hasTerritoires && !loading"
-        @click="viewMode = 'dashboard'"
-      >
-        Dashboard
-      </button>
-      <button
-        type="button"
-        class="epv-view-tab"
-        :class="{ active: viewMode === 'collecte' }"
-        @click="viewMode = 'collecte'"
-      >
-        Collecte d'épargne à vue
-      </button>
-      <button
-        type="button"
-        class="epv-view-tab"
-        :class="{ active: viewMode === 'evolution' }"
-        :disabled="!hasTerritoires && !loading"
-        @click="viewMode = 'evolution'"
-      >
-        Évolution
-      </button>
     </div>
 
     <div v-if="loading" class="loading-message">
@@ -236,7 +228,7 @@
                           >
                             <td class="level-4">
                               <button
-                                v-if="(charge.clients || []).length"
+                                v-if="chargeClientCount(charge)"
                                 class="expand-btn expand-btn--sm"
                                 type="button"
                                 @click.stop="toggleExpand(cafExpandKey(territoryKey, agency, index, cIdx))"
@@ -249,7 +241,7 @@
                             <td class="col-left">{{ charge.chargeAffaire || charge.CHARGE_AFFAIRE || '—' }}</td>
                             <td class="muted">—</td>
                             <td class="muted">—</td>
-                            <td class="muted">{{ (charge.clients || []).length }} client(s)</td>
+                            <td class="muted">{{ chargeClientCount(charge) }} client(s)</td>
                             <td class="col-num">{{ formatCurrency(charge.cumMontantFinance) }}</td>
                             <td class="col-num">{{ formatCurrency(charge.objectif) }}</td>
                             <td class="col-num">{{ formatCurrency(charge.encoursCredit) }}</td>
@@ -339,7 +331,7 @@
                     <td class="col-left">{{ charge.chargeAffaire || charge.CHARGE_AFFAIRE || '—' }}</td>
                     <td class="muted">—</td>
                     <td class="muted">—</td>
-                    <td class="muted">{{ (charge.clients || []).length }} client(s)</td>
+                    <td class="muted">{{ chargeClientCount(charge) }} client(s)</td>
                     <td class="col-num">{{ formatCurrency(charge.cumMontantFinance) }}</td>
                     <td class="col-num">{{ formatCurrency(charge.objectif) }}</td>
                     <td class="col-num">{{ formatCurrency(charge.encoursCredit) }}</td>
@@ -566,11 +558,8 @@
 
     <div
       v-if="!loading && !errorMessage && hasTerritoires && viewMode === 'dashboard'"
-      ref="dashboardViewport"
-      class="epv-dashboard-viewport"
-      :style="dashboardViewportStyle"
+      class="epv-dashboard"
     >
-    <div class="epv-dashboard" :style="dashboardStyle">
       <div class="dash-kpi-grid">
         <div class="dash-kpi objectif">
           <span class="dash-kpi-icon" aria-hidden="true">
@@ -624,7 +613,7 @@
       <div class="dash-charts-row">
         <div class="dash-card dash-chart-main">
           <div class="dash-card-head">
-            <h4>Courbe de suivi — Évolution du mois</h4>
+            <h4>Courbe de suivi — Évolution mensuelle</h4>
             <div class="dash-mini-stats">
               <div class="dash-chip collecte">
                 <span>Réalisé</span>
@@ -641,7 +630,7 @@
             </div>
           </div>
           <PythonChart
-            :key="`dash-line-${selectedMonth}-${selectedYear}`"
+            :key="`dash-line-${selectedMonth}-${selectedYear}-${monthlyRows.length}`"
             chartType="multiseries"
             :chartData="dashboardLineChartData"
             :height="200"
@@ -660,7 +649,7 @@
         </div>
         <div class="dash-card dash-resume">
           <div class="dash-card-head">
-            <h4>Résumé période</h4>
+            <h4>Résumé</h4>
           </div>
           <ul class="dash-resume-list">
           
@@ -792,7 +781,6 @@
         </div>
       </div>
     </div>
-    </div>
 
     <div
       v-if="!loading && !errorMessage && !hasTerritoires && viewMode === 'dashboard'"
@@ -825,6 +813,9 @@ export default {
       objectifsSnapshotAt: '',
       objectifsApplied: 0,
       hierarchicalData: { TERRITOIRE: {} },
+      monthlyRows: [],
+      periodCache: {},
+      dataLoadedFull: false,
       selectedMonth: now.getMonth() + 1,
       selectedYear: currentYear,
       months: [
@@ -841,14 +832,6 @@ export default {
       },
       activeLevel: { type: 'total', category: 'TERRITOIRE' },
       viewMode: 'dashboard',
-      // Le dashboard est toujours composé à cette taille puis mis à l'échelle,
-      // pour un rendu identique quel que soit l'écran.
-      dashboardDesignWidth: 1600,
-      dashboardDesignHeight: 900,
-      // En dessous de ce facteur le texte deviendrait illisible : on laisse défiler à la place.
-      dashboardMinScale: 0.8,
-      dashboardScale: 1,
-      dashboardOverflowsX: false,
       chartViewMode: 'graph',
       perfLevel: 'territoire',
       perfTerritoryKey: null,
@@ -862,9 +845,6 @@ export default {
     };
   },
   computed: {
-    periodTitle() {
-      return `Résultat global — ${this.months[this.selectedMonth - 1]} ${this.selectedYear}`;
-    },
     loadingHint() {
       if (this.recalculating) {
         return 'Recalcul Flexcube en cours… (peut prendre 1 à 3 min)';
@@ -1149,13 +1129,13 @@ export default {
       for (const [, territory] of this.territoireEntries) {
         for (const agency of territory.agencies || []) {
           for (const charge of agency.chargeAffaireDetails || []) {
-            count += (charge.clients || []).length;
+            count += this.chargeClientCount(charge);
           }
         }
       }
       if (this.grandCompte) {
         for (const charge of this.grandCompte.chargeAffaireDetails || []) {
-          count += (charge.clients || []).length;
+          count += this.chargeClientCount(charge);
         }
       }
       return count;
@@ -1236,26 +1216,33 @@ export default {
         };
       }).sort((a, b) => b.tro - a.tro);
     },
+    monthlyRowsEffective() {
+      const rows = Array.isArray(this.monthlyRows) ? this.monthlyRows : [];
+      const hasData = rows.some((r) => Number(r.collecteM) > 0 || Number(r.objectif) > 0);
+      if (hasData) return rows;
+      return this.months.map((label, index) => {
+        const month = index + 1;
+        const isSelected = month === this.selectedMonth;
+        return {
+          month,
+          label,
+          objectif: isSelected ? Number(this.grandTotal.objectif) || 0 : 0,
+          collecteM: isSelected ? Number(this.grandTotal.collecteM) || 0 : 0,
+        };
+      });
+    },
     dashboardLineChartData() {
-      const daysInMonth = new Date(this.selectedYear, this.selectedMonth, 0).getDate();
-      const now = new Date();
-      const isCurrentMonth =
-        this.selectedMonth === now.getMonth() + 1 && this.selectedYear === now.getFullYear();
-      const lastDay = isCurrentMonth ? now.getDate() : daysInMonth;
-      const labels = Array.from(
-        { length: lastDay },
-        (_, i) => `${String(i + 1).padStart(2, '0')}/${String(this.selectedMonth).padStart(2, '0')}`
-      );
-      const objectif = (Number(this.grandTotal.objectif) || 0) / 1_000_000;
-      const collecte = (Number(this.grandTotal.collecteM) || 0) / 1_000_000;
+      const rows = this.monthlyRowsEffective.filter((r) => r.month <= this.selectedMonth);
+      const toM = (v) => (Number(v) || 0) / 1_000_000;
+      const shortLabel = (label) => String(label || '').slice(0, 4);
       return {
-        labels,
+        labels: rows.map((r) => shortLabel(r.label)),
         series: {
-          Objectif: labels.map(() => objectif),
-          Collecte: labels.map((_, i) => (i === labels.length - 1 ? collecte : 0)),
+          Objectif: rows.map((r) => toM(r.objectif)),
+          Collecte: rows.map((r) => toM(r.collecteM)),
         },
         title: '',
-        xlabel: 'Jour du mois',
+        xlabel: 'Mois',
         ylabel: 'Montant (M FCFA)',
         colors: ['#2563EB', '#16A34A'],
       };
@@ -1268,56 +1255,38 @@ export default {
         title: '',
       };
     },
-    dashboardStyle() {
-      return {
-        width: `${this.dashboardDesignWidth}px`,
-        height: `${this.dashboardDesignHeight}px`,
-        transform: `scale(${this.dashboardScale})`,
-      };
-    },
-    dashboardViewportStyle() {
-      // La barre de défilement horizontale mangerait le bas des cartes : on lui réserve sa place.
-      const scrollbarAllowance = this.dashboardOverflowsX ? 16 : 0;
-      return {
-        height: `${Math.round(this.dashboardDesignHeight * this.dashboardScale) + scrollbarAllowance}px`,
-      };
-    },
   },
   mounted() {
-    this.loadData();
-    window.addEventListener('resize', this.updateDashboardScale);
-    this.updateDashboardScale();
-  },
-  beforeUnmount() {
-    window.removeEventListener('resize', this.updateDashboardScale);
+    this.loadData(false, { full: false });
   },
   watch: {
-    viewMode() {
-      this.$nextTick(this.updateDashboardScale);
-    },
-    loading() {
-      this.$nextTick(this.updateDashboardScale);
+    viewMode(mode) {
+      if (mode === 'collecte' && !this.dataLoadedFull && !this.loading) {
+        this.loadData(false, { full: true });
+      }
     },
   },
   methods: {
-    // Le dashboard garde toujours la même composition : on calcule le facteur
-    // d'échelle qui la fait tenir dans la place réellement disponible.
-    updateDashboardScale() {
-      const el = this.$refs.dashboardViewport;
-      if (!el) return;
-
-      const availableWidth = el.clientWidth;
-      const availableHeight = window.innerHeight - el.getBoundingClientRect().top - 16;
-      if (availableWidth <= 0 || availableHeight <= 0) return;
-
-      const fitScale = Math.min(
-        availableWidth / this.dashboardDesignWidth,
-        availableHeight / this.dashboardDesignHeight
-      );
-
-      const scale = Math.max(fitScale, this.dashboardMinScale);
-      this.dashboardScale = scale;
-      this.dashboardOverflowsX = this.dashboardDesignWidth * scale > availableWidth + 1;
+    periodCacheKey(full = false) {
+      return `${this.selectedYear}-${this.selectedMonth}:${full ? 'full' : 'lite'}`;
+    },
+    chargeClientCount(charge) {
+      if (charge?.clientCount != null) return Number(charge.clientCount) || 0;
+      return (charge?.clients || []).length;
+    },
+    applyPayload(payload) {
+      this.hierarchicalData = markRaw(payload.hierarchicalData || { TERRITOIRE: {} });
+      this.monthlyRows = Array.isArray(payload.monthly) ? payload.monthly : [];
+      this.dataSource = payload.data_source || '';
+      this.dataSnapshotAt =
+        (payload.data_snapshot && payload.data_snapshot.refreshed_at) || '';
+      this.objectifsFiges = !!payload.objectifs_figes;
+      this.objectifsSource = payload.objectifs_source || 'live';
+      this.objectifsApplied = payload.objectifs_applied || 0;
+      this.objectifsSnapshotAt =
+        (payload.objectifs_snapshot && payload.objectifs_snapshot.refreshed_at) || '';
+      this.dataLoadedFull = !payload.lite;
+      this.resetToTotal();
     },
     agencyDisplayName(agency) {
       return agency.name || agency.AGENCE || agency.BRANCH_NAME || agency.BRANCH_CODE || '—';
@@ -1445,36 +1414,35 @@ export default {
       if (n < 0) return 'tro-low';
       return '';
     },
-    async loadData(forceRefresh = false) {
+    async loadData(forceRefresh = false, options = {}) {
+      const wantFull = options.full ?? (this.viewMode === 'collecte');
+      const cacheKey = this.periodCacheKey(wantFull);
+
+      if (!forceRefresh && this.periodCache[cacheKey]) {
+        this.applyPayload(this.periodCache[cacheKey]);
+        return;
+      }
+
       this.loading = true;
       this.errorMessage = '';
       try {
         const params = {
           month: this.selectedMonth,
           year: this.selectedYear,
+          lite: wantFull ? 0 : 1,
         };
         if (forceRefresh) {
           params.refresh = 1;
+          delete this.periodCache[this.periodCacheKey(false)];
+          delete this.periodCache[this.periodCacheKey(true)];
         }
         const response = await window.axios.get('/api/oracle/data/collecte-epargne-a-vue', {
           params,
-          // Le 1er accès d'un mois sans snapshot lance Flexcube (~1–3 min).
-          // Les mois déjà sauvegardés répondent en < 1 s.
           timeout: 300000,
         });
         const payload = response.data || {};
-        // Arborescence volumineuse et jamais mutée : la rendre réactive coûterait
-        // des milliers de proxies pour rien.
-        this.hierarchicalData = markRaw(payload.hierarchicalData || { TERRITOIRE: {} });
-        this.dataSource = payload.data_source || '';
-        this.dataSnapshotAt =
-          (payload.data_snapshot && payload.data_snapshot.refreshed_at) || '';
-        this.objectifsFiges = !!payload.objectifs_figes;
-        this.objectifsSource = payload.objectifs_source || 'live';
-        this.objectifsApplied = payload.objectifs_applied || 0;
-        this.objectifsSnapshotAt =
-          (payload.objectifs_snapshot && payload.objectifs_snapshot.refreshed_at) || '';
-        this.resetToTotal();
+        this.periodCache[cacheKey] = payload;
+        this.applyPayload(payload);
       } catch (err) {
         let msg =
           err?.response?.data?.message ||
@@ -1488,9 +1456,11 @@ export default {
         }
         this.errorMessage = msg;
         this.hierarchicalData = { TERRITOIRE: {} };
+        this.monthlyRows = [];
         this.dataSource = '';
         this.dataSnapshotAt = '';
         this.objectifsFiges = false;
+        this.dataLoadedFull = false;
       } finally {
         this.loading = false;
       }
@@ -1594,53 +1564,58 @@ export default {
 
 <style scoped>
 .collecte-epargne-a-vue-section {
-  --epv-ink: #1f2937;
-  --epv-muted: #6b7280;
+  --epv-ink: #0f172a;
+  --epv-muted: #64748b;
   --epv-border: #e5e7eb;
-  --epv-red: #b91c1c;
+  --epv-red: #dc2626;
   --epv-green: #0f766e;
   --epv-green-soft: #ecfdf5;
-  padding: 1.25rem 1.5rem 2.5rem;
+  --brand: #dc2626;
+  --line: #e5e7eb;
+  --card-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  padding: 1rem 1.25rem 2rem;
   color: var(--epv-ink);
+  background: #fff;
 }
 
-.section-header {
+.section-toolbar {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
-  padding-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  width: 100%;
+  margin-bottom: 1rem;
+  padding-bottom: 0.85rem;
   border-bottom: 1px solid var(--epv-border);
 }
 
-.title-block {
-  min-width: 240px;
-}
-
-.section-title {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--epv-ink);
+.toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+  margin-left: auto;
 }
 
 .epv-view-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 1.25rem;
-  padding: 8px;
-  background: #f9fafb;
-  border-radius: 8px;
-  border-bottom: 2px solid #e5e7eb;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
 }
 
 .epv-view-tab {
-  padding: 12px 24px;
-  font-size: 14px;
+  padding: 0.55rem 1.15rem;
+  font-size: 0.875rem;
   font-weight: 500;
   color: #6b7280;
   background: #ffffff;
@@ -1648,7 +1623,8 @@ export default {
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  line-height: 1.25;
 }
 
 .epv-view-tab:hover:not(:disabled) {
@@ -1675,26 +1651,8 @@ export default {
 }
 
 .section-subtitle {
-  margin: 0.35rem 0 0;
+  margin: 0.25rem 0 0;
   font-size: 0.92rem;
-  color: var(--epv-muted);
-}
-
-.period-selector {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  align-items: flex-end;
-}
-
-.period-label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--epv-muted);
 }
 
@@ -1703,10 +1661,11 @@ export default {
   padding: 0.5rem 0.75rem;
   border: 1px solid #d1d5db;
   border-radius: 6px;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   background: #fff;
   color: var(--epv-ink);
   min-height: 38px;
+  line-height: 1.2;
 }
 
 .btn-refresh {
@@ -2478,82 +2437,71 @@ export default {
 }
 
 /*
- * Le dashboard est toujours composé à sa taille de référence (voir dashboardDesignWidth/Height)
- * puis mis à l'échelle par transform. La composition est donc rigoureusement identique
- * sur tous les écrans ; seule la taille apparente change.
+ * Dashboard fluide — occupe toute la largeur disponible.
  */
-.epv-dashboard-viewport {
-  width: 100%;
-  /* Sous l'échelle minimale la composition dépasse en largeur : on défile plutôt que de rétrécir. */
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-
 .epv-dashboard {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1.05fr) minmax(0, 1fr);
+  width: 100%;
+  display: flex;
+  flex-direction: column;
   gap: 0.75rem;
-  transform-origin: top left;
-  overflow: hidden;
+  min-width: 0;
 }
 
 .epv-dashboard .dash-kpi-grid,
 .epv-dashboard .dash-charts-row,
 .epv-dashboard .dash-tables-row {
+  width: 100%;
   min-width: 0;
 }
 
 .epv-dashboard :deep(.python-chart-container) {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
   height: auto;
+  width: 100%;
 }
 
 .epv-dashboard :deep(.chart-wrapper),
 .epv-dashboard :deep(.chart-loading),
 .epv-dashboard :deep(.chart-error) {
-  min-height: 0;
-  height: 100%;
+  width: 100%;
 }
 
 .dash-kpi-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0.7rem;
+  gap: 0.5rem;
 }
 
 .dash-kpi {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.55rem;
   min-width: 0;
-  background: #eef2f7;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 0.75rem 0.85rem;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 20px -12px rgba(15, 23, 42, 0.12);
-  transition: box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  box-shadow: var(--card-shadow);
 }
 
 .dash-kpi:hover {
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-  transform: translateY(-1px);
-  border-color: #d7e0ea;
+  border-color: #d1d5db;
 }
 
 .dash-kpi-icon {
   flex: 0 0 auto;
-  width: 2.45rem;
-  height: 2.45rem;
+  width: 1.85rem;
+  height: 1.85rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
+  border-radius: 8px;
 }
 
 .dash-kpi-icon svg {
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 0.95rem;
+  height: 0.95rem;
 }
 
 .dash-kpi-body {
@@ -2566,30 +2514,30 @@ export default {
 .dash-kpi.ecart .dash-kpi-icon { background: #fef2f2; color: #dc2626; }
 .dash-kpi.comptes .dash-kpi-icon { background: #f5f3ff; color: #7c3aed; }
 
-.dash-kpi.objectif { box-shadow: inset 3px 0 0 #2563eb, 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 20px -12px rgba(15, 23, 42, 0.12); }
-.dash-kpi.collecte { box-shadow: inset 3px 0 0 #16a34a, 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 20px -12px rgba(15, 23, 42, 0.12); }
-.dash-kpi.taux { box-shadow: inset 3px 0 0 #0f766e, 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 20px -12px rgba(15, 23, 42, 0.12); }
-.dash-kpi.ecart { box-shadow: inset 3px 0 0 #dc2626, 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 20px -12px rgba(15, 23, 42, 0.12); }
-.dash-kpi.comptes { box-shadow: inset 3px 0 0 #7c3aed, 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 20px -12px rgba(15, 23, 42, 0.12); }
+.dash-kpi.objectif { box-shadow: inset 3px 0 0 #2563eb, var(--card-shadow); }
+.dash-kpi.collecte { box-shadow: inset 3px 0 0 #16a34a, var(--card-shadow); }
+.dash-kpi.taux { box-shadow: inset 3px 0 0 #0f766e, var(--card-shadow); }
+.dash-kpi.ecart { box-shadow: inset 3px 0 0 #dc2626, var(--card-shadow); }
+.dash-kpi.comptes { box-shadow: inset 3px 0 0 #7c3aed, var(--card-shadow); }
 
 .dash-kpi-label {
   display: block;
-  font-size: 0.7rem;
+  font-size: 0.62rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #64748b;
+  letter-spacing: 0.05em;
+  color: var(--epv-muted);
   font-weight: 700;
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.08rem;
   line-height: 1.25;
 }
 
 .dash-kpi-value {
-  font-size: 1.2rem;
+  font-size: 1.15rem;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--epv-ink);
   font-variant-numeric: tabular-nums;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
 .dash-kpi.objectif .dash-kpi-value { color: #2563eb; }
@@ -2605,32 +2553,98 @@ export default {
 
 .dash-charts-row {
   display: grid;
-  grid-template-columns: 1.25fr 0.9fr 0.75fr;
-  gap: 0.7rem;
+  grid-template-columns: minmax(280px, 480px) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.65rem;
   align-items: stretch;
   min-height: 0;
   min-width: 0;
 }
 
+.dash-charts-row .dash-card-head {
+  margin-bottom: 0;
+  padding-bottom: 0.65rem;
+}
+
+.dash-charts-row .dash-resume-list {
+  gap: 0.35rem;
+  justify-content: flex-start;
+}
+
+.dash-charts-row .dash-resume-list li {
+  padding: 0.45rem 0.55rem;
+}
+
 .dash-tables-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 0.7rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
   min-height: 0;
   min-width: 0;
 }
 
+.dash-tables-row .dash-rank-split {
+  padding: 0 0.75rem 0.65rem;
+  margin: 0;
+}
+
+.dash-tables-row .dash-table-wrap {
+  margin: 0 0.75rem 0.65rem;
+}
+
+.epv-dashboard :deep(.chart-loading),
+.epv-dashboard :deep(.chart-error) {
+  background: #fff;
+  border: 1px dashed var(--line);
+}
+
+@media (max-width: 1400px) {
+  .dash-charts-row {
+    grid-template-columns: minmax(260px, 420px) minmax(0, 1fr);
+  }
+
+  .dash-charts-row .dash-resume {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 1100px) {
+  .dash-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dash-charts-row,
+  .dash-tables-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .dash-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .section-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar-controls {
+    flex-wrap: wrap;
+    margin-left: 0;
+  }
+}
+
 .dash-card {
-  background: #eef2f7;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 0.75rem 0.9rem;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0;
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 24px -14px rgba(15, 23, 42, 0.15);
+  box-shadow: var(--card-shadow);
 }
 
 .dash-card-head {
@@ -2639,32 +2653,30 @@ export default {
   align-items: center;
   justify-content: space-between;
   gap: 0.55rem;
-  margin-bottom: 0.55rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 0;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 2px solid var(--brand);
   flex: 0 0 auto;
+  background: #fff;
 }
 
 .dash-card-head h4 {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  color: #0f172a;
-  position: relative;
-  padding-left: 0.65rem;
-  letter-spacing: -0.01em;
+  color: var(--epv-ink);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding-left: 0;
 }
 
 .dash-card-head h4::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 0.95rem;
-  border-radius: 2px;
-  background: linear-gradient(180deg, #1A4D3A 0%, #0f766e 100%);
+  display: none;
+}
+
+.dash-charts-row .dash-card > :not(.dash-card-head),
+.dash-tables-row .dash-card > :not(.dash-card-head) {
+  padding: 0.5rem 0.75rem 0.65rem;
 }
 
 .dash-mini-stats {
@@ -2714,8 +2726,8 @@ export default {
 .dash-chip.objectif strong { color: #2563eb; }
 
 .dash-chip.taux {
-  background: #f8fafc;
-  border-color: #e2e8f0;
+  background: #fff;
+  border-color: #e5e7eb;
 }
 
 .c-objectif { color: #2563EB; }
@@ -2725,19 +2737,20 @@ export default {
   overflow: auto;
   flex: 1 1 auto;
   min-height: 0;
-  border-radius: 10px;
-  border: 1px solid #f1f5f9;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  margin: 0 0.75rem 0.65rem;
 }
 
 .dash-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
 }
 
 .dash-table th,
 .dash-table td {
-  padding: 0.5rem 0.55rem;
+  padding: 0.45rem 0.55rem;
   border-bottom: 1px solid #f1f5f9;
   text-align: left;
 }
@@ -2745,21 +2758,22 @@ export default {
 .dash-table th {
   position: sticky;
   top: 0;
-  background: #f8fafc;
-  color: #64748b;
-  font-size: 0.7rem;
+  background: #fff;
+  color: var(--epv-muted);
+  font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 700;
   z-index: 1;
+  border-bottom: 1px solid var(--line);
 }
 
 .dash-table tbody tr:nth-child(even) td {
-  background: #fcfdfe;
+  background: #fafafa;
 }
 
 .dash-table tbody tr:hover td {
-  background: #f1f5f9;
+  background: #f8fafc;
 }
 
 .dash-table tbody tr:last-child td {
@@ -2862,16 +2876,15 @@ export default {
   align-items: center;
   gap: 0.5rem;
   padding: 0.4rem 0.5rem;
-  border-radius: 10px;
-  background: #ffffff;
-  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #f1f5f9;
   min-width: 0;
-  transition: background 0.12s ease, border-color 0.12s ease;
 }
 
 .dash-rank-list li:hover {
-  background: #ffffff;
-  border-color: #cbd5e1;
+  border-color: #e5e7eb;
+  background: #fff;
 }
 
 .dash-rank-list .rank {
@@ -2968,25 +2981,17 @@ export default {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.55rem 0.6rem;
-  border-radius: 12px;
-  background: #f8fafc;
-  border: 1px solid #eef2f7;
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #f1f5f9;
 }
 
-.dash-resume-list li.resume-agency {
-  background: linear-gradient(90deg, #fff7ed 0%, #f8fafc 55%);
-  border-color: #ffedd5;
-}
-
-.dash-resume-list li.resume-caf {
-  background: linear-gradient(90deg, #eff6ff 0%, #f8fafc 55%);
-  border-color: #dbeafe;
-}
-
+.dash-resume-list li.resume-agency,
+.dash-resume-list li.resume-caf,
 .dash-resume-list li.resume-zone {
-  background: linear-gradient(90deg, #ecfdf5 0%, #f8fafc 55%);
-  border-color: #d1fae5;
+  background: #fff;
+  border-color: #f1f5f9;
 }
 
 .dash-resume-icon {
@@ -3032,9 +3037,4 @@ export default {
 .dash-resume-list .tro-badge {
   flex: 0 0 auto;
 }
-
-/*
- * Aucune media query sur le dashboard : sa composition est figée à la taille de référence
- * et c'est le facteur d'échelle (transform) qui l'adapte à l'écran.
- */
 </style>

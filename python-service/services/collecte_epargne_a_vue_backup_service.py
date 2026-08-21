@@ -149,6 +149,78 @@ def month_key(month: int, year: int) -> str:
     return f"{int(year):04d}-{int(month):02d}"
 
 
+MONTH_LABELS = [
+    "Janvier",
+    "Février",
+    "Mars",
+    "Avril",
+    "Mai",
+    "Juin",
+    "Juillet",
+    "Août",
+    "Septembre",
+    "Octobre",
+    "Novembre",
+    "Décembre",
+]
+
+
+def load_collecte_monthly_series(year: int) -> List[Dict[str, Any]]:
+    """Totaux mensuels objectif / collecte pour une année (snapshots matérialisés)."""
+    init_collecte_epv_vue_local_db()
+    y = int(year)
+    prefix = f"{y:04d}-"
+    conn = _connect_local()
+    try:
+        rows = conn.execute(
+            """
+            SELECT month_key,
+                   SUM(objectif) AS objectif,
+                   SUM(collecte_m) AS collecte_m
+            FROM collecte_epv_vue_territoires
+            WHERE month_key LIKE ?
+            GROUP BY month_key
+            ORDER BY month_key
+            """,
+            (prefix + "%",),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    by_month: Dict[int, Dict[str, Any]] = {}
+    for row in rows:
+        mk = str(row["month_key"] or "")
+        parts = mk.split("-")
+        if len(parts) != 2:
+            continue
+        month = int(parts[1])
+        objectif = _f(row["objectif"])
+        collecte_m = _f(row["collecte_m"])
+        by_month[month] = {
+            "month": month,
+            "label": MONTH_LABELS[month - 1],
+            "objectif": objectif,
+            "collecteM": collecte_m,
+            "tro": (collecte_m / objectif * 100) if objectif > 0 else None,
+        }
+
+    series: List[Dict[str, Any]] = []
+    for month in range(1, 13):
+        if month in by_month:
+            series.append(by_month[month])
+        else:
+            series.append(
+                {
+                    "month": month,
+                    "label": MONTH_LABELS[month - 1],
+                    "objectif": 0.0,
+                    "collecteM": 0.0,
+                    "tro": None,
+                }
+            )
+    return series
+
+
 def _month_bounds_iso(month: int, year: int) -> tuple[str, str]:
     date_debut = f"{year:04d}-{month:02d}-01"
     if month == 12:

@@ -1444,11 +1444,13 @@ class DataController extends Controller
             $month = $request->input('month');
             $year = $request->input('year');
             $refresh = filter_var($request->input('refresh', false), FILTER_VALIDATE_BOOLEAN);
+            $lite = filter_var($request->input('lite', false), FILTER_VALIDATE_BOOLEAN);
 
             $result = $this->oracleService->getCollecteEpargneAVueData(
                 $month !== null && $month !== '' ? (int) $month : null,
                 $year !== null && $year !== '' ? (int) $year : null,
-                $refresh
+                $refresh,
+                $lite
             );
 
             if ($result['success']) {

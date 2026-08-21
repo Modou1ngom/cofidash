@@ -53,31 +53,30 @@ source venv/bin/activate
 # Démarrer en arrière-plan avec uvicorn
 nohup uvicorn main:app --host 0.0.0.0 --port 8001 > service.log 2>&1 &
 
-# Attendre que le service démarre (augmenter le délai pour l'initialisation du pool Oracle)
+# Attendre que le service démarre (warmup de 8 connexions Flexcube ~ 20–40 s)
 echo "⏳ Attente du démarrage du service..."
-sleep 5
+sleep 3
 
-# Vérifier que le service est démarré (essayer plusieurs fois)
-max_attempts=5
+max_attempts=20
 attempt=0
 service_ready=false
 
 while [ $attempt -lt $max_attempts ]; do
-    if curl -s http://localhost:8001/ > /dev/null 2>&1; then
+    if curl -s --max-time 2 http://localhost:8001/ > /dev/null 2>&1; then
         service_ready=true
         break
     fi
     attempt=$((attempt + 1))
     echo "   Tentative $attempt/$max_attempts..."
-    sleep 2
+    sleep 3
 done
 
 if [ "$service_ready" = true ]; then
     echo "✅ Service démarré avec succès sur http://localhost:8001"
     echo "📋 Logs disponibles dans: service.log"
-    echo "🔍 Test de santé: $(curl -s http://localhost:8001/ | head -c 100)"
+    echo "🔍 Test de santé: $(curl -s --max-time 2 http://localhost:8001/ | head -c 100)"
 else
-    echo "❌ Erreur: Le service ne répond pas après $((max_attempts * 2 + 5)) secondes"
+    echo "❌ Erreur: Le service ne répond pas après $((max_attempts * 3 + 3)) secondes"
     echo "📋 Vérifiez les logs: tail -f service.log"
     echo "📋 Dernières lignes des logs:"
     tail -20 service.log

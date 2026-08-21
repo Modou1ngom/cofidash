@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List
 import logging
 from datetime import datetime
-from database.oracle_pool import get_pool, get_pool_flexcube
+from database.oracle_pool import get_pool_flexcube
 from services.clients_service import get_clients_data
 from services.production_service import get_production_nombre_data, get_production_volume_data, get_encours_credit_data
 from services.collection_service import get_collection_data
@@ -77,45 +77,31 @@ async def test_oracle_connection():
 
 @router.get("/test-connections")
 async def test_both_oracle_connections():
-    """Teste les deux connexions Oracle : DASH (REPORT_GROUPE) et Flexcube."""
+    """Teste Flexcube ; DASH est désactivé."""
     results = {}
+    try:
+        row = _ping_pool(get_pool_flexcube())
+        results["flexcube"] = {"status": "ok", "result": row[0] if row else None}
+    except HTTPException as exc:
+        results["flexcube"] = {"status": "error", "detail": exc.detail}
+    except Exception as exc:
+        results["flexcube"] = {"status": "error", "detail": str(exc) or repr(exc)}
 
-    for name, pool in (
-        ("cofina_dash", get_pool()),
-        ("flexcube", get_pool_flexcube()),
-    ):
-        try:
-            row = _ping_pool(pool)
-            results[name] = {"status": "ok", "result": row[0] if row else None}
-        except HTTPException as exc:
-            results[name] = {"status": "error", "detail": exc.detail}
-        except Exception as exc:
-            results[name] = {"status": "error", "detail": str(exc) or repr(exc)}
-
-    all_ok = all(r.get("status") == "ok" for r in results.values())
+    results["cofina_dash"] = {"status": "disabled", "detail": "Base DASH non utilisée"}
+    flex_ok = results.get("flexcube", {}).get("status") == "ok"
     return {
-        "status": "ok" if all_ok else "partial",
+        "status": "ok" if flex_ok else "error",
         "connections": results,
     }
 
 
 @router.get("/test-cofina")
 async def test_cofina_connection():
-    """Teste la connexion Oracle DASH (REPORT_GROUPE)."""
-    try:
-        result = _ping_pool(get_pool())
-        return {"status": "success", "message": "Connexion Oracle réussie", "result": result[0]}
-    except HTTPException:
-        # Propager les HTTPException directement (elles contiennent déjà le message détaillé)
-        raise
-    except Exception as e:
-        # Pour les autres exceptions, créer un message d'erreur détaillé
-        error_message = str(e) if str(e) else repr(e)
-        logger.error(f"Erreur lors du test de connexion Oracle: {error_message}", exc_info=True)
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Erreur de connexion: {error_message}"
-        )
+    """DASH désactivé — plus de connexion REPORT_GROUPE."""
+    return {
+        "status": "disabled",
+        "message": "La base DASH n'est plus utilisée.",
+    }
 
 
 @router.get("/tables")
@@ -1088,24 +1074,28 @@ async def get_collecte_epargne_a_vue_endpoint(
     year: Optional[int] = None,
     refresh: Optional[bool] = False,
     include_rows: Optional[bool] = False,
+    lite: Optional[bool] = False,
 ):
     """
     Collecte d'épargne à vue — lit le snapshot du matin (06h) par défaut.
     refresh=true force un recalcul Flexcube + mise à jour du snapshot.
     include_rows=true ajoute les lignes brutes (debug).
+    lite=true exclut le détail client (dashboard / évolution, plus rapide).
     """
     try:
         logger.info(
-            "📅 collecte-epargne-a-vue: month=%s year=%s refresh=%s",
+            "📅 collecte-epargne-a-vue: month=%s year=%s refresh=%s lite=%s",
             month,
             year,
             refresh,
+            lite,
         )
         return get_collecte_epargne_a_vue_data(
             month=month,
             year=year,
             refresh=bool(refresh),
             include_rows=bool(include_rows),
+            lite=bool(lite),
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
