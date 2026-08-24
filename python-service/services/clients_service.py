@@ -2,16 +2,31 @@
 Service pour la gestion des données clients
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
-from services.clients_dash_query import CLIENTS_DASH_QUERY
-from services.utils import calculate_period_dates, get_territory_from_agency, get_territory_key, get_all_territories, SERVICE_POINT_MAPPING
+from services.clients_flexcube_query import CLIENTS_FLEXCUBE_QUERY
+from services.utils import (
+    calculate_period_dates,
+    get_territory_from_agency,
+    get_territory_from_branch_code,
+    get_territory_key,
+    get_all_territories,
+    SERVICE_POINT_MAPPING,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def _normalize_dash_relation_row(row_dict: dict) -> dict:
-    """Aligne les colonnes DASH_RELATION sur les clés attendues par le reste du service."""
+def _dd_mm_yyyy_to_iso(date_str: str) -> str:
+    return datetime.strptime(date_str, "%d/%m/%Y").strftime("%Y-%m-%d")
+
+
+def _exclusive_iso(date_str: str) -> str:
+    return (datetime.strptime(date_str, "%d/%m/%Y") + timedelta(days=1)).strftime("%Y-%m-%d")
+
+
+def _normalize_clients_row(row_dict: dict) -> dict:
+    """Aligne les colonnes Flexcube sur les clés attendues par le reste du service."""
 
     d = dict(row_dict)
 
@@ -52,8 +67,7 @@ def get_clients_data(period: str = "month", zone: Optional[str] = None,
     """
     logger.info(f"🔍 get_clients_data appelé avec period={period}, zone={zone}, month={month}, year={year}, date={date}")
     
-    # Utiliser le pool de connexions et le cache
-    from database.oracle_pool import get_pool
+    from database.oracle_pool import get_pool_flexcube
     from services.cache_service import get_cache, set_cache, generate_cache_key
     
     # Générer une clé de cache basée sur les paramètres
@@ -74,34 +88,28 @@ def get_clients_data(period: str = "month", zone: Optional[str] = None,
     
     logger.info(f"📅 Dates utilisées pour la requête Oracle: M={date_m_debut_str} à {date_m_fin_str}, M-1={date_m1_debut_str} à {date_m1_fin_str}")
 
-    # Snapshot DASH_RELATION : MM/YYYY aligné sur la période (comme encours DAT / autres DASH)
-    period_norm = str(period).strip().lower() if period else "month"
-    if period_norm == "month":
-        m, y = int(month or 0), int(year or 0)
-        if not m or not y:
-            now = datetime.now()
-            m, y = now.month, now.year
-        dash_month_year = f"{m:02d}/{y}"
-    elif period_norm == "year":
-        y = int(year or datetime.now().year)
-        dash_month_year = f"12/{y}"
-    else:
-        try:
-            d_end = datetime.strptime(date_m_fin_str, "%d/%m/%Y")
-            dash_month_year = f"{d_end.month:02d}/{d_end.year}"
-        except (ValueError, TypeError):
-            now = datetime.now()
-            dash_month_year = f"{now.month:02d}/{now.year}"
+    binds = {
+        "date_m_debut": _dd_mm_yyyy_to_iso(date_m_debut_str),
+        "date_m_fin_exclusive": _exclusive_iso(date_m_fin_str),
+        "date_m1_debut": _dd_mm_yyyy_to_iso(date_m1_debut_str),
+    }
 
-    pool = get_pool()
+    pool = get_pool_flexcube()
     with pool.get_connection_context() as conn:
         cursor = conn.cursor()
 
+        cursor.callTimeout = 180_000
         cursor.arraysize = 1000
         cursor.prefetchrows = 1000
 
-        logger.info("📊 Clients via DASH_RELATION, month_year=%s", dash_month_year)
-        cursor.execute(CLIENTS_DASH_QUERY, {"month_year": dash_month_year})
+        logger.info(
+            "📊 Clients via Flexcube, M=%s → %s, M-1=%s → %s",
+            binds["date_m_debut"],
+            binds["date_m_fin_exclusive"],
+            binds["date_m1_debut"],
+            binds["date_m_debut"],
+        )
+        cursor.execute(CLIENTS_FLEXCUBE_QUERY, binds)
 
         columns = [desc[0] for desc in cursor.description]
         rows = cursor.fetchall()
@@ -138,7 +146,7 @@ def get_clients_data(period: str = "month", zone: Optional[str] = None,
                         row_dict[key] = float(value)
                     except (ValueError, TypeError):
                         row_dict[key] = 0
-            row_dict = _normalize_dash_relation_row(row_dict)
+            row_dict = _normalize_clients_row(row_dict)
             results.append(row_dict)
 
         cursor.close()
@@ -213,8 +221,11 @@ def get_clients_data(period: str = "month", zone: Optional[str] = None,
             'tauxCroissanceFrais': taux_croissance_frais
         }
         
-        # Utiliser le nouveau mapping de territoire
         territory = get_territory_from_agency(agence_name)
+        if not territory:
+            territory = get_territory_from_branch_code(
+                agence_data.get("CODE_BUREAU") or agence_data.get("CODE_AGENCE")
+            )
         if territory:
             territory_key = get_territory_key(territory)
             if territory_key in territories_data:

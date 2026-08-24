@@ -1,41 +1,81 @@
-# Collecte d'épargne à vue — requête métier validée (Flexcube CFSFCUBS145).
-# Binds :date_debut / :date_fin_exclusive au format YYYY-MM-DD
-# (début inclusif, fin exclusive = 1er jour du mois suivant).
+# Collecte d'épargne à vue — Flexcube CFSFCUBS145.
+# Binds :date_debut / :date_fin_exclusive (YYYY-MM-DD, fin exclusive).
+# Périmètre ENCOURS_CLIENT : hors rebooker, hors restructuration,
+# hors prêts RA / 25136, hors clients protocole (FIELD_CHAR_13 like PC%).
 
 COLLECTE_EPARGNE_A_VUE_QUERY = """
-WITH ENCOURS_CLIENT AS (
-    SELECT
-        W.BRANCH_CODE,
-        W.FIELD_CHAR_2,
-        W.CUSTOMER_ID,
-        W.DR_PROD_AC,
-        W.PRIMARY_APPLICANT_NAME,
-        W.ACCOUNT_NUMBER,
-        W.AMOUNT_FINANCED,
-        W.USER_DEFINED_STATUS,
-        NVL(
-            SUM(
-                NVL(Z.AMOUNT_DUE, 0)
-                - NVL(Z.AMOUNT_SETTLED, 0)
-            ),
-            0
-        ) AS ENCOURS_TOTAL_M
-    FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER W
-    LEFT JOIN CFSFCUBS145.CLTB_ACCOUNT_SCHEDULES Z
-        ON Z.ACCOUNT_NUMBER = W.ACCOUNT_NUMBER
-       AND Z.COMPONENT_NAME = 'PRINCIPAL'
-    WHERE W.ACCOUNT_STATUS NOT IN ('L', 'V')
-      AND W.USER_DEFINED_STATUS IN ('NORM', 'IMMO')
-    GROUP BY
-        W.BRANCH_CODE,
-        W.FIELD_CHAR_2,
-        W.CUSTOMER_ID,
-        W.DR_PROD_AC,
-        W.PRIMARY_APPLICANT_NAME,
-        W.ACCOUNT_NUMBER,
-        W.AMOUNT_FINANCED,
-        W.USER_DEFINED_STATUS
+WITH ENCOURS  AS (
+    SELECT 
+        w.BRANCH_CODE,
+        w.FIELD_CHAR_2,
+        w.CUSTOMER_ID,
+        w.DR_PROD_AC,
+        w.PRIMARY_APPLICANT_NAME,
+        w.ACCOUNT_NUMBER,
+        w.AMOUNT_FINANCED,
+        w.USER_DEFINED_STATUS,
+        w.FIELD_CHAR_10 "REFERENCE_COMITE" ,
+        nvl (w.FIELD_CHAR_13, 'NO') as  "ID_PROTOCOLES" ,
+ 
+        NVL(w.FIELD_CHAR_19, 'NO') AS "REBOOKER"
+       ,w.FIELD_CHAR_14 "ID_LIGNE_FINANCEMENT" 
+       ,NVL(w.FIELD_CHAR_7,'NO') as "CODE_REF_CREDIT_RESTRUCTURE"  
+       ,w.FIELD_NUMBER_5 "NO_CONTRAT_RESTRUCTURE"
+ 
+        ,SUM(
+            NVL(z.AMOUNT_DUE, 0) - NVL(z.AMOUNT_SETTLED, 0)
+        ) AS ENCOURS_TOTAL_M,
+ 
+        SUM(
+            CASE 
+                WHEN w.USER_DEFINED_STATUS IN ('NORM', 'IMPA') 
+                THEN NVL(z.AMOUNT_DUE, 0) - NVL(z.AMOUNT_SETTLED, 0)
+                ELSE 0 
+            END
+        ) AS ENCOURS_SAIN_M,
+ 
+        SUM(
+            CASE 
+                WHEN w.USER_DEFINED_STATUS NOT IN ('NORM', 'IMPA') 
+                THEN NVL(z.AMOUNT_DUE, 0) - NVL(z.AMOUNT_SETTLED, 0)
+                ELSE 0 
+            END                      
+        ) AS ENCOURS_IMPAYE_M
+ 
+    FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER w
+ 
+    LEFT JOIN CFSFCUBS145.CLTB_ACCOUNT_SCHEDULES z 
+        ON z.ACCOUNT_NUMBER = w.ACCOUNT_NUMBER
+       AND z.COMPONENT_NAME = 'PRINCIPAL'
+ 
+    WHERE w.ACCOUNT_STATUS NOT IN ('L', 'V')
+      and w.USER_DEFINED_STATUS IN ('NORM', 'IMMO')
+      and w.ACCOUNT_NUMBER not like '%RA%'
+      and w.DR_PROD_AC not in (select CUST_AC_NO from CFSFCUBS145.STTM_CUST_ACCOUNT  where ACCOUNT_CLASS='25136')
+ 
+    GROUP BY 
+        w.BRANCH_CODE,
+        w.FIELD_CHAR_2,
+        w.CUSTOMER_ID,
+        w.DR_PROD_AC,
+        w.PRIMARY_APPLICANT_NAME,
+        w.ACCOUNT_NUMBER,
+        w.AMOUNT_FINANCED,
+        w.USER_DEFINED_STATUS
+        ,w.FIELD_CHAR_13 
+       ,w.FIELD_CHAR_14 
+       ,w.FIELD_NUMBER_5 
+       ,w.FIELD_CHAR_7 
+       , w.FIELD_CHAR_10
+       ,w.FIELD_CHAR_19
 ),
+ 
+ENCOURS_CLIENT  as (  select * from ENCOURS  where REBOOKER !='YES'   
+and  ID_PROTOCOLES not like 'PC%' 
+and CODE_REF_CREDIT_RESTRUCTURE !='YES' 
+and  CUSTOMER_ID   not in (select distinct CUSTOMER_ID from CFSFCUBS145.CLTB_ACCOUNT_MASTER where FIELD_CHAR_13  like 'PC%')
+),
+
 OBJ_COL_EPV AS (
     SELECT
         BRANCH_CODE,

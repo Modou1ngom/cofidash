@@ -106,7 +106,7 @@
       <div class="panel-header">
         <h3 class="panel-title">Collecte d'épargne à vue</h3>
         <span v-if="hasTerritoires" class="panel-meta">
-          Réalisation mesurée par rapport à l’objectif mensuel figé — territoire → agence → CAF → client
+          Réalisation mesurée par rapport à l’objectif mensuel territoire → agence → CAF → client
         </span>
       </div>
 
@@ -451,7 +451,7 @@
       <div v-else class="performance-panel">
         <div class="perf-cards">
           <div class="perf-card">
-            <span class="label">Objectif {{ objectifsFiges ? 'figé' : 'live' }}</span>
+            <span class="label">Objectif </span>
             <strong>{{ formatCurrency(activeMetrics.objectif) }}</strong>
           </div>
           <div class="perf-card">
@@ -566,7 +566,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>
           </span>
           <div class="dash-kpi-body">
-            <span class="dash-kpi-label">Objectif figé</span>
+            <span class="dash-kpi-label">Objectif fixé</span>
             <strong class="dash-kpi-value">{{ formatMillion(grandTotal.objectif) }} <small>M FCFA</small></strong>
           </div>
         </div>
