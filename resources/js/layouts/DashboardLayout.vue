@@ -2,10 +2,11 @@
   <div class="dashboard">
     <div class="top-grey-bar"></div>
     <div class="dashboard-top">
-      <DashboardHeader />
+      <DashboardHeader :key="menuAccessVersion" />
     </div>
     <div class="dashboard-body">
       <Sidebar
+        :key="menuAccessVersion"
         :selected-zone="selectedZone"
         :active-section="activeSection"
         :active-sub-section="activeSubSection"
@@ -45,6 +46,7 @@ export default {
     return {
       selectedZone: null,
       activeSubSection: null,
+      menuAccessVersion: 0,
     };
   },
   computed: {
@@ -73,25 +75,38 @@ export default {
       },
     },
   },
+  async mounted() {
+    await ProfileManager.refreshCurrentUser();
+    this.menuAccessVersion += 1;
+  },
   methods: {
     handleSectionSelected(section) {
       if (section === 'caf-overview') {
+        if (!ProfileManager.canAccessSection('caf-overview')) {
+          return;
+        }
         if (!this.$route.path.startsWith('/vue360/caf')) {
           this.$router.push('/vue360/caf');
         }
         return;
       }
       if (section === 'vue360') {
+        if (!ProfileManager.canViewVue360()) {
+          return;
+        }
         if (!this.$route.path.startsWith('/vue360/recherche') && !this.$route.path.startsWith('/vue360/clients')) {
           this.$router.push('/vue360/recherche');
         }
         return;
       }
-      if (section === 'objectives' && ProfileManager.isCAF()) {
+      if (section === 'objectives' && ProfileManager.canAccessSection('objectives', 'mine') && !ProfileManager.canAccessSection('objectives', 'add')) {
         if (!this.$route.path.startsWith('/vue360/objectifs')) {
           this.$router.push('/vue360/objectifs');
         }
         this.activeSubSection = 'mine';
+        return;
+      }
+      if (!ProfileManager.canAccessSection(section)) {
         return;
       }
       sessionStorage.setItem('dashboardSection', section);
@@ -99,7 +114,7 @@ export default {
     },
     handleSubSectionSelected(subSection) {
       this.activeSubSection = subSection;
-      if (subSection === 'mine' && ProfileManager.isCAF()) {
+      if (subSection === 'mine' && ProfileManager.canAccessSection('objectives', 'mine')) {
         if (!this.$route.path.startsWith('/vue360/objectifs')) {
           this.$router.push('/vue360/objectifs');
         }

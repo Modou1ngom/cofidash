@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Services\Vue360\CheckingPiRules;
 use App\Services\Vue360\Vue360ApiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -54,6 +55,23 @@ class ClientController extends Controller
         $kyc = is_array($payload) ? ($payload['data'] ?? $payload) : $payload;
 
         return response()->json(['data' => $kyc]);
+    }
+
+    public function checkingPi(Request $request, string $id): JsonResponse
+    {
+        $result = $this->api->clientCheckingPi($request->user(), $id);
+
+        if (!$result['success']) {
+            return $this->respond($result, 404);
+        }
+
+        $payload = $result['data'];
+        $data = is_array($payload) ? ($payload['data'] ?? $payload) : $payload;
+        if (! is_array($data)) {
+            $data = [];
+        }
+
+        return response()->json(['data' => CheckingPiRules::apply($data)]);
     }
 
     public function accounts(Request $request, string $id): JsonResponse

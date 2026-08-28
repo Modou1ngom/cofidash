@@ -129,6 +129,21 @@ async def vue360_client_kyc(
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@router.get("/clients/{client_id}/checking-pi")
+async def vue360_client_checking_pi(client_id: str):
+    """Contrôle d'éligibilité PI : présence des champs KYC / compte requis."""
+    try:
+        data = vue360_service.get_checking_pi(client_id)
+        if not data:
+            raise HTTPException(status_code=404, detail="Checking-PI introuvable")
+        return {"data": data}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("vue360 checking-pi %s: %s", client_id, exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @router.get("/clients/{client_id}/accounts")
 async def vue360_client_accounts(
     client_id: str,

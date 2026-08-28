@@ -45,6 +45,47 @@ class DataController extends Controller
         return response($body, 200, $headers);
     }
 
+    private function authenticatedUser(Request $request)
+    {
+        $user = $request->user();
+        if ($user) {
+            $user->loadMissing('profile');
+            return $user;
+        }
+
+        $token = $request->bearerToken();
+        if (!$token) {
+            return null;
+        }
+
+        $accessToken = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
+        $user = $accessToken?->tokenable;
+        if ($user) {
+            $user->loadMissing('profile');
+        }
+
+        return $user;
+    }
+
+    private function denyUnlessAdmin(Request $request): ?JsonResponse
+    {
+        $user = $this->authenticatedUser($request);
+        $profile = $user?->profile;
+        $code = strtoupper((string) ($profile?->code ?? ''));
+        $permissions = is_array($profile?->permissions) ? $profile->permissions : [];
+        $isAdmin = $code === 'ADMIN' || in_array('ADMIN_ACCESS', $permissions, true);
+
+        if ($isAdmin) {
+            return null;
+        }
+
+        return response()->json([
+            'success' => false,
+            'error' => 'forbidden',
+            'message' => 'Seuls les administrateurs peuvent lancer cette action.',
+        ], 403);
+    }
+
     /**
      * Teste la connexion à Oracle
      */
@@ -1335,6 +1376,116 @@ class DataController extends Controller
     }
 
     /**
+     * Force le snapshot des transferts d'argent (équivalent job 30 min).
+     */
+    public function refreshTransfersBackup(Request $request): JsonResponse
+    {
+        $denied = $this->denyUnlessAdmin($request);
+        if ($denied) {
+            return $denied;
+        }
+
+        try {
+            $month = $request->input('month');
+            $year = $request->input('year');
+            $service = $request->input('service');
+
+            $result = $this->oracleService->refreshTransfersBackup(
+                $month !== null && $month !== '' ? (int) $month : null,
+                $year !== null && $year !== '' ? (int) $year : null,
+                $service ? (string) $service : null
+            );
+
+            if ($result['success']) {
+                return response()->json($result['data'] ?? []);
+            }
+
+            return response()->json([
+                'error' => $result['error'] ?? 'oracle_error',
+                'message' => $result['message'] ?? 'Erreur snapshot transferts',
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Exception snapshot transferts', ['message' => $e->getMessage()]);
+
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Force le snapshot du portefeuille à risque (équivalent job 30 min).
+     */
+    public function refreshPortefeuilleRisqueBackup(Request $request): JsonResponse
+    {
+        $denied = $this->denyUnlessAdmin($request);
+        if ($denied) {
+            return $denied;
+        }
+
+        try {
+            $month = $request->input('month');
+            $year = $request->input('year');
+            $grain = $request->input('grain');
+
+            $result = $this->oracleService->refreshPortefeuilleRisqueBackup(
+                $month !== null && $month !== '' ? (int) $month : null,
+                $year !== null && $year !== '' ? (int) $year : null,
+                $grain ? (string) $grain : null
+            );
+
+            if ($result['success']) {
+                return response()->json($result['data'] ?? []);
+            }
+
+            return response()->json([
+                'error' => $result['error'] ?? 'oracle_error',
+                'message' => $result['message'] ?? 'Erreur snapshot PAR',
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Exception snapshot PAR', ['message' => $e->getMessage()]);
+
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Métadonnées du snapshot portefeuille à risque.
+     */
+    public function getPortefeuilleRisqueSnapshotMeta(Request $request): JsonResponse
+    {
+        try {
+            $month = $request->input('month');
+            $year = $request->input('year');
+            $grain = $request->input('grain');
+
+            $result = $this->oracleService->getPortefeuilleRisqueSnapshotMeta(
+                $month !== null && $month !== '' ? (int) $month : null,
+                $year !== null && $year !== '' ? (int) $year : null,
+                $grain ? (string) $grain : null
+            );
+
+            if ($result['success']) {
+                return response()->json($result['data'] ?? []);
+            }
+
+            return response()->json([
+                'error' => $result['error'] ?? 'oracle_error',
+                'message' => $result['message'] ?? 'Erreur meta snapshot PAR',
+            ], 500);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Récupère les données de dépôt de garantie depuis Oracle
      */
     public function getDepotGarantieData(Request $request): JsonResponse
@@ -1446,6 +1597,13 @@ class DataController extends Controller
             $refresh = filter_var($request->input('refresh', false), FILTER_VALIDATE_BOOLEAN);
             $lite = filter_var($request->input('lite', false), FILTER_VALIDATE_BOOLEAN);
 
+            if ($refresh) {
+                $denied = $this->denyUnlessAdmin($request);
+                if ($denied) {
+                    return $denied;
+                }
+            }
+
             $result = $this->oracleService->getCollecteEpargneAVueData(
                 $month !== null && $month !== '' ? (int) $month : null,
                 $year !== null && $year !== '' ? (int) $year : null,
@@ -1485,6 +1643,11 @@ class DataController extends Controller
      */
     public function refreshCollecteEpargneAVueBackup(Request $request): JsonResponse
     {
+        $denied = $this->denyUnlessAdmin($request);
+        if ($denied) {
+            return $denied;
+        }
+
         try {
             $month = $request->input('month');
             $year = $request->input('year');
@@ -1517,6 +1680,11 @@ class DataController extends Controller
      */
     public function refreshObjectifEpvVueBackup(Request $request): JsonResponse
     {
+        $denied = $this->denyUnlessAdmin($request);
+        if ($denied) {
+            return $denied;
+        }
+
         try {
             $month = $request->input('month');
             $year = $request->input('year');

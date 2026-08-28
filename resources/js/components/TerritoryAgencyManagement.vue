@@ -437,11 +437,26 @@
           </div>
           <div class="field">
             <label>Permissions</label>
-            <div class="perm-grid">
-              <label v-for="permission in availablePermissions" :key="permission" class="perm-item">
-                <input type="checkbox" :value="permission" :checked="profileForm.permissions.includes(permission)" @change="togglePermission(permission)" />
-                <span>{{ permission }}</span>
-              </label>
+            <p class="hint">Cochez les menus visibles dans la barre latérale, puis les droits de consultation ou d’écriture.</p>
+            <div class="perm-groups">
+              <div v-for="group in permissionGroups" :key="group.id" class="perm-group">
+                <p class="perm-group-title">{{ group.label }}</p>
+                <div class="perm-grid">
+                  <label v-for="permission in group.permissions" :key="permission.value" class="perm-item">
+                    <input type="checkbox" :value="permission.value" :checked="hasProfilePermission(permission.value)" @change="togglePermission(permission.value)" />
+                    <span>{{ permission.label }}</span>
+                  </label>
+                </div>
+              </div>
+              <div v-if="extraProfilePermissions.length" class="perm-group">
+                <p class="perm-group-title">Autres (non reconnues)</p>
+                <div class="perm-grid">
+                  <label v-for="permission in extraProfilePermissions" :key="permission" class="perm-item">
+                    <input type="checkbox" :value="permission" checked @change="togglePermission(permission)" />
+                    <span>{{ permission }}</span>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
           <label class="check-row">
@@ -525,6 +540,7 @@
 <script>
 import axios from 'axios';
 import SearchableManagerSelect from './SearchableManagerSelect.vue';
+import { AVAILABLE_PERMISSIONS, PERMISSION_GROUPS, ProfileManager, normalizePermissions } from '../utils/profiles.js';
 
 export default {
   name: 'TerritoryAgencyManagement',
@@ -590,7 +606,8 @@ export default {
         is_active: true
       },
       savingProfile: false,
-      availablePermissions: [],
+      permissionGroups: PERMISSION_GROUPS,
+      availablePermissions: AVAILABLE_PERMISSIONS.map((item) => item.value),
       searchQuery: '',
       currentPage: 1,
       pageSize: 10
@@ -627,6 +644,10 @@ export default {
     isCafUserProfile() {
       const profile = this.profiles.find((p) => String(p.id) === String(this.userForm.profile_id));
       return profile?.code === 'CAF';
+    },
+    extraProfilePermissions() {
+      const known = new Set(this.availablePermissions);
+      return (this.profileForm.permissions || []).filter((permission) => !known.has(permission));
     },
     filteredProfiles() {
       const q = this.searchNormalized;
@@ -770,8 +791,7 @@ export default {
           this.loadResponsablesZone(),
           this.loadChefsAgence(),
           this.loadUsers(),
-          this.loadProfiles(),
-          this.loadAvailablePermissions()
+          this.loadProfiles()
         ]);
       } catch (error) {
         console.error('Erreur lors du chargement des données:', error);
@@ -1273,19 +1293,8 @@ export default {
         console.error('Erreur lors de la suppression:', error);
       }
     },
-    async loadAvailablePermissions() {
-      // Liste des permissions disponibles dans le système
-      this.availablePermissions = [
-        'view_dashboard',
-        'edit_objectives',
-        'validate_objectives',
-        'manage_users',
-        'manage_profiles',
-        'manage_territories',
-        'manage_agencies',
-        'view_reports',
-        'export_data'
-      ];
+    hasProfilePermission(permission) {
+      return (this.profileForm.permissions || []).includes(permission);
     },
     openCreateProfileModal() {
       this.editingProfile = null;
@@ -1304,7 +1313,7 @@ export default {
         code: profile.code,
         name: profile.name,
         description: profile.description || '',
-        permissions: Array.isArray(profile.permissions) ? [...profile.permissions] : [],
+        permissions: normalizePermissions(profile.permissions),
         is_active: profile.is_active !== undefined ? profile.is_active : true
       };
       this.showProfileModal = true;
@@ -1321,12 +1330,14 @@ export default {
       };
     },
     togglePermission(permission) {
-      const index = this.profileForm.permissions.indexOf(permission);
+      const current = normalizePermissions(this.profileForm.permissions);
+      const index = current.indexOf(permission);
       if (index > -1) {
-        this.profileForm.permissions.splice(index, 1);
+        current.splice(index, 1);
       } else {
-        this.profileForm.permissions.push(permission);
+        current.push(permission);
       }
+      this.profileForm.permissions = current;
     },
     async saveProfile() {
       if (!this.profileForm.code || !this.profileForm.name) {
@@ -1342,21 +1353,28 @@ export default {
         if (this.editingProfile) {
           response = await axios.put(
             `/api/admin/profiles/${this.editingProfile.id}`,
-            this.profileForm,
+            { ...this.profileForm, permissions: normalizePermissions(this.profileForm.permissions) },
             { headers: { 'Authorization': `Bearer ${token}` } }
           );
         } else {
           response = await axios.post(
             '/api/admin/profiles',
-            this.profileForm,
+            { ...this.profileForm, permissions: normalizePermissions(this.profileForm.permissions) },
             { headers: { 'Authorization': `Bearer ${token}` } }
           );
         }
 
         if (response.data) {
+          const wasEditing = !!this.editingProfile;
+          const editedId = this.editingProfile?.id;
+          const editedCode = this.profileForm.code;
           await this.loadProfiles();
+          const current = ProfileManager.getCurrentProfileData();
+          if (current && (current.id === editedId || String(current.code || '').toUpperCase() === String(editedCode || '').toUpperCase())) {
+            await ProfileManager.refreshCurrentUser();
+          }
           this.closeProfileModal();
-          alert(this.editingProfile ? '✅ Profil modifié avec succès!' : '✅ Profil créé avec succès!');
+          alert(wasEditing ? '✅ Profil modifié avec succès!' : '✅ Profil créé avec succès!');
         }
       } catch (error) {
         const errorMsg = error.response?.data?.message || error.message;
@@ -2069,16 +2087,31 @@ textarea.control {
   font-size: 13px;
 }
 
-.perm-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  max-height: 200px;
+.perm-groups {
+  max-height: 380px;
   overflow: auto;
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.perm-group-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4b5563;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.perm-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
 
 .perm-item {

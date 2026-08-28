@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from database.oracle_pool import get_pool_flexcube
 from services.c360_queries import (
+    CHECKING_PI_QUERY,
     COMPTES_QUERY,
     ECRITURES_QUERY,
     KYC_BY_ACCOUNT_QUERY,
@@ -73,12 +74,12 @@ def _rows_to_dicts(cursor) -> List[Dict[str, Any]]:
     return out
 
 
-def _execute_query(query: str, params: dict) -> List[Dict[str, Any]]:
+def _execute_query(query: str, params: dict, timeout_ms: int = 20_000) -> List[Dict[str, Any]]:
     pool = get_pool_flexcube()
     with pool.get_connection_context() as conn:
         cursor = conn.cursor()
         try:
-            cursor.callTimeout = 20_000
+            cursor.callTimeout = timeout_ms
             cursor.execute(query, params)
             return _rows_to_dicts(cursor)
         finally:
@@ -122,3 +123,12 @@ def fetch_remboursements_from_oracle(no_pret: str) -> List[Dict[str, Any]]:
 def fetch_prets_client_from_oracle(customer_no: str) -> List[str]:
     rows = _execute_query(PRETS_CLIENT_QUERY, {"customer_no": customer_no})
     return [str(r.get("NO_PRET", "")).strip() for r in rows if r.get("NO_PRET")]
+
+
+def fetch_checking_pi_from_oracle(customer_no: str) -> Optional[Dict[str, Any]]:
+    """Champs Checking-PI Flexcube pour un client (compte épargne/courant ouvert)."""
+    key = str(customer_no or "").strip()
+    if not key:
+        return None
+    rows = _execute_query(CHECKING_PI_QUERY, {"customer_no": key}, timeout_ms=45_000)
+    return rows[0] if rows else None

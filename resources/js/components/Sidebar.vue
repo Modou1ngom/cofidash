@@ -2,16 +2,16 @@
   <aside class="sidebar">
     <nav class="sidebar-nav">
       <div class="nav-section">
-        <div class="nav-section-header" @click.stop="toggleClient" :class="{ active: activeSection === 'client' || activeSection === 'vue360' || activeSection === 'caf-overview' || activeSection === 'performance-client' || activeSection === 'comptes-ouverts' }">
+        <div v-if="canAccessRelation" class="nav-section-header" @click.stop="toggleClient" :class="{ active: activeSection === 'client' || activeSection === 'vue360' || activeSection === 'caf-overview' || activeSection === 'performance-client' || activeSection === 'comptes-ouverts' }">
           <span class="nav-title">
             <span class="nav-icon">👤</span>
             <span class="nav-label">RELATION</span>
           </span>
           <span class="toggle-icon">{{ clientExpanded ? '▼' : '▶' }}</span>
         </div>
-        <div v-if="clientExpanded" class="nav-section-items">
+        <div v-if="canAccessRelation && clientExpanded" class="nav-section-items">
           <a
-            v-if="isCaf"
+            v-if="canAccessSection('caf-overview')"
             href="#"
             @click.stop.prevent="selectSection('caf-overview')"
             class="nav-link indent"
@@ -19,23 +19,23 @@
           >
             Vue d'ensemble
           </a>
-          <a v-if="!isCaf" href="#" @click.stop.prevent="selectSection('client')" class="nav-link indent" :class="{ active: activeSection === 'client' }">
+          <a v-if="canAccessSection('client')" href="#" @click.stop.prevent="selectSection('client')" class="nav-link indent" :class="{ active: activeSection === 'client' }">
             Clients
           </a>
-          <a href="#" @click.stop.prevent="selectSection('comptes-ouverts')" class="nav-link indent" :class="{ active: activeSection === 'comptes-ouverts' }">
+          <a v-if="canAccessSection('comptes-ouverts')" href="#" @click.stop.prevent="selectSection('comptes-ouverts')" class="nav-link indent" :class="{ active: activeSection === 'comptes-ouverts' }">
             Comptes ouverts
           </a>
          
         </div>
-        <div class="nav-section-header" @click.stop="toggleDepot" :class="{ active: activeSection === 'collection' || activeSection === 'performance-collection' || activeSection === 'domiciliation-flux' || activeSection === 'encours-dat' || activeSection === 'encours-epargne' || activeSection === 'depot-garantie' || activeSection === 'collecte-epargne-a-vue' }">
+        <div v-if="canAccessDepot" class="nav-section-header" @click.stop="toggleDepot" :class="{ active: activeSection === 'collection' || activeSection === 'performance-collection' || activeSection === 'domiciliation-flux' || activeSection === 'encours-dat' || activeSection === 'encours-epargne' || activeSection === 'depot-garantie' || activeSection === 'collecte-epargne-a-vue' }">
           <span class="nav-title">
             <span class="nav-icon">💰</span>
             <span class="nav-label">DEPOT</span>
           </span>
           <span class="toggle-icon">{{ depotExpanded ? '▼' : '▶' }}</span>
         </div>
-        <div v-if="depotExpanded" class="nav-section-items">
-          <a href="#" @click.stop.prevent="selectSection('collecte-epargne-a-vue')" class="nav-link indent" :class="{ active: activeSection === 'collecte-epargne-a-vue' }">
+        <div v-if="canAccessDepot && depotExpanded" class="nav-section-items">
+          <a v-if="canAccessSection('collecte-epargne-a-vue')" href="#" @click.stop.prevent="selectSection('collecte-epargne-a-vue')" class="nav-link indent" :class="{ active: activeSection === 'collecte-epargne-a-vue' }">
             Collecte d'épargne à vue
           </a>
          <!-- <a href="#" @click.stop.prevent="selectSection('collection')" class="nav-link indent" :class="{ active: activeSection === 'collection' }">
@@ -64,14 +64,14 @@
             </div>
           </div>
         </div>-->
-        <div class="nav-section-header" @click.stop="toggleCredit" :class="{ active: activeSection === 'production' || activeSection === 'renouvellement' || activeSection === 'new-deal' || activeSection === 'restructuration' || activeSection === 'commission-credit' || activeSection === 'recouvrement' || activeSection === 'portefeuille-risque' || activeSection === 'performance-credit' }">
+        <div v-if="canAccessCredit" class="nav-section-header" @click.stop="toggleCredit" :class="{ active: activeSection === 'production' || activeSection === 'renouvellement' || activeSection === 'new-deal' || activeSection === 'restructuration' || activeSection === 'commission-credit' || activeSection === 'recouvrement' || activeSection === 'portefeuille-risque' || activeSection === 'performance-credit' }">
           <span class="nav-title">
             <span class="nav-icon">💳</span>
             <span class="nav-label">CREDIT</span>
           </span>
           <span class="toggle-icon">{{ creditExpanded ? '▼' : '▶' }}</span>
         </div>
-        <!----><div v-if="creditExpanded" class="nav-section-items">
+        <!----><div v-if="canAccessCredit && creditExpanded" class="nav-section-items">
          <!-- <a href="#" @click.stop.prevent="selectSection('production')" class="nav-link indent" :class="{ active: activeSection === 'production' }">
             Production
           </a>-->
@@ -81,12 +81,12 @@
               PAR SIMPLE
             </a>-->
 
-            <a href="#" @click.stop.prevent="handlePortefeuilleRisqueSection('global')" class="nav-link indent":class="{ active: activeSection === 'global'}">
+            <a v-if="canAccessSection('portefeuille-risque')" href="#" @click.stop.prevent="handlePortefeuilleRisqueSection('global')" class="nav-link indent":class="{ active: activeSection === 'global'}">
           Portefeuille à risque
             </a>
           
         
-          <a href="#" @click.stop.prevent="selectSection('new-deal')" class="nav-link indent" :class="{ active: activeSection === 'new-deal' }">
+          <a v-if="canAccessSection('new-deal')" href="#" @click.stop.prevent="selectSection('new-deal')" class="nav-link indent" :class="{ active: activeSection === 'new-deal' }">
             New Deal
           </a>
          <!-- <a href="#" @click.stop.prevent="selectSection('renouvellement')" class="nav-link indent" :class="{ active: activeSection === 'renouvellement' }">
@@ -111,7 +111,7 @@
             <span class="nav-label">Performance</span>
           </span>
         </div>-->
-        <div class="nav-section-header" @click.stop="togglePrepaidCards" :class="{ active: activeSection === 'prepaid-cards' || activeSection === 'performance-prepaid-cards' }">
+       <!--<div class="nav-section-header" @click.stop="togglePrepaidCards" :class="{ active: activeSection === 'prepaid-cards' || activeSection === 'performance-prepaid-cards' }">
           <span class="nav-title">
             <span class="nav-icon">💳</span>
             <span class="nav-label">DESC MONETIQUE</span>
@@ -121,18 +121,18 @@
         <div v-if="prepaidCardsExpanded" class="nav-section-items">
           <a href="#" @click.stop.prevent="handlePrepaidCardSection('sales')" class="nav-link indent" :class="{ active: activeSection === 'prepaid-cards' && activeSubSection === 'sales' }">Vente</a>
           <a href="#" @click.stop.prevent="handlePrepaidCardSection('recharge')" class="nav-link indent" :class="{ active: activeSection === 'prepaid-cards' && activeSubSection === 'recharge' }">Rechargement</a>
-          <!--<a href="#" @click.stop.prevent="selectSection('performance-prepaid-cards')" class="nav-link indent" :class="{ active: activeSection === 'performance-prepaid-cards' }">
+          <a href="#" @click.stop.prevent="selectSection('performance-prepaid-cards')" class="nav-link indent" :class="{ active: activeSection === 'performance-prepaid-cards' }">
             📊 Performance
-          </a>-->
-        </div>
-        <div class="nav-section-header" @click.stop="toggleMoneyTransfers" :class="{ active: activeSection === 'money-transfers' || activeSection === 'performance-money-transfers' }">
+          </a>
+        </div>-->
+        <div v-if="canAccessTransfers" class="nav-section-header" @click.stop="toggleMoneyTransfers" :class="{ active: activeSection === 'money-transfers' || activeSection === 'performance-money-transfers' }">
           <span class="nav-title">
             <span class="nav-icon">💸</span>
             <span class="nav-label">DESC TRANSFERTS</span>
           </span>
           <span class="toggle-icon">{{ moneyTransfersExpanded ? '▼' : '▶' }}</span>
         </div>
-        <div v-if="moneyTransfersExpanded" class="nav-section-items">
+        <div v-if="canAccessTransfers && moneyTransfersExpanded" class="nav-section-items">
           <a href="#" @click.stop.prevent="selectSection('money-transfers')" class="nav-link indent" :class="{ active: activeSection === 'money-transfers' }">
             Données
           </a>
@@ -140,7 +140,7 @@
             📊 Performance
           </a>-->
         </div>
-        <div class="nav-section-header" @click.stop="toggleEps" :class="{ active: activeSection === 'eps' || activeSection === 'performance-eps' }">
+        <!--<div class="nav-section-header" @click.stop="toggleEps" :class="{ active: activeSection === 'eps' || activeSection === 'performance-eps' }">
           <span class="nav-title">
             <span class="nav-icon">💵</span>
             <span class="nav-label">DESC EPS</span>
@@ -151,9 +151,9 @@
           <a href="#" @click.stop.prevent="selectSection('eps')" class="nav-link indent" :class="{ active: activeSection === 'eps' }">
             Données
           </a>
-          <!--<a href="#" @click.stop.prevent="selectSection('performance-eps')" class="nav-link indent" :class="{ active: activeSection === 'performance-eps' }">
+          <a href="#" @click.stop.prevent="selectSection('performance-eps')" class="nav-link indent" :class="{ active: activeSection === 'performance-eps' }">
             📊 Performance
-          </a>-->
+          </a>
         </div>
 
           <div class="nav-section-header" @click.stop="toggleDivers" :class="{ active: activeSection === 'divers' || activeSection === 'performance-divers' }">
@@ -167,20 +167,20 @@
           <a href="#" @click.stop.prevent="selectSection('divers')" class="nav-link indent" :class="{ active: activeSection === 'divers' }">
             Données
           </a>
-         <!-- <a href="#" @click.stop.prevent="selectSection('performance-divers')" class="nav-link indent" :class="{ active: activeSection === 'performance-divers' }">
+         <a href="#" @click.stop.prevent="selectSection('performance-divers')" class="nav-link indent" :class="{ active: activeSection === 'performance-divers' }">
             📊 Performance
-          </a>-->
-        </div>
-        <div class="nav-section-header" @click.stop="toggleObjectives" :class="{ active: activeSection === 'objectives' }">
+          </a>
+        </div>-->
+        <div v-if="canAccessObjectives" class="nav-section-header" @click.stop="toggleObjectives" :class="{ active: activeSection === 'objectives' }">
           <span class="nav-title">
             <span class="nav-icon">🎯</span>
             <span class="nav-label">Objectifs</span>
           </span>
           <span class="toggle-icon">{{ objectivesExpanded ? '▼' : '▶' }}</span>
         </div>
-        <div v-if="objectivesExpanded" class="nav-section-items">
+        <div v-if="canAccessObjectives && objectivesExpanded" class="nav-section-items">
           <a
-            v-if="isCaf"
+            v-if="canAccessSection('objectives', 'mine')"
             href="#"
             @click.stop.prevent="handleObjectiveSubSection('mine')"
             class="nav-link indent"
@@ -189,7 +189,7 @@
             📋 Mes objectifs
           </a>
           <a
-            v-if="!isCaf && profileCode !== 'MD'"
+            v-if="canAccessSection('objectives', 'add')"
             href="#"
             @click.stop.prevent="handleObjectiveSubSection('add')"
             class="nav-link indent"
@@ -198,7 +198,7 @@
             ➕ Ajouter
           </a>
           <a
-            v-if="!isCaf"
+            v-if="canAccessSection('objectives', 'validation')"
             href="#"
             @click.stop.prevent="handleObjectiveSubSection('validation')"
             class="nav-link indent"
@@ -208,7 +208,7 @@
           </a>
         </div>
 
-        <div class="nav-section-header" @click.stop="toggleReportingFinancier" :class="{ active: activeSection === 'reporting-financier' }">
+        <!--<div class="nav-section-header" @click.stop="toggleReportingFinancier" :class="{ active: activeSection === 'reporting-financier' }">
           <span class="nav-title">
             <span class="nav-icon">📑</span>
             <span class="nav-label">Reporting Financier</span>
@@ -222,9 +222,9 @@
           <a href="#" @click.stop.prevent="handleReportingFinancierSection('cr-par-agence')" class="nav-link indent" :class="{ active: activeSection === 'reporting-financier' && activeSubSection === 'cr-par-agence' }">
             CR par Agence
           </a>
-        </div>
+        </div>-->
 
-        <template v-if="isAdmin">
+        <template v-if="canAccessGestion">
           <div class="nav-section-header" @click.stop="toggleManagement" :class="{ active: activeSection === 'management' || activeSection === 'performance-management' || activeSection === 'environments' }">
             <span class="nav-title">
               <span class="nav-icon">⚙️</span>
@@ -233,10 +233,10 @@
             <span class="toggle-icon">{{ managementExpanded ? '▼' : '▶' }}</span>
           </div>
           <div v-if="managementExpanded" class="nav-section-items">
-            <a href="#" @click.stop.prevent="selectSection('management')" class="nav-link indent" :class="{ active: activeSection === 'management' }">
+            <a v-if="canAccessSection('management')" href="#" @click.stop.prevent="selectSection('management')" class="nav-link indent" :class="{ active: activeSection === 'management' }">
               Données
             </a>
-            <a href="#" @click.stop.prevent="selectSection('environments')" class="nav-link indent" :class="{ active: activeSection === 'environments' }">
+            <a v-if="canAccessSection('environments')" href="#" @click.stop.prevent="selectSection('environments')" class="nav-link indent" :class="{ active: activeSection === 'environments' }">
               Environnements
             </a>
           </div>
@@ -250,7 +250,7 @@
 </template>
 
 <script>
-import { ProfileManager } from '../utils/profiles.js';
+import { PERMISSIONS, ProfileManager } from '../utils/profiles.js';
 
 export default {
   name: 'Sidebar',
@@ -455,10 +455,40 @@ export default {
     },
     isAdmin() {
       return ProfileManager.isAdmin();
+    },
+    canAccessRelation() {
+      return ProfileManager.canAccessAny([
+        PERMISSIONS.MENU_CLIENTS,
+        PERMISSIONS.MENU_CAF_OVERVIEW,
+        PERMISSIONS.MENU_COMPTES_OUVERTS
+      ]);
+    },
+    canAccessDepot() {
+      return ProfileManager.canAccessSection('collecte-epargne-a-vue');
+    },
+    canAccessCredit() {
+      return ProfileManager.canAccessAny([
+        PERMISSIONS.MENU_PORTEFEUILLE_RISQUE,
+        PERMISSIONS.MENU_NEW_DEAL
+      ]);
+    },
+    canAccessTransfers() {
+      return ProfileManager.canAccessSection('money-transfers');
+    },
+    canAccessObjectives() {
+      return ProfileManager.canAccessSection('objectives');
+    },
+    canAccessGestion() {
+      return ProfileManager.canAccessAny([
+        PERMISSIONS.MENU_GESTION_DONNEES,
+        PERMISSIONS.MENU_GESTION_ENVIRONNEMENTS
+      ]);
     }
   },
   methods: {
-    /** Ferme toutes les sections du menu sauf celle indiquée (comportement accordéon). */
+    canAccessSection(section, subSection = null) {
+      return ProfileManager.canAccessSection(section, subSection);
+    },
     closeAllNavSectionsExcept(except) {
       const keep = {
         client: 'clientExpanded',
@@ -539,6 +569,9 @@ export default {
       this.portefeuilleRisqueExpanded = !this.portefeuilleRisqueExpanded;
     },
     handlePortefeuilleRisqueSection(subSection) {
+      if (!this.canAccessSection('portefeuille-risque')) {
+        return;
+      }
       this.$emit('section-selected', 'portefeuille-risque');
       this.$nextTick(() => {
         this.$emit('sub-section-selected', subSection);
@@ -551,14 +584,16 @@ export default {
       }
       this.objectivesExpanded = next;
       this.$emit('section-selected', 'objectives');
-      if (this.isCaf) {
+      if (this.canAccessSection('objectives', 'mine') && !this.canAccessSection('objectives', 'add')) {
         this.$nextTick(() => {
           this.$emit('sub-section-selected', 'mine');
         });
       }
     },
     handleObjectiveSubSection(subSection) {
-      // S'assurer que la section objectives est sélectionnée et définir la sous-section
+      if (!this.canAccessSection('objectives', subSection)) {
+        return;
+      }
       this.$emit('section-selected', 'objectives');
       // Utiliser setTimeout pour s'assurer que la section est bien mise à jour avant la sous-section
       setTimeout(() => {
@@ -595,7 +630,9 @@ export default {
       });
     },
     selectSection(section) {
-      // Gérer l'expansion des sections selon la section sélectionnée
+      if (!this.canAccessSection(section) && section !== 'objectives') {
+        return;
+      }
       if (section === 'client' || section === 'performance-client' || section === 'caf-overview' || section === 'vue360' || section === 'comptes-ouverts') {
         this.clientExpanded = true;
         this.objectivesExpanded = false;

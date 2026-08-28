@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AppSetting;
+use App\Services\Vue360\CheckingPiRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,6 +21,16 @@ class AppSettingController extends Controller
 
     public function show(string $key): JsonResponse
     {
+        if ($key === CheckingPiRules::SETTING_KEY) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'fields' => CheckingPiRules::current(),
+                    'catalog' => CheckingPiRules::catalog(),
+                ],
+            ]);
+        }
+
         if ($key !== self::SEUILS_KEY) {
             return response()->json(['success' => false, 'message' => 'Paramètre inconnu'], 404);
         }
@@ -34,6 +45,10 @@ class AppSettingController extends Controller
 
     public function upsert(Request $request, string $key): JsonResponse
     {
+        if ($key === CheckingPiRules::SETTING_KEY) {
+            return $this->upsertCheckingPiRules($request);
+        }
+
         if ($key !== self::SEUILS_KEY) {
             return response()->json(['success' => false, 'message' => 'Paramètre inconnu'], 404);
         }
@@ -99,5 +114,57 @@ class AppSettingController extends Controller
         }
 
         return compact('reached', 'close', 'vigilance');
+    }
+
+    private function upsertCheckingPiRules(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        $profile = strtoupper((string) ($user?->profile?->code ?? ''));
+        if (! in_array($profile, ['DGA', 'ADMIN'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Seuls le DGA et l’administrateur peuvent modifier les règles PI.',
+            ], 403);
+        }
+
+        $allowed = array_keys(CheckingPiRules::defaults());
+        $validator = Validator::make($request->all(), [
+            'fields' => 'required|array',
+            'fields.*' => 'required|string|in:critical,optional,ignored',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Règles PI invalides',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $incoming = $validator->validated()['fields'];
+        foreach (array_keys($incoming) as $fieldKey) {
+            if (! in_array($fieldKey, $allowed, true)) {
+                unset($incoming[$fieldKey]);
+            }
+        }
+
+        $fields = CheckingPiRules::normalize(['fields' => $incoming]);
+
+        $setting = AppSetting::query()->updateOrCreate(
+            ['key' => CheckingPiRules::SETTING_KEY],
+            [
+                'value' => ['fields' => $fields],
+                'updated_by' => $user?->id,
+            ]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Règles d’éligibilité PI enregistrées.',
+            'data' => [
+                'fields' => CheckingPiRules::normalize($setting->value),
+                'catalog' => CheckingPiRules::catalog(),
+            ],
+        ]);
     }
 }

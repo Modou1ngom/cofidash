@@ -50,14 +50,17 @@
           <div class="form-group">
             <label>Permissions</label>
             <div class="permissions-list">
-              <label v-for="perm in availablePermissions" :key="perm.value" class="permission-item">
-                <input
-                  type="checkbox"
-                  :value="perm.value"
-                  v-model="form.permissions"
-                />
-                <span>{{ perm.label }}</span>
-              </label>
+              <template v-for="group in permissionGroups" :key="group.id">
+                <p class="perm-group-title">{{ group.label }}</p>
+                <label v-for="perm in group.permissions" :key="perm.value" class="permission-item">
+                  <input
+                    type="checkbox"
+                    :value="perm.value"
+                    v-model="form.permissions"
+                  />
+                  <span>{{ perm.label }}</span>
+                </label>
+              </template>
             </div>
           </div>
           <div class="form-group">
@@ -78,21 +81,7 @@
 
 <script>
 import axios from 'axios';
-
-const AVAILABLE_PERMISSIONS = [
-  { value: 'VIEW_DASHBOARD', label: 'Voir le tableau de bord' },
-  { value: 'VIEW_CLIENT', label: 'Voir les clients' },
-  { value: 'VIEW_VUE360', label: 'Voir Client Vue 360°' },
-  { value: 'VIEW_ZONES', label: 'Voir les zones' },
-  { value: 'VIEW_AGENCIES', label: 'Voir les agences' },
-  { value: 'EDIT_OBJECTIVES', label: 'Éditer les objectifs' },
-  { value: 'MODIFY_OBJECTIVES', label: 'Modifier les objectifs' },
-  { value: 'MANAGE_FINANCIAL', label: 'Gérer les finances' },
-  { value: 'VIEW_FINANCIAL', label: 'Voir les finances' },
-  { value: 'ADMIN_ACCESS', label: 'Accès administrateur' },
-  { value: 'MANAGE_USERS', label: 'Gérer les utilisateurs' },
-  { value: 'MANAGE_SETTINGS', label: 'Gérer les paramètres' }
-];
+import { AVAILABLE_PERMISSIONS, PERMISSION_GROUPS, normalizePermissions } from '../utils/profiles.js';
 
 export default {
   name: 'ProfileManagementPage',
@@ -108,6 +97,7 @@ export default {
         permissions: [],
         is_active: true
       },
+      permissionGroups: PERMISSION_GROUPS,
       availablePermissions: AVAILABLE_PERMISSIONS
     }
   },
@@ -130,16 +120,20 @@ export default {
         code: profile.code,
         name: profile.name,
         description: profile.description || '',
-        permissions: profile.permissions || [],
+        permissions: normalizePermissions(profile.permissions),
         is_active: profile.is_active
       };
     },
     async saveProfile() {
       try {
+        const payload = {
+          ...this.form,
+          permissions: normalizePermissions(this.form.permissions)
+        };
         if (this.editingProfile) {
-          await axios.put(`/api/admin/profiles/${this.editingProfile.id}`, this.form);
+          await axios.put(`/api/admin/profiles/${this.editingProfile.id}`, payload);
         } else {
-          await axios.post('/api/admin/profiles', this.form);
+          await axios.post('/api/admin/profiles', payload);
         }
         await this.loadProfiles();
         this.closeModal();
@@ -338,11 +332,25 @@ export default {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
-  max-height: 200px;
+  max-height: 320px;
   overflow-y: auto;
   padding: 10px;
   border: 1px solid #DDD;
   border-radius: 4px;
+}
+
+.perm-group-title {
+  grid-column: 1 / -1;
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4b5563;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.perm-group-title:first-child {
+  margin-top: 0;
 }
 
 .permission-item {

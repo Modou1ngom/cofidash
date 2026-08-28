@@ -18,7 +18,9 @@ class MultiSeriesData(BaseModel):
     title: Optional[str] = "Graphique multi-séries"
     xlabel: Optional[str] = "Période"
     ylabel: Optional[str] = "Valeur"
+    ylabel2: Optional[str] = None
     colors: Optional[List[str]] = None
+    dual_axis: Optional[bool] = None
 
 
 class BarChartData(BaseModel):

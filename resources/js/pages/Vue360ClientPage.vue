@@ -464,11 +464,161 @@
           <p v-else class="empty">Aucun crédit pour ce filtre</p>
         </template>
       </div>
+
+      <div v-show="activeTab === 'checking-pi'" class="panel">
+        <div class="pi-toolbar" v-if="canEditPiRules">
+          <button type="button" class="pi-rules-btn" @click="openPiRules">
+            ⚙️ Paramétrer les règles
+          </button>
+        </div>
+        <div v-if="piLoading" class="loading">Vérification de l’éligibilité PI…</div>
+        <p v-else-if="piError" class="empty">{{ piError }}</p>
+        <template v-else-if="piCheck">
+          <div class="pi-verdict" :class="piCheck.eligible ? 'ok' : 'ko'">
+            <div class="pi-verdict-icon" aria-hidden="true">{{ piCheck.eligible ? '✓' : '!' }}</div>
+            <div class="pi-verdict-body">
+              <strong>{{ piCheck.verdict }}</strong>
+              <p>{{ piCheck.message }}</p>
+            </div>
+            <span v-if="piCheck.client_type_label" class="pi-type-chip">{{ piCheck.client_type_label }}</span>
+          </div>
+
+          <template v-if="piCheck.sections && piCheck.sections.length">
+            <div class="pi-head">
+              <h3>Détail des champs</h3>
+              <div class="pi-counts">
+                <span class="pi-count present">{{ piCheck.counts.present }} présent(s)</span>
+                <span class="pi-count critical">{{ piCheck.counts.critical }} critique(s)</span>
+                <span class="pi-count optional">{{ piCheck.counts.optional }} optionnel(s)</span>
+              </div>
+            </div>
+
+            <section
+              v-for="section in piCheck.sections"
+              :key="section.id"
+              class="pi-section"
+            >
+              <h4 class="pi-section-title">{{ section.title }}</h4>
+              <div class="pi-grid">
+                <article
+                  v-for="field in section.fields"
+                  :key="field.key"
+                  class="pi-card"
+                  :class="field.status"
+                >
+                  <span class="pi-card-icon" aria-hidden="true">{{ piFieldIcon(field.icon) }}</span>
+                  <div class="pi-card-body">
+                    <span class="pi-card-label">{{ field.label }}</span>
+                    <strong class="pi-card-value">{{ field.display_value }}</strong>
+                  </div>
+                  <span class="pi-card-status" aria-hidden="true">
+                    {{ field.status === 'present' ? '✓' : '!' }}
+                  </span>
+                </article>
+              </div>
+            </section>
+
+            <section v-if="piCheck.missing_critical.length" class="pi-missing pi-missing--critical">
+              <div class="pi-missing-head">
+                <h4>Champs critiques manquants</h4>
+                <span class="pi-missing-count">{{ piCheck.missing_critical.length }}</span>
+              </div>
+              <ul class="pi-missing-list">
+                <li v-for="item in piCheck.missing_critical" :key="item.key">
+                  <span class="pi-missing-icon">{{ piFieldIcon(item.icon) }}</span>
+                  <span>{{ item.label }}</span>
+                  <em>{{ item.badge || 'Requis pour PI' }}</em>
+                </li>
+              </ul>
+            </section>
+
+            <section v-if="piCheck.missing_optional.length" class="pi-missing pi-missing--optional">
+              <div class="pi-missing-head">
+                <h4>Champs optionnels manquants</h4>
+                <span class="pi-missing-count">{{ piCheck.missing_optional.length }}</span>
+              </div>
+              <ul class="pi-missing-list">
+                <li v-for="item in piCheck.missing_optional" :key="item.key">
+                  <span class="pi-missing-icon">{{ piFieldIcon(item.icon) }}</span>
+                  <span>{{ item.label }}</span>
+                  <em>{{ item.badge || 'Recommandé' }}</em>
+                </li>
+              </ul>
+            </section>
+          </template>
+        </template>
+        <p v-else class="empty">Données Checking-PI indisponibles</p>
+
+        <Teleport to="body">
+          <div v-if="showPiRules" class="pi-modal-overlay" @click.self="closePiRules">
+            <div class="pi-modal" role="dialog" aria-labelledby="pi-rules-title">
+              <div class="pi-modal-head">
+                <h2 id="pi-rules-title">Règles d’éligibilité PI</h2>
+                <button type="button" class="pi-modal-close" aria-label="Fermer" @click="closePiRules">×</button>
+              </div>
+              <p class="pi-modal-intro">
+                Choisissez, pour chaque champ, s’il est <strong>critique</strong> (bloque le PI),
+                <strong>optionnel</strong> (recommandé) ou <strong>ignoré</strong> (non évalué).
+              </p>
+              <div class="pi-modal-body">
+                <section
+                  v-for="section in piRulesCatalog"
+                  :key="section.id"
+                  class="pi-rules-section"
+                >
+                  <h3>{{ section.title }}</h3>
+                  <ul class="pi-rules-list">
+                    <li v-for="field in section.fields" :key="field.key">
+                      <span class="pi-rules-label">{{ field.label }}</span>
+                      <div class="pi-rules-choices" role="radiogroup" :aria-label="field.label">
+                        <label
+                          v-for="opt in piSeverityOptions"
+                          :key="opt.id"
+                          class="pi-rules-choice"
+                          :class="[opt.id, { active: piRulesDraft[field.key] === opt.id }]"
+                        >
+                          <input
+                            type="radio"
+                            :name="`pi-rule-${field.key}`"
+                            :value="opt.id"
+                            v-model="piRulesDraft[field.key]"
+                          >
+                          {{ opt.label }}
+                        </label>
+                      </div>
+                    </li>
+                  </ul>
+                </section>
+                <p v-if="piRulesError" class="pi-modal-error">{{ piRulesError }}</p>
+              </div>
+              <div class="pi-modal-foot">
+                <button type="button" class="pi-modal-secondary" @click="resetPiRulesDraft">
+                  Restaurer les défauts
+                </button>
+                <div class="pi-modal-foot-actions">
+                  <button type="button" class="pi-modal-secondary" @click="closePiRules">Annuler</button>
+                  <button
+                    type="button"
+                    class="pi-modal-save"
+                    :disabled="piRulesSaving"
+                    @click="savePiRules"
+                  >
+                    {{ piRulesSaving ? 'Enregistrement…' : 'Enregistrer' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Teleport>
+      </div>
     </div>
   </div>
 </template>
 
 <script>
+import { ProfileManager } from '../utils/profiles.js';
+
+const PI_RULES_API_KEY = 'checking-pi-rules';
 const DEFAULT_ENCOURS_REPARTITION = [
   { id: 'capital', label: 'Capital dû', amount: 0, percent: 0, color: '#14B8A6' },
   { id: 'interest', label: 'Intérêt dû', amount: 0, percent: 0, color: '#EAB308' },
@@ -498,6 +648,19 @@ export default {
       kycLoading: false,
       accountsLoading: false,
       creditsLoading: false,
+      piCheck: null,
+      piLoading: false,
+      piError: '',
+      showPiRules: false,
+      piRulesCatalog: [],
+      piRulesDraft: {},
+      piRulesSaving: false,
+      piRulesError: '',
+      piSeverityOptions: [
+        { id: 'critical', label: 'Critique' },
+        { id: 'optional', label: 'Optionnel' },
+        { id: 'ignored', label: 'Ignoré' },
+      ],
       error: '',
       activeTab: 'synthese',
       selectedAccountType: null,
@@ -507,6 +670,7 @@ export default {
         { id: 'kyc', label: 'KYC' },
         { id: 'banque', label: 'Banque au quotidien' },
         { id: 'credits', label: 'Crédits' },
+        { id: 'checking-pi', label: 'Checking-PI' },
       ],
     };
   },
@@ -692,12 +856,19 @@ export default {
       if (suggested > 0) return `${this.formatMoney(suggested)} suggéré`;
       return 'Montant à valider en agence';
     },
+    canEditPiRules() {
+      const code = String(
+        ProfileManager.getProfileCode() || ProfileManager.getCurrentProfile() || '',
+      ).toUpperCase();
+      return code === 'DGA' || code === 'ADMIN';
+    },
   },
   watch: {
     activeTab(tab) {
       if (tab === 'kyc' && !this.kyc) this.loadKyc();
       if (tab === 'banque' && !this.accountsData) this.loadAccounts();
       if (tab === 'credits' && !this.credits.length && !this.creditsLoading) this.loadCredits();
+      if (tab === 'checking-pi' && !this.piCheck && !this.piLoading) this.loadCheckingPi();
     },
     clientId: {
       immediate: true,
@@ -722,6 +893,8 @@ export default {
       this.creditsSummary = {};
       this.creditFilter = 'all';
       this.selectedCredit = null;
+      this.piCheck = null;
+      this.piError = '';
       try {
         const { data } = await window.axios.get(`/api/v1/clients/${encodeURIComponent(this.clientId)}`);
         this.client = data.data;
@@ -783,6 +956,86 @@ export default {
         this.selectedAccount = { ...acc, ...data.data };
       } catch {
         /* keep list row data */
+      }
+    },
+    async loadCheckingPi() {
+      this.piLoading = true;
+      this.piError = '';
+      try {
+        const { data } = await window.axios.get(
+          `/api/v1/clients/${encodeURIComponent(this.clientId)}/checking-pi`,
+        );
+        this.piCheck = data.data;
+      } catch (err) {
+        this.piCheck = null;
+        this.piError = err.response?.data?.message || 'Impossible de vérifier l’éligibilité PI';
+      } finally {
+        this.piLoading = false;
+      }
+    },
+    piFieldIcon(name) {
+      const icons = {
+        user: '👤',
+        phone: '📞',
+        mail: '✉️',
+        card: '💳',
+        building: '🏦',
+        users: '👥',
+        status: '✅',
+        flag: '🏳️',
+        globe: '🌍',
+        pin: '📍',
+        calendar: '📅',
+        id: '🪪',
+        badge: '🔖',
+        photo: '📷',
+        briefcase: '💼',
+        hash: '#',
+        scale: '⚖️',
+        layers: '🗂️',
+        heart: '♡',
+      };
+      return icons[name] || '•';
+    },
+    async openPiRules() {
+      this.piRulesError = '';
+      this.showPiRules = true;
+      try {
+        const { data } = await window.axios.get(`/api/settings/${PI_RULES_API_KEY}`);
+        const payload = data.data || {};
+        this.piRulesCatalog = payload.catalog || [];
+        this.piRulesDraft = { ...(payload.fields || {}) };
+      } catch (err) {
+        this.piRulesError = err.response?.data?.message || 'Impossible de charger les règles PI.';
+      }
+    },
+    closePiRules() {
+      this.showPiRules = false;
+      this.piRulesError = '';
+    },
+    resetPiRulesDraft() {
+      const next = {};
+      for (const section of this.piRulesCatalog) {
+        for (const field of section.fields || []) {
+          next[field.key] = field.default || 'critical';
+        }
+      }
+      this.piRulesDraft = next;
+    },
+    async savePiRules() {
+      this.piRulesSaving = true;
+      this.piRulesError = '';
+      try {
+        await window.axios.put(`/api/settings/${PI_RULES_API_KEY}`, {
+          fields: this.piRulesDraft,
+        });
+        this.showPiRules = false;
+        this.piCheck = null;
+        await this.loadCheckingPi();
+      } catch (err) {
+        this.piRulesError = err.response?.data?.message || 'Impossible d’enregistrer les règles PI.';
+      } finally {
+        this.piRulesSaving = false;
       }
     },
     async loadCredits() {
@@ -1060,6 +1313,7 @@ export default {
   padding: 0 16px;
   background: #f9fafb;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  overflow-x: auto;
 }
 
 .tab {
@@ -1073,6 +1327,7 @@ export default {
   border-bottom: 3px solid transparent;
   margin-bottom: 0;
   transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
 }
 
 .tab:hover {
@@ -2196,6 +2451,542 @@ export default {
 .health-badge.sain { background: #dcfce7; color: #166534; }
 .health-badge.impaye { background: #fee2e2; color: #991b1b; }
 .health-badge.solde { background: #e5e7eb; color: #374151; }
+
+/* ── Checking-PI ── */
+.pi-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.pi-rules-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #fff;
+  color: #1a4d3a;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pi-rules-btn:hover {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.pi-verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  margin-bottom: 24px;
+}
+
+.pi-verdict.ok {
+  background: #ecfdf5;
+  border: 1px solid #86efac;
+}
+
+.pi-verdict.ko {
+  background: #fef2f2;
+  border: 1px dashed #f9a8d4;
+}
+
+.pi-verdict-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.pi-verdict.ok .pi-verdict-icon {
+  background: #16a34a;
+  color: #fff;
+}
+
+.pi-verdict.ko .pi-verdict-icon {
+  background: #dc2626;
+  color: #fff;
+}
+
+.pi-verdict-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.pi-verdict-body strong {
+  display: block;
+  font-size: 1.05rem;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.pi-verdict-body p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
+.pi-type-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.pi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.pi-head h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: #111827;
+}
+
+.pi-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pi-count {
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.pi-count.present {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.pi-count.critical {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.pi-count.optional {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.pi-section {
+  margin-bottom: 28px;
+}
+
+.pi-section-title {
+  margin: 0 0 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.pi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.pi-card {
+  display: grid;
+  grid-template-columns: 28px 1fr 22px;
+  align-items: start;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid #bbf7d0;
+  background: #ecfdf5;
+}
+
+.pi-card.critical {
+  background: #fef2f2;
+  border: 1px dashed #f9a8d4;
+}
+
+.pi-card.optional {
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+}
+
+.pi-card-icon {
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.pi-card-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pi-card-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #4b5563;
+}
+
+.pi-card-value {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #111827;
+  word-break: break-word;
+}
+
+.pi-card.critical .pi-card-value {
+  color: #be123c;
+  font-weight: 600;
+}
+
+.pi-card.optional .pi-card-value {
+  color: #c2410c;
+  font-weight: 600;
+}
+
+.pi-card-status {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #16a34a;
+  color: #fff;
+  justify-self: end;
+}
+
+.pi-card.critical .pi-card-status {
+  background: #dc2626;
+}
+
+.pi-card.optional .pi-card-status {
+  background: #ea580c;
+}
+
+.pi-missing {
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+
+.pi-missing--critical {
+  background: #fff;
+  border: 1px solid #fecdd3;
+}
+
+.pi-missing--optional {
+  background: #fff;
+  border: 1px solid #fed7aa;
+}
+
+.pi-missing-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.pi-missing-head h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #111827;
+}
+
+.pi-missing--critical .pi-missing-head h4 {
+  color: #9f1239;
+}
+
+.pi-missing-count {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.pi-missing--critical .pi-missing-count {
+  background: #fda4af;
+  color: #881337;
+}
+
+.pi-missing--optional .pi-missing-count {
+  background: #fdba74;
+  color: #9a3412;
+}
+
+.pi-missing-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pi-missing-list li {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff1f2;
+}
+
+.pi-missing--optional .pi-missing-list li {
+  background: #fff7ed;
+}
+
+.pi-missing-icon {
+  text-align: center;
+}
+
+.pi-missing-list em {
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fda4af;
+  color: #9f1239;
+}
+
+.pi-missing--optional .pi-missing-list em {
+  background: #fdba74;
+  color: #9a3412;
+}
+
+.pi-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(17, 24, 39, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.pi-modal {
+  width: min(760px, 100%);
+  max-height: min(88vh, 820px);
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pi-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px 8px;
+}
+
+.pi-modal-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: #111827;
+}
+
+.pi-modal-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: #f3f4f6;
+  border-radius: 8px;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #4b5563;
+}
+
+.pi-modal-intro {
+  margin: 0;
+  padding: 0 22px 12px;
+  font-size: 0.88rem;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
+.pi-modal-body {
+  padding: 0 22px 16px;
+  overflow-y: auto;
+}
+
+.pi-rules-section {
+  margin-bottom: 18px;
+}
+
+.pi-rules-section h3 {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.pi-rules-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pi-rules-list li {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+
+.pi-rules-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.pi-rules-choices {
+  display: flex;
+  gap: 6px;
+}
+
+.pi-rules-choice {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.pi-rules-choice input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pi-rules-choice.active.critical {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.pi-rules-choice.active.optional {
+  background: #ffedd5;
+  border-color: #fdba74;
+  color: #9a3412;
+}
+
+.pi-rules-choice.active.ignored {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+  color: #374151;
+}
+
+.pi-modal-error {
+  margin: 8px 0 0;
+  color: #b91c1c;
+  font-size: 0.85rem;
+}
+
+.pi-modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 22px 18px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.pi-modal-foot-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pi-modal-secondary,
+.pi-modal-save {
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pi-modal-secondary {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+}
+
+.pi-modal-save {
+  border: none;
+  background: #1a4d3a;
+  color: #fff;
+}
+
+.pi-modal-save:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+@media (max-width: 720px) {
+  .pi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pi-verdict {
+    flex-wrap: wrap;
+  }
+
+  .pi-rules-list li {
+    grid-template-columns: 1fr;
+  }
+}
 
 @media (max-width: 640px) {
   .vue360-content {

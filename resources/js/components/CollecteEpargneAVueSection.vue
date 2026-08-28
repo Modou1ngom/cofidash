@@ -50,6 +50,7 @@
           Actualiser
         </button>
         <button
+          v-if="isAdmin"
           type="button"
           class="btn-recalc"
           :disabled="loading || recalculating"
@@ -59,6 +60,7 @@
           {{ recalculating ? 'Recalcul…' : 'Recalculer Flexcube' }}
         </button>
         <button
+          v-if="isAdmin"
           type="button"
           class="btn-freeze"
           :disabled="loading || freezing"
@@ -105,7 +107,11 @@
     <div v-if="viewMode === 'collecte'" class="panel">
       <div class="panel-header">
         <h3 class="panel-title">Collecte d'épargne à vue</h3>
-        <span v-if="hasTerritoires" class="panel-meta">
+        <span v-if="collecteFocus" class="panel-filter">
+          Filtré : {{ collecteFocusLabel }}
+          <button type="button" class="panel-filter-clear" @click="clearCollecteFocus">Tout voir</button>
+        </span>
+        <span v-else-if="hasTerritoires" class="panel-meta">
           Réalisation mesurée par rapport à l’objectif mensuel territoire → agence → CAF → client
         </span>
       </div>
@@ -160,6 +166,8 @@
                 <template v-if="territoryKey !== 'grand_compte'">
                   <tr
                     class="level-2-row"
+                    :class="{ focused: isCollecteFocused('territory', territoryKey) }"
+                    :data-collecte-focus="`zone:${territoryKey}`"
                     @click="toggleExpand(`TERRITOIRE_${territoryKey}`); setActiveLevel('zone', territoryKey, territory.name)"
                   >
                     <td class="level-2">
@@ -189,7 +197,8 @@
                     >
                       <tr
                         class="level-3-row"
-                        :class="{ selected: isSelectedAgency(agency, territoryKey) }"
+                        :class="{ selected: isSelectedAgency(agency, territoryKey) || isCollecteFocused('agency', territoryKey, index) }"
+                        :data-collecte-focus="`agency:${territoryKey}:${index}`"
                         @click="selectAgency(agency, territoryKey)"
                       >
                         <td class="level-3">
@@ -224,6 +233,8 @@
                         >
                           <tr
                             class="level-4-row"
+                            :class="{ selected: isCollecteFocused('caf', territoryKey, index, cIdx) }"
+                            :data-collecte-focus="`caf:${territoryKey}:${index}:${cIdx}`"
                             @click.stop="toggleExpand(cafExpandKey(territoryKey, agency, index, cIdx))"
                           >
                             <td class="level-4">
@@ -408,17 +419,17 @@
       <div class="chart-view-tabs">
         <button
           type="button"
-          :class="['chart-view-tab', { active: chartViewMode === 'graph' }]"
-          @click="chartViewMode = 'graph'"
-        >
-          Graphique
-        </button>
-        <button
-          type="button"
           :class="['chart-view-tab', { active: chartViewMode === 'performance' }]"
           @click="chartViewMode = 'performance'"
         >
           Performance
+        </button>
+        <button
+          type="button"
+          :class="['chart-view-tab', { active: chartViewMode === 'graph' }]"
+          @click="chartViewMode = 'graph'"
+        >
+          Graphique
         </button>
       </div>
 
@@ -614,37 +625,23 @@
         <div class="dash-card dash-chart-main">
           <div class="dash-card-head">
             <h4>Courbe de suivi — Évolution mensuelle</h4>
-            <div class="dash-mini-stats">
-              <div class="dash-chip collecte">
-                <span>Réalisé</span>
-                <strong>{{ formatMillion(grandTotal.collecteM) }} M</strong>
-              </div>
-              <div class="dash-chip objectif">
-                <span>Objectif</span>
-                <strong>{{ formatMillion(grandTotal.objectif) }} M</strong>
-              </div>
-              <div class="dash-chip taux">
-                <span>Taux</span>
-                <strong :class="troClass(grandTotal.tro)">{{ formatTro(grandTotal.tro) }}</strong>
-              </div>
-            </div>
           </div>
           <PythonChart
             :key="`dash-line-${selectedMonth}-${selectedYear}-${monthlyRows.length}`"
             chartType="multiseries"
             :chartData="dashboardLineChartData"
-            :height="200"
+            :height="240"
           />
         </div>
         <div class="dash-card dash-chart-side">
           <div class="dash-card-head">
-            <h4>Répartition de la collecte</h4>
+            <h4>Répartition par territoire</h4>
           </div>
           <PythonChart
             :key="`dash-pie-${selectedMonth}-${selectedYear}`"
             chartType="pie"
             :chartData="dashboardPieChartData"
-            :height="200"
+            :height="240"
           />
         </div>
         <div class="dash-card dash-resume">
@@ -652,34 +649,48 @@
             <h4>Résumé</h4>
           </div>
           <ul class="dash-resume-list">
-          
-            <li class="resume-caf">
+            <li
+              class="resume-caf"
+              :class="{ clickable: dashboardBestCaf }"
+              :title="dashboardBestCaf ? 'Voir dans Collecte' : null"
+              @click="dashboardBestCaf && openCollecteFocus(dashboardBestCaf)"
+            >
               <span class="dash-resume-icon" aria-hidden="true">🥇</span>
               <div class="dash-resume-text">
                 <span class="dash-resume-label">Meilleur CAF</span>
                 <strong class="dash-resume-value">{{ dashboardBestCaf?.name || '—' }}</strong>
               </div>
-              <span v-if="dashboardBestCaf" :class="troBadge(dashboardBestCaf.tro)">
+              <span v-if="dashboardBestCaf" :class="['tro-value', troClass(dashboardBestCaf.tro)]">
                 {{ formatTro(dashboardBestCaf.tro) }}
               </span>
             </li>
-            <li class="resume-agency">
+            <li
+              class="resume-agency"
+              :class="{ clickable: dashboardBestAgency }"
+              :title="dashboardBestAgency ? 'Voir dans Collecte' : null"
+              @click="dashboardBestAgency && openCollecteFocus(dashboardBestAgency)"
+            >
               <span class="dash-resume-icon" aria-hidden="true">🏆</span>
               <div class="dash-resume-text">
                 <span class="dash-resume-label">Meilleure agence</span>
                 <strong class="dash-resume-value">{{ dashboardBestAgency?.name || '—' }}</strong>
               </div>
-              <span v-if="dashboardBestAgency" :class="troBadge(dashboardBestAgency.tro)">
+              <span v-if="dashboardBestAgency" :class="['tro-value', troClass(dashboardBestAgency.tro)]">
                 {{ formatTro(dashboardBestAgency.tro) }}
               </span>
             </li>
-            <li class="resume-zone">
+            <li
+              class="resume-zone"
+              :class="{ clickable: dashboardBestZone }"
+              :title="dashboardBestZone ? 'Voir dans Collecte' : null"
+              @click="dashboardBestZone && openCollecteFocus(dashboardBestZone)"
+            >
               <span class="dash-resume-icon" aria-hidden="true">🎖️</span>
               <div class="dash-resume-text">
                 <span class="dash-resume-label">Meilleur territoire</span>
                 <strong class="dash-resume-value">{{ dashboardBestZone?.name || '—' }}</strong>
               </div>
-              <span v-if="dashboardBestZone" :class="troBadge(dashboardBestZone.tro)">
+              <span v-if="dashboardBestZone" :class="['tro-value', troClass(dashboardBestZone.tro)]">
                 {{ formatTro(dashboardBestZone.tro) }}
               </span>
             </li>
@@ -694,13 +705,19 @@
             <div>
               <div class="dash-rank-title top"><span class="dash-rank-dot top"></span>Top 5</div>
               <ol class="dash-rank-list">
-                <li v-for="(row, idx) in dashboardTopCafs" :key="`top-caf-${row.id}`">
+                <li
+                  v-for="(row, idx) in dashboardTopCafs"
+                  :key="`top-caf-${row.id}`"
+                  class="clickable"
+                  title="Voir dans Collecte"
+                  @click="openCollecteFocus(row)"
+                >
                   <span class="rank rank-top">{{ idx + 1 }}</span>
                   <div class="meta">
                     <strong>{{ row.name }}</strong>
                     <span>{{ row.parent }}</span>
                   </div>
-                  <span :class="troBadge(row.tro)">{{ formatTro(row.tro) }}</span>
+                  <span :class="['tro-value', troClass(row.tro)]">{{ formatTro(row.tro) }}</span>
                 </li>
                 <li v-if="!dashboardTopCafs.length" class="empty">Aucune donnée</li>
               </ol>
@@ -708,13 +725,19 @@
             <div>
               <div class="dash-rank-title flop"><span class="dash-rank-dot flop"></span>Flop 5</div>
               <ol class="dash-rank-list">
-                <li v-for="(row, idx) in dashboardFlopCafs" :key="`flop-caf-${row.id}`">
+                <li
+                  v-for="(row, idx) in dashboardFlopCafs"
+                  :key="`flop-caf-${row.id}`"
+                  class="clickable"
+                  title="Voir dans Collecte"
+                  @click="openCollecteFocus(row)"
+                >
                   <span class="rank rank-flop">{{ idx + 1 }}</span>
                   <div class="meta">
                     <strong>{{ row.name }}</strong>
                     <span>{{ row.parent }}</span>
                   </div>
-                  <span :class="troBadge(row.tro)">{{ formatTro(row.tro) }}</span>
+                  <span :class="['tro-value', troClass(row.tro)]">{{ formatTro(row.tro) }}</span>
                 </li>
                 <li v-if="!dashboardFlopCafs.length" class="empty">Aucune donnée</li>
               </ol>
@@ -728,12 +751,18 @@
             <div>
               <div class="dash-rank-title top"><span class="dash-rank-dot top"></span>Top 5</div>
               <ol class="dash-rank-list">
-                <li v-for="(row, idx) in dashboardTopAgencies" :key="`top-${row.id}`">
+                <li
+                  v-for="(row, idx) in dashboardTopAgencies"
+                  :key="`top-${row.id}`"
+                  class="clickable"
+                  title="Voir dans Collecte"
+                  @click="openCollecteFocus(row)"
+                >
                   <span class="rank rank-top">{{ idx + 1 }}</span>
                   <div class="meta">
                     <strong>{{ row.name }}</strong>
                   </div>
-                  <span :class="troBadge(row.tro)">{{ formatTro(row.tro) }}</span>
+                  <span :class="['tro-value', troClass(row.tro)]">{{ formatTro(row.tro) }}</span>
                 </li>
                 <li v-if="!dashboardTopAgencies.length" class="empty">Aucune donnée</li>
               </ol>
@@ -741,12 +770,18 @@
             <div>
               <div class="dash-rank-title flop"><span class="dash-rank-dot flop"></span>Flop 5</div>
               <ol class="dash-rank-list">
-                <li v-for="(row, idx) in dashboardFlopAgencies" :key="`flop-${row.id}`">
+                <li
+                  v-for="(row, idx) in dashboardFlopAgencies"
+                  :key="`flop-${row.id}`"
+                  class="clickable"
+                  title="Voir dans Collecte"
+                  @click="openCollecteFocus(row)"
+                >
                   <span class="rank rank-flop">{{ idx + 1 }}</span>
                   <div class="meta">
                     <strong>{{ row.name }}</strong>
                   </div>
-                  <span :class="troBadge(row.tro)">{{ formatTro(row.tro) }}</span>
+                  <span :class="['tro-value', troClass(row.tro)]">{{ formatTro(row.tro) }}</span>
                 </li>
                 <li v-if="!dashboardFlopAgencies.length" class="empty">Aucune donnée</li>
               </ol>
@@ -763,16 +798,33 @@
                   <th>Territoire</th>
                   <th class="col-num">Objectif (M)</th>
                   <th class="col-num">Réalisé (M)</th>
-                  <th class="col-num">Taux</th>
+                  <th class="col-tro">Taux</th>
                   <th class="col-num">Écart (M)</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="row in dashboardZoneRows" :key="row.id">
+                <tr
+                  v-for="row in dashboardZoneRows"
+                  :key="row.id"
+                  class="clickable"
+                  title="Voir dans Collecte"
+                  @click="openCollecteFocus(row)"
+                >
                   <td><strong>{{ row.name }}</strong></td>
                   <td class="col-num c-objectif">{{ formatMillion(row.objectif) }}</td>
                   <td class="col-num c-collecte">{{ formatMillion(row.collecteM) }}</td>
-                  <td class="col-num"><span :class="troBadge(row.tro)">{{ formatTro(row.tro) }}</span></td>
+                  <td class="col-tro">
+                    <div class="tro-cell">
+                      <span :class="['tro-value', troClass(row.tro)]">{{ formatTro(row.tro) }}</span>
+                      <div class="tro-bar-track">
+                        <div
+                          class="tro-bar-fill"
+                          :class="troClass(row.tro)"
+                          :style="{ width: troBarWidth(row.tro) }"
+                        />
+                      </div>
+                    </div>
+                  </td>
                   <td class="col-num" :class="ecartClass(row.ecart)">{{ formatMillion(row.ecart) }}</td>
                 </tr>
               </tbody>
@@ -794,6 +846,7 @@
 <script>
 import { markRaw } from 'vue';
 import PythonChart from './charts/PythonChart.vue';
+import { ProfileManager } from '../utils/profiles.js';
 
 export default {
   name: 'CollecteEpargneAVueSection',
@@ -832,10 +885,12 @@ export default {
       },
       activeLevel: { type: 'total', category: 'TERRITOIRE' },
       viewMode: 'dashboard',
-      chartViewMode: 'graph',
+      chartViewMode: 'performance',
       perfLevel: 'territoire',
       perfTerritoryKey: null,
       perfAgencyName: null,
+      collecteFocus: null,
+      pendingCollecteFocus: null,
       selectedChartType: 'bar',
       chartTypes: [
         { value: 'bar', label: 'Barres' },
@@ -845,6 +900,9 @@ export default {
     };
   },
   computed: {
+    isAdmin() {
+      return ProfileManager.isAdmin();
+    },
     loadingHint() {
       if (this.recalculating) {
         return 'Recalcul Flexcube en cours… (peut prendre 1 à 3 min)';
@@ -1143,11 +1201,15 @@ export default {
     dashboardAgencyRows() {
       const rows = [];
       for (const [territoryKey, territory] of this.territoireEntries) {
-        for (const agency of territory.agencies || []) {
+        (territory.agencies || []).forEach((agency, index) => {
           const objectif = Number(agency.objectif) || 0;
           const collecteM = Number(agency.collecteM) || 0;
           rows.push({
-            id: `${territoryKey}-${agency.name || agency.BRANCH_CODE}`,
+            id: `${territoryKey}-${agency.name || agency.BRANCH_CODE}-${index}`,
+            type: 'agency',
+            territoryKey,
+            agencyIndex: index,
+            agencyName: agency.name || agency.BRANCH_CODE || '—',
             name: agency.name || agency.BRANCH_CODE || '—',
             parent: territory.name,
             objectif,
@@ -1155,7 +1217,7 @@ export default {
             ecart: collecteM - objectif,
             tro: Number(agency.tro) || (objectif > 0 ? (collecteM / objectif) * 100 : 0),
           });
-        }
+        });
       }
       return rows.sort((a, b) => b.tro - a.tro);
     },
@@ -1167,13 +1229,18 @@ export default {
     },
     dashboardCafRows() {
       const rows = [];
-      for (const [, territory] of this.territoireEntries) {
-        for (const agency of territory.agencies || []) {
-          for (const charge of agency.chargeAffaireDetails || []) {
+      for (const [territoryKey, territory] of this.territoireEntries) {
+        (territory.agencies || []).forEach((agency, index) => {
+          (agency.chargeAffaireDetails || []).forEach((charge, cIdx) => {
             const objectif = Number(charge.objectif) || 0;
             const collecteM = Number(charge.collecteM) || 0;
             rows.push({
-              id: `${agency.name}-${charge.codeGestion || charge.chargeAffaire}`,
+              id: `${territoryKey}-${index}-${charge.codeGestion || charge.chargeAffaire}-${cIdx}`,
+              type: 'caf',
+              territoryKey,
+              agencyIndex: index,
+              cafIndex: cIdx,
+              agencyName: agency.name || agency.BRANCH_CODE || '',
               name: charge.chargeAffaire || charge.codeGestion || '—',
               parent: agency.name || agency.BRANCH_CODE || '',
               objectif,
@@ -1181,8 +1248,8 @@ export default {
               ecart: collecteM - objectif,
               tro: Number(charge.tro) || (objectif > 0 ? (collecteM / objectif) * 100 : 0),
             });
-          }
-        }
+          });
+        });
       }
       return rows.sort((a, b) => b.tro - a.tro);
     },
@@ -1208,6 +1275,8 @@ export default {
         const collecteM = Number(tt.collecteM) || 0;
         return {
           id: key,
+          type: 'territory',
+          territoryKey: key,
           name: territory.name,
           objectif,
           collecteM,
@@ -1238,22 +1307,42 @@ export default {
       return {
         labels: rows.map((r) => shortLabel(r.label)),
         series: {
-          Objectif: rows.map((r) => toM(r.objectif)),
           Collecte: rows.map((r) => toM(r.collecteM)),
+          Objectif: rows.map((r) => toM(r.objectif)),
         },
         title: '',
         xlabel: 'Mois',
-        ylabel: 'Montant (M FCFA)',
-        colors: ['#2563EB', '#16A34A'],
+        ylabel: 'Collecte (M FCFA)',
+        ylabel2: 'Objectif (M FCFA)',
+        dual_axis: true,
+        colors: ['#16A34A', '#2563EB'],
       };
     },
     dashboardPieChartData() {
       const rows = this.dashboardZoneRows.filter((r) => r.collecteM > 0);
+      const total = rows.reduce((sum, row) => sum + (Number(row.collecteM) || 0), 0) || 1;
+      const shortName = (name) => String(name || '').replace(/^TERRITOIRE\s+/i, '').trim();
       return {
-        labels: rows.map((r) => r.name),
-        values: rows.map((r) => r.collecteM),
+        labels: rows.map((row) => {
+          const pct = ((Number(row.collecteM) || 0) / total) * 100;
+          const pctLabel = pct.toLocaleString('fr-FR', {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1,
+          });
+          return `${shortName(row.name)}  ${pctLabel} %`;
+        }),
+        values: rows.map((row) => (Number(row.collecteM) || 0) / 1_000_000),
         title: '',
+        colors: ['#0f766e', '#dc2626', '#2563eb', '#d97706', '#7c3aed', '#0891b2'],
       };
+    },
+    collecteFocusLabel() {
+      const focus = this.collecteFocus;
+      if (!focus) return '';
+      if (focus.type === 'caf') {
+        return focus.parent ? `${focus.name} · ${focus.parent}` : (focus.name || 'CAF');
+      }
+      return focus.name || focus.agencyName || '';
     },
   },
   mounted() {
@@ -1263,6 +1352,9 @@ export default {
     viewMode(mode) {
       if (mode === 'collecte' && !this.dataLoadedFull && !this.loading) {
         this.loadData(false, { full: true });
+      }
+      if (mode !== 'collecte' && !this.pendingCollecteFocus) {
+        this.collecteFocus = null;
       }
     },
   },
@@ -1287,6 +1379,9 @@ export default {
         (payload.objectifs_snapshot && payload.objectifs_snapshot.refreshed_at) || '';
       this.dataLoadedFull = !payload.lite;
       this.resetToTotal();
+      if (this.pendingCollecteFocus && this.viewMode === 'collecte') {
+        this.$nextTick(() => this.applyCollecteFocus(this.pendingCollecteFocus));
+      }
     },
     agencyDisplayName(agency) {
       return agency.name || agency.AGENCE || agency.BRANCH_NAME || agency.BRANCH_CODE || '—';
@@ -1339,6 +1434,87 @@ export default {
     },
     resetToTotal() {
       this.activeLevel = { type: 'total', category: 'TERRITOIRE' };
+    },
+    isCollecteFocused(type, territoryKey, agencyIndex, cafIndex) {
+      const focus = this.collecteFocus;
+      if (!focus || focus.type !== type || focus.territoryKey !== territoryKey) return false;
+      if (type === 'territory') return true;
+      if (type === 'agency') return Number(focus.agencyIndex) === Number(agencyIndex);
+      if (type === 'caf') {
+        return Number(focus.agencyIndex) === Number(agencyIndex)
+          && Number(focus.cafIndex) === Number(cafIndex);
+      }
+      return false;
+    },
+    collecteFocusSelector(target) {
+      if (!target) return '';
+      if (target.type === 'territory') return `zone:${target.territoryKey}`;
+      if (target.type === 'agency') return `agency:${target.territoryKey}:${target.agencyIndex}`;
+      if (target.type === 'caf') return `caf:${target.territoryKey}:${target.agencyIndex}:${target.cafIndex}`;
+      return '';
+    },
+    findAgencyForFocus(target) {
+      const territory = this.hierarchicalData.TERRITOIRE?.[target.territoryKey];
+      const agencies = territory?.agencies || [];
+      if (target.agencyIndex != null && agencies[target.agencyIndex]) {
+        return { agency: agencies[target.agencyIndex], index: target.agencyIndex };
+      }
+      const idx = agencies.findIndex((agency) => (
+        (agency.name || agency.BRANCH_CODE) === target.agencyName
+        || (agency.name || agency.BRANCH_CODE) === target.parent
+      ));
+      if (idx >= 0) return { agency: agencies[idx], index: idx };
+      return null;
+    },
+    openCollecteFocus(target) {
+      if (!target?.type) return;
+      this.pendingCollecteFocus = { ...target };
+      if (this.viewMode !== 'collecte') {
+        this.viewMode = 'collecte';
+      }
+      if (this.dataLoadedFull && !this.loading) {
+        this.$nextTick(() => this.applyCollecteFocus(this.pendingCollecteFocus));
+      }
+    },
+    applyCollecteFocus(target) {
+      if (!target?.type) return;
+      const expanded = { TERRITOIRE: true };
+      const territoryKey = target.territoryKey;
+      if (territoryKey) {
+        expanded[`TERRITOIRE_${territoryKey}`] = true;
+      }
+      if (target.type === 'agency' || target.type === 'caf') {
+        const found = this.findAgencyForFocus(target);
+        if (found) {
+          expanded[this.agencyExpandKey(territoryKey, found.agency, found.index)] = true;
+          this.selectAgency(found.agency, territoryKey);
+          if (target.type === 'caf' && target.cafIndex != null) {
+            expanded[this.cafExpandKey(territoryKey, found.agency, found.index, target.cafIndex)] = true;
+          }
+        }
+      } else if (target.type === 'territory') {
+        this.setActiveLevel(
+          'zone',
+          territoryKey,
+          this.hierarchicalData.TERRITOIRE?.[territoryKey]?.name || target.name
+        );
+      }
+      this.expandedSections = expanded;
+      this.collecteFocus = { ...target };
+      this.pendingCollecteFocus = null;
+      this.$nextTick(() => {
+        const selector = this.collecteFocusSelector(this.collecteFocus);
+        const el = selector && this.$el?.querySelector?.(`[data-collecte-focus="${selector}"]`);
+        if (el && typeof el.scrollIntoView === 'function') {
+          el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
+      });
+    },
+    clearCollecteFocus() {
+      this.collecteFocus = null;
+      this.pendingCollecteFocus = null;
+      this.expandedSections = { TERRITOIRE: true };
+      this.resetToTotal();
     },
     setPerfLevel(level) {
       this.perfLevel = level;
@@ -1415,6 +1591,9 @@ export default {
       return '';
     },
     async loadData(forceRefresh = false, options = {}) {
+      if (forceRefresh && !this.isAdmin) {
+        forceRefresh = false;
+      }
       const wantFull = options.full ?? (this.viewMode === 'collecte');
       const cacheKey = this.periodCacheKey(wantFull);
 
@@ -1466,6 +1645,7 @@ export default {
       }
     },
     async forceRecalc() {
+      if (!this.isAdmin) return;
       if (!window.confirm(
         `Recalculer depuis Flexcube pour ${this.months[this.selectedMonth - 1]} ${this.selectedYear} ?\n` +
         'Cette opération est longue (1–3 min) et met à jour le snapshot du jour.'
@@ -1480,6 +1660,7 @@ export default {
       }
     },
     async freezeObjectifs() {
+      if (!this.isAdmin) return;
       if (!window.confirm(
         `Figer les objectifs OBJ_COL_EPV_VUE pour ${this.months[this.selectedMonth - 1]} ${this.selectedYear} ?\n` +
         'Cette action remplace le snapshot du mois.'
@@ -1801,6 +1982,31 @@ export default {
   color: var(--epv-muted);
 }
 
+.panel-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--epv-green);
+}
+
+.panel-filter-clear {
+  border: 1px solid #99f6e4;
+  background: #fff;
+  color: var(--epv-green);
+  border-radius: 6px;
+  padding: 0.18rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.panel-filter-clear:hover {
+  background: #f0fdfa;
+}
+
 .table-container {
   overflow: auto;
   max-height: calc(100vh - 320px);
@@ -1900,7 +2106,17 @@ export default {
   background: #f0fdf4;
 }
 
+.level-2-row.focused td {
+  background: #4b5563;
+  box-shadow: inset 3px 0 0 #34d399;
+}
+
 .level-3-row.selected {
+  background: #ecfdf5;
+  box-shadow: inset 3px 0 0 var(--epv-green);
+}
+
+.level-4-row.selected {
   background: #ecfdf5;
   box-shadow: inset 3px 0 0 var(--epv-green);
 }
@@ -2553,7 +2769,7 @@ export default {
 
 .dash-charts-row {
   display: grid;
-  grid-template-columns: minmax(280px, 480px) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(280px, 1.15fr) minmax(300px, 1fr) minmax(220px, 0.85fr);
   gap: 0.65rem;
   align-items: stretch;
   min-height: 0;
@@ -2562,7 +2778,6 @@ export default {
 
 .dash-charts-row .dash-card-head {
   margin-bottom: 0;
-  padding-bottom: 0.65rem;
 }
 
 .dash-charts-row .dash-resume-list {
@@ -2588,7 +2803,10 @@ export default {
 }
 
 .dash-tables-row .dash-table-wrap {
-  margin: 0 0.75rem 0.65rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
 }
 
 .epv-dashboard :deep(.chart-loading),
@@ -2650,22 +2868,23 @@ export default {
 .dash-card-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 0.55rem;
   margin-bottom: 0;
-  padding: 0.65rem 0.85rem;
-  border-bottom: 2px solid var(--brand);
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--epv-border);
   flex: 0 0 auto;
-  background: #fff;
+  background: #fafafa;
+  color: var(--epv-ink);
 }
 
 .dash-card-head h4 {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 0.95rem;
   font-weight: 700;
-  color: var(--epv-ink);
-  letter-spacing: 0.04em;
+  color: var(--epv-green);
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   padding-left: 0;
 }
@@ -2679,55 +2898,8 @@ export default {
   padding: 0.5rem 0.75rem 0.65rem;
 }
 
-.dash-mini-stats {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-
-.dash-chip {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  padding: 0.28rem 0.55rem;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  min-width: 5.5rem;
-}
-
-.dash-chip span {
-  display: block;
-  font-size: 0.62rem;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: 700;
-}
-
-.dash-chip strong {
-  font-size: 0.78rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.dash-chip.collecte {
-  background: #ecfdf5;
-  border-color: #d1fae5;
-}
-
-.dash-chip.collecte strong { color: #059669; }
-
-.dash-chip.objectif {
-  background: #eff6ff;
-  border-color: #dbeafe;
-}
-
-.dash-chip.objectif strong { color: #2563eb; }
-
-.dash-chip.taux {
-  background: #fff;
-  border-color: #e5e7eb;
+.dash-tables-row .dash-card > .dash-table-wrap {
+  padding: 0;
 }
 
 .c-objectif { color: #2563EB; }
@@ -2737,9 +2909,9 @@ export default {
   overflow: auto;
   flex: 1 1 auto;
   min-height: 0;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  margin: 0 0.75rem 0.65rem;
+  border-radius: 0;
+  border: none;
+  margin: 0;
 }
 
 .dash-table {
@@ -2758,14 +2930,33 @@ export default {
 .dash-table th {
   position: sticky;
   top: 0;
-  background: #fff;
-  color: var(--epv-muted);
-  font-size: 0.68rem;
+  background: var(--epv-red);
+  color: #fff;
+  font-size: 0.7rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
   font-weight: 700;
   z-index: 1;
-  border-bottom: 1px solid var(--line);
+  border-bottom: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+  text-align: center;
+  padding: 0.7rem 0.55rem;
+}
+
+.dash-table th:first-child {
+  text-align: left;
+  padding-left: 0.9rem;
+}
+
+.dash-table th.col-num {
+  text-align: right;
+}
+
+.dash-table tbody tr td {
+  background: #fff;
+  color: #1e293b;
+  font-weight: 600;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .dash-table tbody tr:nth-child(even) td {
@@ -2773,7 +2964,11 @@ export default {
 }
 
 .dash-table tbody tr:hover td {
-  background: #f8fafc;
+  background: #f0fdf4;
+}
+
+.dash-table tbody tr.clickable {
+  cursor: pointer;
 }
 
 .dash-table tbody tr:last-child td {
@@ -2785,6 +2980,43 @@ export default {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   font-weight: 600;
+}
+
+.dash-table th.col-tro {
+  text-align: right;
+}
+
+.dash-table .col-tro {
+  width: 22%;
+  min-width: 7.5rem;
+}
+
+.dash-table .tro-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.dash-table .tro-bar-track {
+  width: 100%;
+  height: 8px;
+  min-width: 0;
+  background: #e5e7eb;
+  border-radius: 4px;
+}
+
+.dash-table .tro-bar-fill {
+  border-radius: 4px;
+  min-width: 0;
+}
+
+.dash-table .tro-value {
+  min-width: 0;
+  width: 100%;
+  text-align: right;
+  font-size: 0.78rem;
 }
 
 .dash-table .col-num.c-objectif { color: #2563eb; }
@@ -2887,6 +3119,15 @@ export default {
   background: #fff;
 }
 
+.dash-rank-list li.clickable {
+  cursor: pointer;
+}
+
+.dash-rank-list li.clickable:hover {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
 .dash-rank-list .rank {
   width: 1.4rem;
   height: 1.4rem;
@@ -2918,10 +3159,11 @@ export default {
   flex: 1 1 auto;
 }
 
-.dash-rank-list .tro-badge {
+.dash-rank-list .tro-value {
   flex: 0 0 auto;
   min-width: 3.4rem;
-  text-align: center;
+  text-align: right;
+  font-size: 0.75rem;
 }
 
 .dash-rank-list .meta strong {
@@ -2994,6 +3236,15 @@ export default {
   border-color: #f1f5f9;
 }
 
+.dash-resume-list li.clickable {
+  cursor: pointer;
+}
+
+.dash-resume-list li.clickable:hover {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
 .dash-resume-icon {
   flex: 0 0 auto;
   width: 1.85rem;
@@ -3034,7 +3285,9 @@ export default {
   text-overflow: ellipsis;
 }
 
-.dash-resume-list .tro-badge {
+.dash-resume-list .tro-value {
   flex: 0 0 auto;
+  min-width: 3.4rem;
+  font-size: 0.78rem;
 }
 </style>

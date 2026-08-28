@@ -25,6 +25,7 @@ class ProfileController extends Controller
             'is_active' => 'boolean'
         ]);
 
+        $validated['permissions'] = Profile::normalizePermissions($validated['permissions'] ?? []);
         $profile = Profile::create($validated);
 
         return response()->json($profile, 201);
@@ -46,6 +47,7 @@ class ProfileController extends Controller
             'is_active' => 'boolean'
         ]);
 
+        $validated['permissions'] = Profile::normalizePermissions($validated['permissions'] ?? []);
         $profile->update($validated);
 
         return response()->json($profile);

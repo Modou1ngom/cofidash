@@ -40,6 +40,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/clients/{id}/accounts', [ClientController::class, 'accounts']);
     Route::get('/clients/{id}/accounts/{accountNo}', [ClientController::class, 'account']);
     Route::get('/clients/{id}/kyc', [ClientController::class, 'kyc']);
+    Route::get('/clients/{id}/checking-pi', [ClientController::class, 'checkingPi']);
 
     Route::get('/credits', [CreditController::class, 'index']);
     Route::get('/credits/{id}/ta', [CreditController::class, 'amortizationSchedule']);

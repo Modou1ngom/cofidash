@@ -10,6 +10,16 @@ from services.clients_service import get_clients_data
 from services.production_service import get_production_nombre_data, get_production_volume_data, get_encours_credit_data
 from services.collection_service import get_collection_data
 from services.transfer_service import get_transfer_data
+from services.transfers_backup_service import (
+    get_transfers_snapshot_meta,
+    has_transfers_snapshot,
+    refresh_transfers_snapshot,
+)
+from services.portefeuille_risque_backup_service import (
+    get_par_snapshot_meta,
+    has_par_snapshot,
+    refresh_par_snapshot,
+)
 from services.performance_service import get_agency_performance
 from services.volume_dat_service import get_volume_dat_data
 from services.encours_service import get_encours_data
@@ -655,7 +665,7 @@ async def get_transfer_data_endpoint(
     service: Optional[str] = "om"
 ):
     """
-    Récupère les données de transferts d'argent depuis Oracle
+    Récupère les données de transferts d'argent depuis Flexcube
     
     Args:
         period: Période d'analyse ("week", "month", "year"). Par défaut "month".
@@ -687,6 +697,106 @@ async def get_transfer_data_endpoint(
             status_code=500, 
             detail=f"Erreur lors de la récupération des données de transferts: {error_message}"
         )
+
+
+@router.post("/backup/transfers")
+async def refresh_transfers_backup(
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    service: Optional[str] = None,
+):
+    """
+    Rafraîchit le snapshot transferts (Flexcube → SQLite).
+    Planifié automatiquement toutes les 30 minutes (tous les opérateurs).
+    """
+    try:
+        result = refresh_transfers_snapshot(month=month, year=year, service=service)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Erreur snapshot transferts: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/data/transfers/snapshot")
+async def get_transfers_snapshot_meta_endpoint(
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    service: Optional[str] = None,
+):
+    """Métadonnées du snapshot transferts pour un mois (et un opérateur optionnel)."""
+    try:
+        from datetime import date as _date
+
+        today = _date.today()
+        m = int(month) if month else today.month
+        y = int(year) if year else today.year
+        meta = get_transfers_snapshot_meta(m, y, service)
+        exists = (
+            has_transfers_snapshot(m, y, service)
+            if service
+            else bool(meta)
+        )
+        return {
+            "month": m,
+            "year": y,
+            "service": service,
+            "exists": exists,
+            "meta": meta,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/backup/portefeuille-risque")
+async def refresh_portefeuille_risque_backup(
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    grain: Optional[str] = None,
+):
+    """
+    Rafraîchit le snapshot PAR (Flexcube → SQLite).
+    Planifié automatiquement toutes les 30 minutes (agence + CAF).
+    """
+    try:
+        result = refresh_par_snapshot(month=month, year=year, grain=grain)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Erreur snapshot PAR: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/data/portefeuille-risque/snapshot")
+async def get_portefeuille_risque_snapshot_meta_endpoint(
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    grain: Optional[str] = None,
+):
+    """Métadonnées du snapshot PAR pour un mois (et un grain optionnel)."""
+    try:
+        from datetime import date as _date
+
+        today = _date.today()
+        m = int(month) if month else today.month
+        y = int(year) if year else today.year
+        meta = get_par_snapshot_meta(m, y, grain)
+        exists = (
+            has_par_snapshot(m, y, grain)
+            if grain
+            else bool(meta)
+        )
+        return {
+            "month": m,
+            "year": y,
+            "grain": grain,
+            "exists": exists,
+            "meta": meta,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/data/prepaid-card-sales")

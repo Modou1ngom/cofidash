@@ -48,8 +48,11 @@ Route::prefix('oracle')->group(function () {
     Route::match(['get', 'post'], '/backup/objectif-epv-vue', [DataController::class, 'refreshObjectifEpvVueBackup']);
     Route::get('/data/objectif-epv-vue/snapshot', [DataController::class, 'getObjectifEpvVueSnapshotMeta']);
     Route::get('/data/transfers', [DataController::class, 'getTransfersData']);
+    Route::match(['get', 'post'], '/backup/transfers', [DataController::class, 'refreshTransfersBackup']);
     Route::get('/data/prepaid-card-sales', [DataController::class, 'getPrepaidCardSalesData']);
     Route::get('/data/portefeuille-risque', [DataController::class, 'getPortefeuilleRisqueData']);
+    Route::match(['get', 'post'], '/backup/portefeuille-risque', [DataController::class, 'refreshPortefeuilleRisqueBackup']);
+    Route::get('/data/portefeuille-risque/snapshot', [DataController::class, 'getPortefeuilleRisqueSnapshotMeta']);
     Route::get('/data/portefeuille-risque-caf', [DataController::class, 'getPortefeuilleRisqueCafData']);
     Route::get('/data/entrees-par', [DataController::class, 'getEntreesParData']);
     Route::get('/data/comptes-ouverts', [DataController::class, 'getComptesOuvertsData']);

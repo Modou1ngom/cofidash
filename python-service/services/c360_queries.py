@@ -260,3 +260,97 @@ WHERE c.CUSTOMER_ID = :customer_no
   AND c.ACCOUNT_STATUS NOT IN ('L', 'V')
 ORDER BY c.ACCOUNT_NUMBER
 """
+
+# Checking-PI — champs requis pour l'éligibilité PI (épargne / courant ouvert).
+CHECKING_PI_QUERY = """
+SELECT
+    C.LOCAL_BRANCH AS agenceCompte,
+    NVL(NVL(cp.TELEPHONE, cp.MOBILE_NUMBER), cp.HOME_TEL_NO) AS telephoneClient,
+    NVL(c.CUSTOMER_NAME1, cp.LAST_NAME || ' ' || cp.FIRST_NAME) AS nomClient,
+    DECODE(c.CUSTOMER_TYPE, 'C', 'C', 'I', 'P') AS categorieClient,
+    DECODE(cpt.RECORD_STAT, 'O', 'O', 'C', 'C') AS typeNumeroCompte,
+    DECODE(cpt.AC_CLASS_TYPE, 'S', '2', 'U', '1') AS typeCompteClient,
+    cpt.CUST_AC_NO AS numeroCompte,
+    TO_CHAR(cpt.AC_OPEN_DATE, 'rrrr-mm-dd') AS dateOuvertureCompte,
+    CASE WHEN c.NATIONALITY IS NULL THEN 'TG' ELSE c.NATIONALITY END AS nationaliteClient,
+    CASE WHEN c.NATIONALITY IS NULL THEN 'TG' ELSE c.NATIONALITY END AS villeNaissanceClient,
+    CASE WHEN c.COUNTRY IS NULL THEN 'TG' ELSE c.COUNTRY END AS paysResidenceClient,
+    CASE
+        WHEN cp.CUSTOMER_PREFIX IN ('Mr.','M. ou Mme','Me','Me. et Mme','M.','MR')
+             OR cp.SEX IN ('M','MONSIEUR') THEN '1'
+        WHEN cp.CUSTOMER_PREFIX IN ('Mlle','Mme') OR cp.SEX IN ('F','MADAME') THEN '2'
+        ELSE NULL
+    END AS genreClient,
+    'LOME' AS villeClient,
+    NVL(NVL(NVL(c.ADDRESS_LINE1, c.ADDRESS_LINE2), c.ADDRESS_LINE3), c.ADDRESS_LINE4) AS adresseGeoClient,
+    CAST('' AS VARCHAR2(20)) AS codePostaleClient,
+    CASE
+        WHEN c.CUSTOMER_TYPE = 'I' AND cp.DATE_OF_BIRTH IS NOT NULL
+        THEN TO_CHAR(cp.DATE_OF_BIRTH, 'rrrr-mm-dd')
+        ELSE NULL
+    END AS dateNaissanceClient,
+    CASE
+        WHEN c.CUSTOMER_TYPE = 'I' AND cp.BIRTH_COUNTRY IS NOT NULL
+        THEN cp.BIRTH_COUNTRY
+        ELSE CAST('' AS VARCHAR2(100))
+    END AS paysNaissanceClient,
+    NVL(cp.MOTHER_MAIDEN_NAME, '') AS nomMere,
+    CASE
+        WHEN c.CUSTOMER_TYPE = 'I' THEN NVL(c.UNIQUE_ID_VALUE, '')
+        WHEN c.CUSTOMER_TYPE = 'C' THEN NVL(c.UNIQUE_ID_VALUE, '')
+        ELSE CAST('' AS VARCHAR2(50))
+    END AS numeroPieceClient,
+    CASE
+        WHEN c.CUSTOMER_TYPE = 'I' AND cpt.AC_CLASS_TYPE IN ('S','U') AND c.UNIQUE_ID_NAME = 'CNI' THEN '2'
+        WHEN c.CUSTOMER_TYPE = 'I' AND cpt.AC_CLASS_TYPE IN ('S','U') AND c.UNIQUE_ID_NAME = 'PASS' THEN '1'
+        WHEN c.CUSTOMER_TYPE = 'C' AND cpt.AC_CLASS_TYPE IN ('S','U') AND c.UNIQUE_ID_NAME NOT IN ('PASS','CNI') THEN '2'
+        ELSE CAST('CNI' AS VARCHAR2(3))
+    END AS typePieceClient,
+    CASE WHEN c.CUSTOMER_TYPE = 'C' THEN c.CUSTOMER_NAME1 ELSE CAST('' AS VARCHAR2(255)) END AS denominationSociale,
+    CASE WHEN c.CUSTOMER_TYPE = 'C' THEN c.CUSTOMER_NAME1 ELSE CAST('' AS VARCHAR2(255)) END AS raisonSociale,
+    CAST('' AS VARCHAR2(100)) AS identificationFiscale,
+    CASE WHEN c.CUSTOMER_TYPE = 'C' THEN c.UNIQUE_ID_VALUE ELSE CAST('' AS VARCHAR2(100)) END AS identificationRccm,
+    cp.E_MAIL AS emailClient,
+    CASE
+        WHEN c.CUSTOMER_TYPE = 'C' THEN (
+            SELECT LOV_DESC FROM CFSFCUBS145.UDTM_LOV lov2
+            WHERE lov2.FIELD_NAME = 'NAT_JURID' AND lov2.LOV = udf.FIELD_VAL_13 AND ROWNUM = 1
+        )
+        ELSE CAST('' AS VARCHAR2(255))
+    END AS categorieEntreprise,
+    CASE
+        WHEN c.CUSTOMER_TYPE = 'C' THEN (
+            SELECT LOV_DESC FROM CFSFCUBS145.UDTM_LOV lov2
+            WHERE lov2.FIELD_NAME = 'SECTEUR_ACTIVITE' AND lov2.LOV = udf.FIELD_VAL_5 AND ROWNUM = 1
+        )
+        ELSE CAST('' AS VARCHAR2(255))
+    END AS codeActivite,
+    (
+        SELECT FILE_TYPE FROM (
+            SELECT ci1.FILE_TYPE, ROW_NUMBER() OVER (PARTITION BY ci1.CUSTOMER_NO ORDER BY ci1.SEQ_NO DESC) rn
+            FROM CFSFCUBS145.STTM_CUST_IMAGE ci1 WHERE ci1.CUSTOMER_NO = c.CUSTOMER_NO
+        ) WHERE rn = 1
+    ) AS photoClient,
+    TO_CHAR(NVL(c.CIF_CREATION_DATE, cpt.AC_OPEN_DATE), 'rrrr-mm-dd') AS dateCreation,
+    TO_CHAR(NVL(c.CIF_CREATION_DATE, cpt.AC_OPEN_DATE), 'rrrr-mm-dd') AS dateMiseAJour
+FROM CFSFCUBS145.STTM_CUSTOMER c
+JOIN CFSFCUBS145.STTM_CUST_PERSONAL cp ON c.CUSTOMER_NO = cp.CUSTOMER_NO
+LEFT JOIN CFSFCUBS145.STTM_CUSTOMER_CAT cc ON c.CUSTOMER_CATEGORY = cc.CUST_CAT
+LEFT JOIN (SELECT COUNTRY_CODE, DESCRIPTION FROM CFSFCUBS145.STTM_COUNTRY) co0 ON c.NATIONALITY = co0.COUNTRY_CODE
+LEFT JOIN (SELECT COUNTRY_CODE, DESCRIPTION FROM CFSFCUBS145.STTM_COUNTRY) co1 ON c.COUNTRY = co1.COUNTRY_CODE
+JOIN (
+    SELECT * FROM (
+        SELECT ca.CUST_NO, ca.AC_OPEN_DATE, a.ACCOUNT_CLASS, a.DESCRIPTION, a.AC_CLASS_TYPE,
+               ca.RECORD_STAT, ca.CUST_AC_NO,
+               ROW_NUMBER() OVER (PARTITION BY ca.CUST_NO ORDER BY ca.AC_OPEN_DATE DESC) rn
+        FROM CFSFCUBS145.STTM_CUST_ACCOUNT ca
+        JOIN CFSFCUBS145.STTM_ACCOUNT_CLASS a ON ca.ACCOUNT_CLASS = a.ACCOUNT_CLASS
+        WHERE CA.RECORD_STAT = 'O'
+    ) WHERE rn = 1
+) cpt ON c.CUSTOMER_NO = cpt.CUST_NO
+LEFT JOIN CFSFCUBS145.cstm_function_userdef_fields udf ON c.CUSTOMER_NO = REPLACE(udf.REC_KEY, '~', '')
+WHERE c.CUSTOMER_NO NOT LIKE '999%'
+  AND cpt.AC_CLASS_TYPE IN ('S', 'U')
+  AND c.CUSTOMER_NO = :customer_no
+FETCH FIRST 1 ROW ONLY
+"""

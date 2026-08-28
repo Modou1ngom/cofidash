@@ -128,17 +128,30 @@ export default {
 
             if (props.chartType === 'pie') {
               layout.margin = {
-                l: 8,
+                l: 4,
                 r: 8,
-                t: hasTitle ? 40 : 8,
-                b: compact ? 72 : 60,
+                t: hasTitle ? 36 : 4,
+                b: 4,
+              };
+              layout.showlegend = true;
+              layout.legend = {
+                ...(chartData.layout?.legend || {}),
+                orientation: 'v',
+                yanchor: 'middle',
+                y: 0.5,
+                xanchor: 'left',
+                x: 0.5,
+                font: { size: compact ? 10 : 11, color: '#334155' },
+                bgcolor: 'rgba(255,255,255,0)',
+                borderwidth: 0,
               };
             } else {
+              const hasDualAxis = Boolean(chartData.layout?.yaxis2);
               layout.margin = {
-                l: compact ? 56 : 72,
-                r: compact ? 48 : 16,
-                t: hasTitle ? 52 : 28,
-                b: compact ? 48 : 55,
+                l: compact ? 52 : 72,
+                r: hasDualAxis ? (compact ? 58 : 72) : (compact ? 16 : 16),
+                t: hasTitle ? 52 : (compact ? 36 : 28),
+                b: compact ? 36 : 55,
               };
             }
             

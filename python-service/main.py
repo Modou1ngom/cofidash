@@ -26,6 +26,16 @@ from services.collecte_epargne_a_vue_backup_scheduler import (
     start_collecte_epv_vue_scheduler,
     stop_collecte_epv_vue_scheduler,
 )
+from services.transfers_backup_service import init_transfers_local_db
+from services.transfers_backup_scheduler import (
+    start_transfers_scheduler,
+    stop_transfers_scheduler,
+)
+from services.portefeuille_risque_backup_service import init_par_local_db
+from services.portefeuille_risque_backup_scheduler import (
+    start_par_scheduler,
+    stop_par_scheduler,
+)
 
 
 # Configuration du logging
@@ -46,14 +56,19 @@ async def startup_event():
         init_new_deal_local_db()
         init_objectif_epv_vue_local_db()
         init_collecte_epv_vue_local_db()
+        init_transfers_local_db()
+        init_par_local_db()
         start_backup_scheduler()
         start_objectif_epv_vue_scheduler()
         start_collecte_epv_vue_scheduler()
+        start_transfers_scheduler()
+        start_par_scheduler()
         logger.info(
             "✅ Pool Oracle statique Flexcube=8 (DASH désactivé), cache, "
-            "bases locales (C360/New Deal/objectifs EPV/collecte EPV) et "
+            "bases locales (C360/New Deal/objectifs EPV/collecte EPV/transferts/PAR) et "
             "planificateurs initialisés "
-            "(New Deal 06h/12h, objectifs 1er du mois, collecte EPV chaque jour 06h)"
+            "(New Deal 06h/12h, objectifs 1er du mois, collecte EPV 06h, "
+            "transferts et PAR toutes les 30 min)"
         )
     except Exception as e:
         logger.error(f"❌ Erreur lors de l'initialisation: {e}", exc_info=True)
@@ -65,6 +80,8 @@ async def shutdown_event():
         stop_backup_scheduler()
         stop_objectif_epv_vue_scheduler()
         stop_collecte_epv_vue_scheduler()
+        stop_transfers_scheduler()
+        stop_par_scheduler()
         close_pools()
         logger.info("✅ Pools de connexions Oracle fermés")
     except Exception as e:

@@ -1376,6 +1376,324 @@ def get_kyc(
     return None
 
 
+_PI_CATEGORIE_LABELS = {
+    "C": "Personne morale",
+    "P": "Personne physique",
+    "I": "Personne physique",
+}
+_PI_STATUT_COMPTE_LABELS = {"O": "Ouvert", "C": "Clôturé"}
+_PI_TYPE_COMPTE_LABELS = {"1": "Courant", "2": "Épargne"}
+_PI_GENRE_LABELS = {"1": "Homme", "2": "Femme"}
+_PI_TYPE_PIECE_LABELS = {
+    "1": "Passeport",
+    "2": "CNI",
+    "CNI": "CNI",
+    "PASS": "Passeport",
+}
+
+
+def _pi_row_value(row: Dict[str, Any], key: str) -> str:
+    """Lit un alias camelCase Oracle (souvent renvoyé en majuscules sans séparateur)."""
+    compact = "".join(ch for ch in key if ch.isalnum()).upper()
+    lookup: Dict[str, Any] = {}
+    for raw_key, raw_val in row.items():
+        name = str(raw_key)
+        lookup[name] = raw_val
+        lookup[name.upper()] = raw_val
+        lookup["".join(ch for ch in name if ch.isalnum()).upper()] = raw_val
+    for candidate in (key, key.upper(), compact):
+        if candidate in lookup:
+            return _cell_str({candidate: lookup[candidate]}, candidate)
+    return ""
+
+
+def _pi_is_filled(value: str) -> bool:
+    text = (value or "").strip()
+    return bool(text) and text.upper() not in {"NULL", "NONE", "N/A", "-"}
+
+
+def _pi_decode(value: str, mapping: Dict[str, str]) -> str:
+    if not value:
+        return ""
+    return mapping.get(value, mapping.get(value.upper(), value))
+
+
+def _pi_field(
+    key: str,
+    label: str,
+    icon: str,
+    value: str,
+    *,
+    required: bool = True,
+    display: Optional[str] = None,
+) -> Dict[str, Any]:
+    filled = _pi_is_filled(value)
+    shown = (display if display is not None else value) if filled else ""
+    if filled:
+        status = "present"
+        display_value = shown
+        badge = None
+    elif required:
+        status = "critical"
+        display_value = "Manquant (critique)"
+        badge = "Requis pour PI"
+    else:
+        status = "optional"
+        display_value = "Non renseigné"
+        badge = "Recommandé"
+    return {
+        "key": key,
+        "label": label,
+        "icon": icon,
+        "value": value if filled else "",
+        "display_value": display_value,
+        "status": status,
+        "required": required,
+        "badge": badge,
+    }
+
+
+def _build_checking_pi(row: Dict[str, Any]) -> Dict[str, Any]:
+    raw = {
+        "agenceCompte": _pi_row_value(row, "agenceCompte"),
+        "telephoneClient": _pi_row_value(row, "telephoneClient"),
+        "nomClient": _pi_row_value(row, "nomClient"),
+        "categorieClient": _pi_row_value(row, "categorieClient"),
+        "typeNumeroCompte": _pi_row_value(row, "typeNumeroCompte"),
+        "typeCompteClient": _pi_row_value(row, "typeCompteClient"),
+        "numeroCompte": _pi_row_value(row, "numeroCompte"),
+        "dateOuvertureCompte": _pi_row_value(row, "dateOuvertureCompte"),
+        "nationaliteClient": _pi_row_value(row, "nationaliteClient"),
+        "villeNaissanceClient": _pi_row_value(row, "villeNaissanceClient"),
+        "paysResidenceClient": _pi_row_value(row, "paysResidenceClient"),
+        "genreClient": _pi_row_value(row, "genreClient"),
+        "villeClient": _pi_row_value(row, "villeClient"),
+        "adresseGeoClient": _pi_row_value(row, "adresseGeoClient"),
+        "codePostaleClient": _pi_row_value(row, "codePostaleClient"),
+        "dateNaissanceClient": _pi_row_value(row, "dateNaissanceClient"),
+        "paysNaissanceClient": _pi_row_value(row, "paysNaissanceClient"),
+        "nomMere": _pi_row_value(row, "nomMere"),
+        "numeroPieceClient": _pi_row_value(row, "numeroPieceClient"),
+        "typePieceClient": _pi_row_value(row, "typePieceClient"),
+        "denominationSociale": _pi_row_value(row, "denominationSociale"),
+        "raisonSociale": _pi_row_value(row, "raisonSociale"),
+        "identificationFiscale": _pi_row_value(row, "identificationFiscale"),
+        "identificationRccm": _pi_row_value(row, "identificationRccm"),
+        "emailClient": _pi_row_value(row, "emailClient"),
+        "categorieEntreprise": _pi_row_value(row, "categorieEntreprise"),
+        "codeActivite": _pi_row_value(row, "codeActivite"),
+        "photoClient": _pi_row_value(row, "photoClient"),
+        "dateCreation": _pi_row_value(row, "dateCreation"),
+        "dateMiseAJour": _pi_row_value(row, "dateMiseAJour"),
+    }
+
+    categorie = (raw["categorieClient"] or "").upper()
+    is_morale = categorie == "C"
+    client_type_label = _PI_CATEGORIE_LABELS.get(categorie, categorie or "—")
+
+    common_fields = [
+        _pi_field("nomClient", "Nom complet", "user", raw["nomClient"]),
+        _pi_field("telephoneClient", "Téléphone", "phone", raw["telephoneClient"]),
+        _pi_field("emailClient", "Email", "mail", raw["emailClient"]),
+        _pi_field("numeroCompte", "Numéro de compte", "card", raw["numeroCompte"]),
+        _pi_field("agenceCompte", "Agence", "building", raw["agenceCompte"]),
+        _pi_field(
+            "categorieClient",
+            "Type client",
+            "users",
+            raw["categorieClient"],
+            display=client_type_label,
+        ),
+        _pi_field(
+            "typeNumeroCompte",
+            "Statut compte",
+            "status",
+            raw["typeNumeroCompte"],
+            display=_pi_decode(raw["typeNumeroCompte"], _PI_STATUT_COMPTE_LABELS),
+        ),
+        _pi_field("nationaliteClient", "Nationalité", "flag", raw["nationaliteClient"]),
+        _pi_field(
+            "paysResidenceClient",
+            "Pays de résidence",
+            "globe",
+            raw["paysResidenceClient"],
+        ),
+        _pi_field("adresseGeoClient", "Adresse", "pin", raw["adresseGeoClient"]),
+        _pi_field("dateCreation", "Date de création CIF", "calendar", raw["dateCreation"]),
+        _pi_field(
+            "numeroPieceClient",
+            "N° pièce d'identité",
+            "id",
+            raw["numeroPieceClient"],
+        ),
+        _pi_field(
+            "typePieceClient",
+            "Type de pièce",
+            "badge",
+            raw["typePieceClient"],
+            display=_pi_decode(raw["typePieceClient"], _PI_TYPE_PIECE_LABELS),
+        ),
+        _pi_field("photoClient", "Photo client", "photo", raw["photoClient"]),
+    ]
+
+    sections = [
+        {
+            "id": "communes",
+            "title": "Informations communes",
+            "fields": common_fields,
+        }
+    ]
+
+    if is_morale:
+        sections.append(
+            {
+                "id": "morale",
+                "title": "Informations spécifiques — Personne morale",
+                "fields": [
+                    _pi_field(
+                        "denominationSociale",
+                        "Dénomination sociale",
+                        "briefcase",
+                        raw["denominationSociale"],
+                    ),
+                    _pi_field(
+                        "raisonSociale",
+                        "Raison sociale",
+                        "briefcase",
+                        raw["raisonSociale"],
+                    ),
+                    _pi_field(
+                        "identificationRccm",
+                        "N° RCCM",
+                        "hash",
+                        raw["identificationRccm"],
+                    ),
+                    _pi_field(
+                        "identificationFiscale",
+                        "Identification fiscale",
+                        "hash",
+                        raw["identificationFiscale"],
+                        required=False,
+                    ),
+                    _pi_field(
+                        "categorieEntreprise",
+                        "Nature juridique",
+                        "scale",
+                        raw["categorieEntreprise"],
+                    ),
+                    _pi_field(
+                        "codeActivite",
+                        "Secteur d'activité",
+                        "layers",
+                        raw["codeActivite"],
+                    ),
+                ],
+            }
+        )
+    else:
+        sections.append(
+            {
+                "id": "physique",
+                "title": "Informations spécifiques — Personne physique",
+                "fields": [
+                    _pi_field(
+                        "dateNaissanceClient",
+                        "Date de naissance",
+                        "calendar",
+                        raw["dateNaissanceClient"],
+                    ),
+                    _pi_field(
+                        "paysNaissanceClient",
+                        "Pays de naissance",
+                        "globe",
+                        raw["paysNaissanceClient"],
+                        required=False,
+                    ),
+                    _pi_field(
+                        "genreClient",
+                        "Genre",
+                        "users",
+                        raw["genreClient"],
+                        display=_pi_decode(raw["genreClient"], _PI_GENRE_LABELS),
+                    ),
+                    _pi_field("nomMere", "Nom de la mère", "heart", raw["nomMere"]),
+                ],
+            }
+        )
+
+    all_fields = [field for section in sections for field in section["fields"]]
+    present = [f for f in all_fields if f["status"] == "present"]
+    critical = [f for f in all_fields if f["status"] == "critical"]
+    optional = [f for f in all_fields if f["status"] == "optional"]
+    eligible = len(critical) == 0
+
+    if eligible:
+        verdict = "Le client peut avoir PI"
+        message = "Tous les champs critiques sont renseignés."
+    else:
+        verdict = "Le client ne peut pas avoir PI"
+        missing = ", ".join(f["label"] for f in critical)
+        message = f"{len(critical)} champ(s) critique(s) manquant(s) : {missing}."
+
+    return {
+        "eligible": eligible,
+        "verdict": verdict,
+        "message": message,
+        "reason": None,
+        "client_type": categorie or "P",
+        "client_type_label": client_type_label,
+        "counts": {
+            "present": len(present),
+            "critical": len(critical),
+            "optional": len(optional),
+        },
+        "sections": sections,
+        "missing_critical": [
+            {"key": f["key"], "label": f["label"], "icon": f["icon"], "badge": f["badge"]}
+            for f in critical
+        ],
+        "missing_optional": [
+            {"key": f["key"], "label": f["label"], "icon": f["icon"], "badge": f["badge"]}
+            for f in optional
+        ],
+        "raw": raw,
+    }
+
+
+def get_checking_pi(client_id: str) -> Optional[Dict[str, Any]]:
+    lookup = _normalize_customer_id(client_id)
+    if not lookup:
+        return None
+
+    try:
+        from services.c360_oracle_service import fetch_checking_pi_from_oracle
+
+        row = fetch_checking_pi_from_oracle(lookup)
+    except Exception as exc:
+        logger.warning("Checking-PI Flexcube indisponible pour %s: %s", lookup, exc)
+        raise
+
+    if not row:
+        return {
+            "eligible": False,
+            "verdict": "Le client ne peut pas avoir PI",
+            "message": (
+                "Aucun compte épargne ou courant ouvert n'a été trouvé. "
+                "Le client n'est pas dans le périmètre PI."
+            ),
+            "reason": "no_account",
+            "client_type": "",
+            "client_type_label": "",
+            "counts": {"present": 0, "critical": 0, "optional": 0},
+            "sections": [],
+            "missing_critical": [],
+            "missing_optional": [],
+            "raw": {},
+        }
+
+    return _build_checking_pi(row)
+
+
 _ACCOUNT_CODE_TO_TYPE = {
     "251": "courant",
     "253": "epargne",

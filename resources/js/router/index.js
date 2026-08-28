@@ -124,13 +124,16 @@ router.beforeEach((to, from, next) => {
   }
 
   if (to.path === '/dashboard' && isAuthenticated && ProfileManager.isCAF()) {
-    // Le CAF peut ouvrir Objectifs depuis le dashboard ; le reste redirige vers sa vue
     const section = sessionStorage.getItem('dashboardSection');
     if (section === 'objectives') {
       next('/vue360/objectifs');
-    } else {
-      next('/vue360/caf');
+      return;
     }
+    if (section && section !== 'caf-overview' && ProfileManager.canAccessSection(section)) {
+      next();
+      return;
+    }
+    next('/vue360/caf');
     return;
   }
 
@@ -146,6 +149,21 @@ router.beforeEach((to, from, next) => {
 
   if (isAuthenticated && ProfileManager.isCC() && to.path === '/vue360/caf') {
     next('/vue360/recherche');
+    return;
+  }
+
+  if (to.path === '/vue360/caf' && isAuthenticated && !ProfileManager.canAccessSection('caf-overview')) {
+    next(resolveHomeRoute());
+    return;
+  }
+
+  if ((to.path === '/vue360/recherche' || to.path.startsWith('/vue360/clients/')) && isAuthenticated && !ProfileManager.canViewVue360()) {
+    next(resolveHomeRoute());
+    return;
+  }
+
+  if (to.path === '/vue360/objectifs' && isAuthenticated && !ProfileManager.canAccessSection('objectives', 'mine')) {
+    next(resolveHomeRoute());
     return;
   }
 

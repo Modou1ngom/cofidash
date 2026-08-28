@@ -59,6 +59,7 @@
     <template v-else>
       <!-- ── DASHBOARD EXÉCUTIF ── -->
       <div v-if="viewMode === 'dashboard'" class="dash-view">
+        <div class="kpi-row">
         <section class="kpi-grid kpi-grid--5">
           <article class="kpi kpi-obj">
             <span class="kpi-icon" aria-hidden="true">
@@ -74,8 +75,8 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 19V5M4 19h16M8 15l3-3 3 2 4-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </span>
             <div class="kpi-body">
-              <span class="kpi-label">Obj. YTD</span>
-              <strong class="kpi-value">{{ formatObj(kpis.objYtd) }}</strong>
+              <span class="kpi-label">{{ dashKpis.objLabel }}</span>
+              <strong class="kpi-value">{{ formatObj(dashKpis.obj) }}</strong>
             </div>
           </article>
           <article class="kpi kpi-realise">
@@ -83,30 +84,47 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke-linecap="round"/></svg>
             </span>
             <div class="kpi-body">
-              <span class="kpi-label">Réalisé YTD</span>
-              <strong class="kpi-value">{{ formatNumber(kpis.realiseYtd) }}</strong>
+              <span class="kpi-label">{{ dashKpis.realiseLabel }}</span>
+              <strong class="kpi-value">{{ formatNumber(dashKpis.realise) }}</strong>
             </div>
-            <span class="kpi-meta">{{ formatNumber(kpis.courantsYtd) }} cour. · {{ formatNumber(kpis.epargneYtd) }} ép.</span>
+            <span class="kpi-meta">{{ formatNumber(dashKpis.courants) }} cour. · {{ formatNumber(dashKpis.epargne) }} ép.</span>
           </article>
-          <article class="kpi" :class="ecartClass(kpis.ecartYtd)">
+          <article class="kpi" :class="ecartClass(dashKpis.ecart || 0)">
             <span class="kpi-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M7 17l5-5 5 5M7 7l5 5 5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </span>
             <div class="kpi-body">
-              <span class="kpi-label">Écart YTD</span>
-              <strong class="kpi-value">{{ kpis.tro === null ? '—' : formatSigned(kpis.ecartYtd) }}</strong>
+              <span class="kpi-label">{{ dashKpis.ecartLabel }}</span>
+              <strong class="kpi-value">{{ dashKpis.tro === null ? '—' : formatSigned(dashKpis.ecart) }}</strong>
             </div>
           </article>
-          <article class="kpi" :class="troTone(kpis.tro)">
+          <article class="kpi" :class="troTone(dashKpis.tro)">
             <span class="kpi-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" stroke-linecap="round"/></svg>
             </span>
             <div class="kpi-body">
-              <span class="kpi-label">TRO YTD</span>
-              <strong class="kpi-value">{{ formatTro(kpis.tro) }}</strong>
+              <span class="kpi-label">{{ dashKpis.troLabel }}</span>
+              <strong class="kpi-value">{{ formatTro(dashKpis.tro) }}</strong>
             </div>
           </article>
         </section>
+        <div class="perf-mode-toggle kpi-mode-toggle">
+          <button
+            type="button"
+            :class="{ active: dashboardMode === 'ytd' }"
+            @click="dashboardMode = 'ytd'"
+          >
+            YTD
+          </button>
+          <button
+            type="button"
+            :class="{ active: dashboardMode === 'month' }"
+            @click="dashboardMode = 'month'"
+          >
+            Mois
+          </button>
+        </div>
+        </div>
 
         <div class="dash-row dash-row--chart">
           <section class="dash-card dash-card--chart">
@@ -128,25 +146,6 @@
           </section>
 
           <div class="dash-col-stack">
-            <div class="dash-mode-bar">
-              <span class="dash-mode-bar-label">Vue dashboard</span>
-              <div class="perf-mode-toggle">
-                <button
-                  type="button"
-                  :class="{ active: dashboardMode === 'ytd' }"
-                  @click="dashboardMode = 'ytd'"
-                >
-                  YTD
-                </button>
-                <button
-                  type="button"
-                  :class="{ active: dashboardMode === 'month' }"
-                  @click="dashboardMode = 'month'"
-                >
-                  Mois
-                </button>
-              </div>
-            </div>
             <section class="dash-card">
               <div class="dash-card-head">
                 <div class="dash-card-title">
@@ -256,10 +255,10 @@
                 <span class="rank" :class="idx === 0 ? 'rank-gold' : idx === 1 ? 'rank-silver' : idx === 2 ? 'rank-bronze' : 'rank-top'">{{ idx + 1 }}</span>
                 <div class="meta">
                   <strong>{{ row.name }}</strong>
-                  <span>{{ row.territory }}</span>
+                  <span>{{ row.territory }} · {{ formatNumber(dashboardAgencyRealise(row)) }} ouv.</span>
                 </div>
                 <span
-                  v-if="hasObjectives && dashboardAgencyTro(row) !== null"
+                  v-if="dashboardAgencyTro(row) !== null"
                   :class="troBadge(dashboardAgencyTro(row))"
                 >
                   {{ formatTro(dashboardAgencyTro(row)) }}
@@ -283,10 +282,10 @@
                 <span class="rank rank-flop">{{ idx + 1 }}</span>
                 <div class="meta">
                   <strong>{{ row.name }}</strong>
-                  <span>{{ row.territory }}</span>
+                  <span>{{ row.territory }} · {{ formatNumber(dashboardAgencyRealise(row)) }} ouv.</span>
                 </div>
                 <span
-                  v-if="hasObjectives && dashboardAgencyTro(row) !== null"
+                  v-if="dashboardAgencyTro(row) !== null"
                   :class="troBadge(dashboardAgencyTro(row))"
                 >
                   {{ formatTro(dashboardAgencyTro(row)) }}
@@ -350,7 +349,6 @@
             <div class="panel-head">
               <div class="panel-head-title">
                 <h3>Suivi mensuel</h3>
-                <span class="panel-head-meta">Cumul {{ selectedYear }} jusqu'à {{ monthLabel }}</span>
               </div>
             </div>
             <div class="table-wrap">
@@ -403,11 +401,7 @@
             <div class="panel-head panel-head--split">
               <div class="panel-head-title">
                 <h3>Performance par territoire</h3>
-                <span class="panel-head-meta">
-                  {{ perfTableMode === 'ytd'
-                    ? `Cumul ${selectedYear} jusqu'à ${monthLabel}`
-                    : `${monthLabel} ${selectedYear}` }}
-                </span>
+              
               </div>
               <div class="perf-mode-toggle">
                 <button
@@ -453,9 +447,7 @@
                             :class="{ open: expanded[territory.key] }"
                             @click.stop="toggleTerritory(territory.key)"
                           >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-                              <path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
+                            {{ expanded[territory.key] ? '−' : '+' }}
                           </button>
                           <strong>{{ territory.name }}</strong>
                         </div>
@@ -472,7 +464,9 @@
                         :key="`${agency.branch_code}-${agency.branch_name}`"
                         class="agency-row"
                       >
-                        <td class="agency-name">{{ agency.branch_name }}</td>
+                        <td class="agency-name">
+                          <span>{{ agency.branch_name }}</span>
+                        </td>
                         <td class="num col-objectif">{{ formatObj(perfObjSecondary(agency)) }}</td>
                         <td class="num col-highlight">{{ formatNumber(perfRealise(agency)) }}</td>
                         <td class="num"><span :class="troBadge(perfTro(agency))">{{ formatTro(perfTro(agency)) }}</span></td>
@@ -834,6 +828,7 @@ export default {
         objAnnuel,
         objYtd,
         ecartYtd: hasObj ? realiseYtd - objYtd : 0,
+        ecartM: objMensuel > 0 ? realiseM - objMensuel : 0,
         tro,
         troM,
         mixCourants: realiseYtd > 0 ? (courantsYtd / realiseYtd) * 100 : null,
@@ -844,6 +839,37 @@ export default {
     },
     hasObjectives() {
       return (this.cumulativeObjectiveYtdByMonth[this.selectedMonth] || 0) > 0;
+    },
+    isDashMonth() {
+      return this.dashboardMode === 'month';
+    },
+    dashKpis() {
+      if (this.isDashMonth) {
+        return {
+          obj: this.kpis.objMensuel,
+          objLabel: 'Obj. mois',
+          realise: this.kpis.realiseM,
+          realiseLabel: 'Réalisé mois',
+          courants: this.kpis.courantsM,
+          epargne: this.kpis.epargneM,
+          ecart: this.kpis.ecartM,
+          ecartLabel: 'Écart mois',
+          tro: this.kpis.troM,
+          troLabel: 'TRO mois',
+        };
+      }
+      return {
+        obj: this.kpis.objYtd,
+        objLabel: 'Obj. YTD',
+        realise: this.kpis.realiseYtd,
+        realiseLabel: 'Réalisé YTD',
+        courants: this.kpis.courantsYtd,
+        epargne: this.kpis.epargneYtd,
+        ecart: this.kpis.ecartYtd,
+        ecartLabel: 'Écart YTD',
+        tro: this.kpis.tro,
+        troLabel: 'TRO YTD',
+      };
     },
     monthlyRows() {
       const rows = this.payload?.monthly || [];
@@ -938,12 +964,7 @@ export default {
           metric: this.agencyRankMetric(agency, isMonth),
         }))
         .filter((item) => item.metric !== null)
-        .sort((a, b) => {
-          if (a.metric.kind !== b.metric.kind) {
-            return a.metric.kind === 'tro' ? -1 : 1;
-          }
-          return b.metric.value - a.metric.value;
-        });
+        .sort((a, b) => b.metric.value - a.metric.value);
       return ranked.map((item) => item.agency);
     },
     dashboardTerritoryMeta() {
@@ -1029,12 +1050,13 @@ export default {
   methods: {
     agencyRankMetric(agency, isMonth = this.dashboardMode === 'month') {
       const realise = Number(isMonth ? agency.realise_m : agency.realise_ytd) || 0;
+      const obj = Number(isMonth ? agency.objMensuel : agency.objYtd) || 0;
+      const tro = isMonth ? agency.troM : agency.tro;
       if (this.hasObjectives) {
-        const tro = isMonth ? agency.troM : agency.tro;
-        const obj = Number(isMonth ? agency.objMensuel : agency.objYtd) || 0;
-        if (tro !== null && obj > 0) {
+        if (obj > 0 && tro !== null && tro !== undefined) {
           return { kind: 'tro', value: Number(tro) };
         }
+        return null;
       }
       if (realise > 0) {
         return { kind: 'realise', value: realise };
@@ -1682,15 +1704,39 @@ export default {
 }
 
 /* ── KPIs ── */
+.kpi-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.55rem;
+  margin-bottom: 0.65rem;
+}
+
 .kpi-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
-  margin-bottom: 0.65rem;
+  margin-bottom: 0;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .kpi-grid--5 .kpi {
-  flex: 1 1 180px;
+  flex: 1 1 160px;
+}
+
+.kpi-mode-toggle {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+@media (max-width: 1100px) {
+  .kpi-row {
+    flex-wrap: wrap;
+  }
+
+  .kpi-mode-toggle {
+    margin-left: auto;
+  }
 }
 
 .kpi {
@@ -1910,23 +1956,27 @@ export default {
   min-height: 0;
 }
 
-.dash-card-head,
-.panel-head {
+.dash-card-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 0.75rem;
   padding: 0.8rem 1rem;
-  background: #fff;
-  color: var(--ink);
-  border-bottom: 2px solid var(--brand);
+  background: var(--head-bg);
+  color: #fff;
+  border-bottom: none;
 }
 
-.dash-card--top .dash-card-head,
-.dash-card--flop .dash-card-head,
+.dash-card--top .dash-card-head {
+  background: var(--green);
+}
+
+.dash-card--flop .dash-card-head {
+  background: #c2410c;
+}
+
 .panel--territory .panel-head {
-  background: #fff;
-  border-bottom-color: var(--brand);
+  background: #fafafa;
 }
 
 .dash-card-title {
@@ -1939,20 +1989,18 @@ export default {
   display: none;
 }
 
-.dash-card-head h3,
-.panel-head h3 {
+.dash-card-head h3 {
   margin: 0;
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--ink);
+  color: #fff;
 }
 
-.dash-card-meta,
-.panel-head-meta {
+.dash-card-meta {
   font-size: 0.72rem;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.82);
   white-space: nowrap;
 }
 
@@ -1989,22 +2037,6 @@ export default {
   min-height: 100%;
 }
 
-.dash-mode-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.65rem;
-  padding: 0.35rem 0.15rem 0;
-}
-
-.dash-mode-bar-label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
 .dash-rank-toolbar-meta {
   font-size: 0.72rem;
   font-weight: 600;
@@ -2031,12 +2063,17 @@ export default {
 }
 
 .territory-table thead th {
-  background: #f1f5f9;
+  background: #f8fafc;
   font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: #64748b;
   border-bottom: 1px solid #e2e8f0;
+}
+
+.territory-table thead th.num {
+  text-align: right;
 }
 
 .territory-table tbody tr:last-child td {
@@ -2057,7 +2094,11 @@ export default {
   color: var(--ink);
 }
 
-.territory-table .col-objectif,
+.territory-table .col-objectif {
+  color: #2563eb;
+  font-weight: 600;
+}
+
 .perf-table .col-objectif {
   color: #2563eb;
   font-weight: 600;
@@ -2065,6 +2106,7 @@ export default {
 
 .perf-table thead .col-objectif {
   color: #fff;
+  font-weight: 700;
 }
 
 .territory-table .col-status {
@@ -2140,19 +2182,20 @@ export default {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.85rem 1rem 0.55rem;
-  background: #fff;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 0.8rem 1rem;
+  background: #0f766e;
+  border-bottom: none;
 }
 
 .resume-card-head h3 {
   margin: 0;
-  font-size: 0.88rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  color: #0f172a;
+  color: #fff;
   position: relative;
   padding-left: 0.65rem;
-  letter-spacing: -0.01em;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .resume-card-head h3::before {
@@ -2164,7 +2207,11 @@ export default {
   width: 3px;
   height: 0.95rem;
   border-radius: 2px;
-  background: linear-gradient(180deg, #1a4d3a 0%, #0f766e 100%);
+  background: #fff;
+}
+
+.resume-card-head .dash-card-meta {
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .dash-resume-list {
@@ -2472,12 +2519,12 @@ export default {
 .panel-head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: baseline;
   gap: 0.75rem;
-  padding: 0.8rem 1rem;
-  background: #fff;
+  padding: 0.85rem 1.1rem;
+  background: #fafafa;
   color: var(--ink);
-  border-bottom: 2px solid var(--brand);
+  border-bottom: 1px solid var(--line);
 }
 
 .panel-head-title {
@@ -2488,20 +2535,21 @@ export default {
 
 .panel-head h3 {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 0.95rem;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: var(--ink);
+  color: #0f766e;
 }
 
 .panel-head-meta {
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   color: var(--muted);
 }
 
 .panel-head--split {
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.65rem;
 }
 
@@ -2540,90 +2588,144 @@ export default {
 
 .table-wrap {
   overflow-x: auto;
+  background: #fff;
 }
 
 .perf-table {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 0.84rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.8125rem;
 }
 
 .perf-table th,
 .perf-table td {
-  padding: 0.65rem 0.9rem;
-  border-bottom: 1px solid #eef2f6;
+  padding: 0.55rem 0.55rem;
+  border-bottom: 1px solid #f3f4f6;
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.perf-table th:first-child,
+.perf-table td:first-child {
   text-align: left;
+  padding-left: 0.9rem;
+  width: 18%;
 }
 
 .perf-table thead th {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--head-bg);
-  font-size: 0.65rem;
-  letter-spacing: 0.06em;
+  background: var(--brand);
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   color: #fff;
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
-  border-right: 1px solid rgba(255, 255, 255, 0.12);
   border-bottom: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
   text-align: center;
-  padding: 0.7rem 0.9rem;
+  padding: 0.7rem 0.55rem;
 }
 
 .perf-table thead th:first-child {
   text-align: left;
+  padding-left: 0.9rem;
 }
 
-.perf-table tbody tr:nth-child(even) {
-  background: #fafbfc;
+.perf-table thead th.num {
+  text-align: right;
 }
 
-.perf-table tbody tr:hover {
-  background: #f4f6f8;
+.panel--monthly .perf-table tbody tr {
+  background: #fff;
+  color: #1f2937;
+}
+
+.panel--monthly .perf-table tbody tr:hover {
+  background: #f0fdf4;
 }
 
 .perf-table .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+  font-weight: 500;
 }
 
 .perf-table tbody .col-highlight {
   background: transparent;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.perf-table thead .col-highlight {
-  background: var(--brand-dark);
-  color: #fff;
+  font-weight: 700;
 }
 
 .perf-table .row-current {
-  background: #fff !important;
-  box-shadow: inset 3px 0 0 var(--brand);
+  background: #fffbeb !important;
+  color: #1f2937;
 }
 
 .perf-table .row-current:hover {
-  background: #fafafa !important;
+  background: #fef9c3 !important;
 }
 
-.perf-table .row-current .col-highlight {
-  color: var(--brand);
+.perf-table .row-current td {
+  border-bottom-color: #fde68a;
+  color: #1f2937;
+}
+
+.perf-table .row-current .num,
+.perf-table .row-current .col-highlight,
+.perf-table .row-current .col-objectif {
+  color: #1f2937;
+}
+
+.perf-table .row-current .col-objectif {
+  color: #1d4ed8;
+}
+
+.perf-table .badge {
+  display: inline-flex;
+  min-width: 4.2rem;
+  justify-content: center;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.perf-table .badge.good {
+  background: #d1fae5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.perf-table .badge.close,
+.perf-table .badge.mid {
+  background: #fef3c7;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.perf-table .badge.bad {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fecaca;
 }
 
 .month-tag {
   display: inline-flex;
-  min-width: 2.4rem;
+  min-width: 2.6rem;
   justify-content: center;
   padding: 0.15rem 0.45rem;
-  border-radius: 6px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  color: var(--slate);
-  background: #f1f5f9;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #374151;
+  background: #f3f4f6;
 }
 
 .month-tag--current {
@@ -2631,31 +2733,33 @@ export default {
   background: var(--brand);
 }
 
-.perf-table--territory tbody tr:nth-child(even) {
-  background: transparent;
-}
-
-.perf-table--territory .territory-row td {
-  background: #f5f5f5;
-  color: var(--ink);
+.perf-table--territory .territory-row td,
+.perf-table--territory .territory-row td.num,
+.perf-table--territory .territory-row td.col-highlight,
+.perf-table--territory .territory-row td.col-objectif {
+  background: #374151;
+  color: #fff;
   font-weight: 600;
-  font-size: 0.84rem;
-  border-bottom: 1px solid #eee;
-  box-shadow: inset 3px 0 0 var(--brand);
+  font-size: 0.8rem;
+  border-bottom: 1px solid #4b5563;
+  box-shadow: none;
 }
 
-.perf-table--territory .territory-row:hover td {
-  background: #efefef;
+.perf-table--territory .territory-row:hover td,
+.perf-table--territory .territory-row:hover td.num,
+.perf-table--territory .territory-row:hover td.col-highlight {
+  background: #4b5563;
 }
 
-.perf-table--territory .territory-row--open td {
-  background: #f0f0f0;
-  border-bottom-color: #e5e5e5;
+.perf-table--territory .territory-row--open td,
+.perf-table--territory .territory-row--open td.num,
+.perf-table--territory .territory-row--open td.col-highlight {
+  background: #374151;
+  border-bottom-color: #4b5563;
 }
 
 .territory-row {
   cursor: pointer;
-  transition: background 0.15s;
 }
 
 .territory-row td:first-child {
@@ -2665,144 +2769,120 @@ export default {
 .territory-cell {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.5rem;
 }
 
 .territory-cell strong {
   min-width: 0;
-  color: var(--ink);
-  letter-spacing: 0.02em;
+  color: #fff;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   font-size: 0.78rem;
-}
-
-.perf-table--territory .territory-row .col-highlight {
-  background: transparent;
-  color: var(--ink);
   font-weight: 700;
 }
 
-.perf-table--territory .agency-row .col-highlight {
-  background: transparent;
-  font-weight: 500;
-  color: var(--slate);
+.perf-table--territory .territory-row .col-highlight,
+.perf-table--territory .territory-row .num {
+  color: #fff;
+  font-weight: 700;
 }
 
-.perf-table--territory .agency-row td {
+.perf-table--territory .territory-row .col-objectif {
+  color: #93c5fd;
+}
+
+.perf-table--territory .agency-row td,
+.perf-table--territory .agency-row td.col-highlight,
+.perf-table--territory .agency-row td.num {
   background: #fff;
-  color: var(--slate);
+  color: #1f2937;
   font-weight: 400;
-  font-size: 0.82rem;
-  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.8rem;
+  border-bottom: 1px solid #f3f4f6;
   box-shadow: none;
 }
 
-.perf-table--territory .agency-row:hover td {
-  background: #fafbfc;
+.perf-table--territory .agency-row:hover td,
+.perf-table--territory .agency-row:hover td.col-highlight,
+.perf-table--territory .agency-row:hover td.num {
+  background: #f0fdf4;
 }
 
-.perf-table--territory .agency-row td:first-child {
-  background: #fff;
-  border-left: 3px solid #f1f5f9;
+.perf-table--territory .agency-row .col-highlight {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.perf-table--territory .agency-row .col-objectif {
+  color: #2563eb;
 }
 
 .agency-name {
-  padding-left: 2.75rem !important;
-  position: relative;
-  font-style: normal;
-}
-
-.agency-name::before {
-  content: '';
-  position: absolute;
-  left: 1.5rem;
-  top: 50%;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #fff;
-  border: 2px solid #94a3b8;
-  transform: translateY(-50%);
-}
-
-.agency-name::after {
-  content: '';
-  position: absolute;
-  left: 1.83rem;
-  top: 0;
-  bottom: 50%;
-  width: 1px;
-  background: #cbd5e1;
+  padding-left: 2.4rem !important;
+  text-align: left;
+  font-weight: 600;
 }
 
 .perf-tfoot {
-  background: var(--row-dark);
-  color: #fff;
+  background: #f3f4f6;
+  color: #111827;
 }
 
 .perf-tfoot td {
-  border-bottom: none;
-  padding: 0.75rem 0.85rem;
+  border-bottom: 2px solid #9ca3af;
+  border-top: 2px solid #9ca3af;
+  padding: 0.55rem 0.55rem;
   font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: #111827;
+  background: #f3f4f6;
 }
 
+.perf-tfoot .num,
 .perf-tfoot .col-highlight {
   background: transparent;
-  color: #fff;
+  color: #111827;
+}
+
+.perf-tfoot .col-objectif {
+  color: #1d4ed8;
 }
 
 .expand-btn {
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 20px;
+  height: 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  border: 1px solid #cbd5e1;
-  background: #fff;
-  border-radius: 6px;
+  border: none;
+  border-radius: 4px;
+  background: #10b981;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  line-height: 1;
   cursor: pointer;
-  color: #64748b;
-  transition: all 0.15s;
   padding: 0;
 }
 
-.expand-btn svg {
-  width: 0.85rem;
-  height: 0.85rem;
-  transition: transform 0.2s;
-}
-
-.expand-btn.open svg {
-  transform: rotate(90deg);
-}
-
 .expand-btn.open {
-  background: var(--brand);
-  border-color: var(--brand);
-  color: #fff;
+  background: #34d399;
+  color: #064e3b;
 }
 
 .expand-btn:hover {
-  border-color: var(--brand);
-  color: var(--brand);
+  filter: brightness(1.05);
 }
 
 .perf-table--territory .territory-row .expand-btn {
-  border-color: #ccc;
-  background: #fff;
-  color: var(--slate);
-}
-
-.perf-table--territory .territory-row .expand-btn:hover {
-  border-color: var(--brand);
-  color: var(--brand);
-  background: #fff;
+  background: #34d399;
+  color: #064e3b;
+  border: none;
 }
 
 .perf-table--territory .territory-row .expand-btn.open {
-  background: var(--brand);
-  border-color: var(--brand);
+  background: #10b981;
   color: #fff;
 }
 

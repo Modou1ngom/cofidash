@@ -43,7 +43,7 @@
     </div>
 
     <div class="header-actions">
-      <div class="search-box">
+      <div v-if="showClientSearch" class="search-box">
         <label class="sr-only" for="header-client-search">Recherche client</label>
         <div class="search-field">
           <svg class="search-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -75,7 +75,7 @@
 
 <script>
 import { useRouter } from 'vue-router';
-import { ProfileManager } from '../utils/profiles.js';
+import { PERMISSIONS, ProfileManager } from '../utils/profiles.js';
 import axios from 'axios';
 
 export default {
@@ -121,19 +121,23 @@ export default {
         .toUpperCase() || 'U';
     },
     visibleNavItems() {
-      if (ProfileManager.isCAF()) {
-        return this.navItems
-          .filter((item) => item.route !== '/vue360/caf')
-          .map((item) => (
-            item.route === '/dashboard'
-              ? { ...item, route: '/vue360/caf' }
-              : item
-          ));
+      const items = [];
+      const homeRoute = ProfileManager.isCAF() && ProfileManager.canAccessSection('caf-overview')
+        ? '/vue360/caf'
+        : '/dashboard';
+      if (ProfileManager.hasPermission(PERMISSIONS.VIEW_DASHBOARD) || ProfileManager.canAccessSection(ProfileManager.firstAllowedDashboardSection())) {
+        items.push({ label: 'Accueil', icon: '🏠', route: homeRoute });
       }
-      if (ProfileManager.isCC()) {
-        return this.navItems.filter((item) => item.route === '/vue360/recherche');
+      if (ProfileManager.canViewVue360()) {
+        items.push({ label: 'Client Vue 360°', icon: '🤝', route: '/vue360/recherche' });
       }
-      return this.navItems;
+      if (ProfileManager.canAccessSection('caf-overview') && !ProfileManager.isCAF()) {
+        items.push({ label: 'Vue ensemble CAF', icon: '📊', route: '/vue360/caf' });
+      }
+      return items;
+    },
+    showClientSearch() {
+      return ProfileManager.canViewVue360() || ProfileManager.hasPermission(PERMISSIONS.VIEW_CLIENT);
     },
   },
   methods: {

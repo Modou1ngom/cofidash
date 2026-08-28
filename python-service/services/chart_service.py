@@ -55,14 +55,16 @@ def generate_multiseries_chart(data: MultiSeriesData):
     series_items = list(data.series.items())
 
     use_dual_axis = False
-    if len(series_items) == 2:
+    if data.dual_axis is True:
+        use_dual_axis = len(series_items) == 2
+    elif data.dual_axis is not False and len(series_items) == 2:
         left_vals = [float(v or 0) for v in series_items[0][1]]
         right_vals = [float(v or 0) for v in series_items[1][1]]
         left_max = max(left_vals) if left_vals else 0
         right_max = max(right_vals) if right_vals else 0
         if left_max > 0 and right_max > 0:
             ratio = max(left_max / right_max, right_max / left_max)
-            use_dual_axis = ratio >= 5
+            use_dual_axis = ratio >= 2.5
 
     for color_idx, (series_name, series_values) in enumerate(series_items):
         yaxis = 'y2' if use_dual_axis and color_idx == 1 else 'y'
@@ -72,15 +74,21 @@ def generate_multiseries_chart(data: MultiSeriesData):
             mode='lines+markers',
             name=series_name,
             yaxis=yaxis,
-            line=dict(color=colors[color_idx % len(colors)], width=2.5),
+            line=dict(
+                color=colors[color_idx % len(colors)],
+                width=2.5,
+                dash='dash' if use_dual_axis and color_idx == 1 else 'solid',
+            ),
             marker=dict(size=7),
             connectgaps=False,
+            hovertemplate=f'<b>%{{x}}</b><br>{series_name}: %{{y:,.1f}} M<extra></extra>',
         ))
 
+    left_title = data.ylabel if not use_dual_axis else (data.ylabel or series_items[0][0])
     layout_kwargs = dict(
         title=data.title,
         xaxis_title=data.xlabel,
-        yaxis_title=data.ylabel if not use_dual_axis else series_items[0][0],
+        yaxis_title=left_title,
         template="plotly_white",
         hovermode='x unified',
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
@@ -88,14 +96,17 @@ def generate_multiseries_chart(data: MultiSeriesData):
         plot_bgcolor='white',
         paper_bgcolor='white',
         xaxis=dict(tickangle=-25 if len(data.labels or []) > 6 else 0),
+        yaxis=dict(rangemode='tozero', separatethousands=True),
     )
 
     if use_dual_axis:
         layout_kwargs["yaxis2"] = dict(
-            title=series_items[1][0],
+            title=data.ylabel2 or series_items[1][0],
             overlaying="y",
             side="right",
             showgrid=False,
+            rangemode='tozero',
+            separatethousands=True,
         )
 
     fig.update_layout(**layout_kwargs)
@@ -225,17 +236,14 @@ def generate_pie_chart(data: PieChartData):
             labels=data.labels,
             values=data.values,
             marker=dict(colors=colors, line=dict(color='#ffffff', width=1.5)),
-            textinfo='percent',
-            textposition='inside',
-            insidetextorientation='horizontal',
-            hole=0.32,
-            hovertemplate='<b>%{label}</b><br>Montant: %{value:,.0f}<br>Part: %{percent}<extra></extra>',
+            textinfo='none',
+            hole=0.46,
+            sort=False,
+            direction='clockwise',
+            domain=dict(x=[0.0, 0.46], y=[0.04, 0.96]),
+            hovertemplate='<b>%{label}</b><br>Montant: %{value:,.1f} M FCFA<br>Part: %{percent}<extra></extra>',
         )
     ])
-    
-    fig.update_traces(
-        textfont=dict(size=12, color='#111827'),
-    )
 
     fig.update_layout(
         title=data.title,
@@ -245,15 +253,20 @@ def generate_pie_chart(data: PieChartData):
         paper_bgcolor='white',
         showlegend=True,
         legend=dict(
-            orientation="h",
-            yanchor="top",
-            y=-0.02,
-            xanchor="center",
+            orientation="v",
+            yanchor="middle",
+            y=0.5,
+            xanchor="left",
             x=0.5,
-            font=dict(size=10),
-            bgcolor='rgba(255,255,255,0.9)',
+            font=dict(size=11, color='#334155'),
+            bgcolor='rgba(255,255,255,0)',
+            borderwidth=0,
+            itemsizing='constant',
+            itemwidth=30,
+            tracegroupgap=6,
         ),
-        margin=dict(l=10, r=10, t=50, b=60),
+        margin=dict(l=4, r=8, t=8, b=8),
+        uniformtext=dict(minsize=10, mode='hide'),
     )
     
     graph_json = json.dumps(fig, cls=PlotlyJSONEncoder)

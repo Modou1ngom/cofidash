@@ -75,6 +75,7 @@ class ProfileSeeder extends Seeder
                 'permissions' => [
                     'VIEW_DASHBOARD',
                     'VIEW_CLIENT',
+                    'VIEW_VUE360',
                     'VIEW_ZONES',
                     'VIEW_AGENCIES'
                 ],
@@ -97,6 +98,7 @@ class ProfileSeeder extends Seeder
                 'permissions' => [
                     'VIEW_DASHBOARD',
                     'VIEW_CLIENT',
+                    'VIEW_VUE360',
                     'VIEW_ZONES',
                     'VIEW_AGENCIES',
                     'EDIT_OBJECTIVES',
@@ -141,6 +143,14 @@ class ProfileSeeder extends Seeder
         ];
 
         foreach ($profiles as $profile) {
+            $permissions = array_merge(
+                $profile['permissions'],
+                Profile::defaultMenuPermissions($profile['code'])
+            );
+            if (in_array('VIEW_DASHBOARD', $permissions, true)) {
+                $permissions[] = 'VIEW_VUE360';
+            }
+            $profile['permissions'] = array_values(array_unique($permissions));
             Profile::updateOrCreate(
                 ['code' => $profile['code']],
                 $profile

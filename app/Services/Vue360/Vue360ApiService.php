@@ -102,6 +102,13 @@ class Vue360ApiService
         return $this->get('/api/vue360/clients/'.urlencode($id).'/kyc', $params);
     }
 
+    public function clientCheckingPi(User $user, string $id): array
+    {
+        $params = $this->scopedParams($user);
+
+        return $this->get('/api/vue360/clients/'.urlencode($id).'/checking-pi', $params);
+    }
+
     public function clientAccounts(
         User $user,
         string $id,

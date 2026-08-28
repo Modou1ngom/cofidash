@@ -45,8 +45,9 @@ class User extends Authenticatable
             return false;
         }
 
-        $permissions = $this->profile->permissions ?? [];
-        return in_array($permission, $permissions);
+        $permissions = Profile::normalizePermissions($this->profile->permissions ?? []);
+        $wanted = Profile::normalizePermissions([$permission])[0] ?? strtoupper($permission);
+        return in_array($wanted, $permissions, true);
     }
 
     // Relation avec le territoire

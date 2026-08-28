@@ -483,8 +483,94 @@ class OracleService
             $params['date'] = $date;
         }
 
-        // Cache bump si logique snapshot / sources DASH changent (OM, Wave, Ria…)
-        return $this->getPythonGetCached('transfers-v4', '/api/oracle/data/transfers', $params, 'Transferts');
+        // Cache bump : snapshot SQLite (mois) + Flexcube live (semaine/année)
+        return $this->getPythonGetCached('transfers-v6', '/api/oracle/data/transfers', $params, 'Transferts');
+    }
+
+    /**
+     * Force le snapshot transferts (job toutes les 30 min).
+     */
+    public function refreshTransfersBackup(?int $month = null, ?int $year = null, ?string $service = null): array
+    {
+        $params = [];
+        if ($month !== null) {
+            $params['month'] = $month;
+        }
+        if ($year !== null) {
+            $params['year'] = $year;
+        }
+        if ($service) {
+            $params['service'] = $service;
+        }
+
+        try {
+            $query = http_build_query($params);
+            $url = "{$this->pythonServiceUrl}/api/oracle/backup/transfers"
+                .($query !== '' ? '?'.$query : '');
+            $response = $this->pythonHttp()->post($url);
+            if ($response->successful()) {
+                return ['success' => true, 'data' => $response->json()];
+            }
+
+            return $this->failure('Snapshot transferts', $response->body());
+        } catch (\Exception $e) {
+            return $this->failure('Snapshot transferts', $e->getMessage(), 'Erreur HTTP Python POST');
+        }
+    }
+
+    /**
+     * Force le snapshot portefeuille à risque (job toutes les 30 min).
+     */
+    public function refreshPortefeuilleRisqueBackup(?int $month = null, ?int $year = null, ?string $grain = null): array
+    {
+        $params = [];
+        if ($month !== null) {
+            $params['month'] = $month;
+        }
+        if ($year !== null) {
+            $params['year'] = $year;
+        }
+        if ($grain) {
+            $params['grain'] = $grain;
+        }
+
+        try {
+            $query = http_build_query($params);
+            $url = "{$this->pythonServiceUrl}/api/oracle/backup/portefeuille-risque"
+                .($query !== '' ? '?'.$query : '');
+            $response = $this->pythonHttp()->post($url);
+            if ($response->successful()) {
+                return ['success' => true, 'data' => $response->json()];
+            }
+
+            return $this->failure('Snapshot PAR', $response->body());
+        } catch (\Exception $e) {
+            return $this->failure('Snapshot PAR', $e->getMessage(), 'Erreur HTTP Python POST');
+        }
+    }
+
+    /**
+     * Métadonnées du snapshot PAR (agence / CAF).
+     */
+    public function getPortefeuilleRisqueSnapshotMeta(?int $month = null, ?int $year = null, ?string $grain = null): array
+    {
+        $params = [];
+        if ($month !== null) {
+            $params['month'] = $month;
+        }
+        if ($year !== null) {
+            $params['year'] = $year;
+        }
+        if ($grain) {
+            $params['grain'] = $grain;
+        }
+
+        return $this->getPythonGetCached(
+            'portefeuille-risque-meta',
+            '/api/oracle/data/portefeuille-risque/snapshot',
+            $params,
+            'Meta snapshot PAR'
+        );
     }
 
     /**
@@ -715,7 +801,7 @@ class OracleService
             $params['year_ref'] = $yearRef;
         }
 
-        return $this->getPythonGetCached('portefeuille-risque-agence-v1', '/api/oracle/data/portefeuille-risque', $params, 'Portefeuille risque');
+        return $this->getPythonGetCached('portefeuille-risque-agence-v2', '/api/oracle/data/portefeuille-risque', $params, 'Portefeuille risque');
     }
 
     /**
@@ -745,7 +831,7 @@ class OracleService
             $params['agency'] = $agency;
         }
 
-        return $this->getPythonGetCached('portefeuille-risque-caf', '/api/oracle/data/portefeuille-risque-caf', $params, 'Portefeuille risque CAF');
+        return $this->getPythonGetCached('portefeuille-risque-caf-v2', '/api/oracle/data/portefeuille-risque-caf', $params, 'Portefeuille risque CAF');
     }
 
     /**

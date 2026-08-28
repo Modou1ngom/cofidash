@@ -5,12 +5,12 @@ import logging
 from typing import Optional, Dict, List
 from datetime import datetime, date
 import calendar
-from database.oracle_pool import get_pool_flexcube
 from services.cache_service import TTL_DASHBOARD, generate_cache_key, get_cache, set_cache
 from services.utils import get_territory_from_agency, get_territory_from_branch_code, get_territory_key, get_all_territories
-from services.portefeuille_risque_global_query import (
-    PORTEFEUILLE_GLOBAL_QUERY,
-    PORTEFEUILLE_AGENCE_QUERY,
+from services.portefeuille_risque_backup_service import (
+    ensure_par_snapshot,
+    load_par_snapshot,
+    prev_month as _prev_month,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,18 +46,24 @@ def _resolve_as_of_dates(
     return _as_of_date_str(year, month), _as_of_date_str(year_m1, month_m1)
 
 
-def _run_par_query(sql: str, as_of_date: str) -> List[Dict]:
-    pool = get_pool_flexcube()
-    with pool.get_connection_context() as conn:
-        cursor = conn.cursor()
-        try:
-            cursor.callTimeout = 180_000
-            cursor.execute(sql, {"as_of_date": as_of_date})
-            columns = [desc[0] for desc in cursor.description]
-            rows = cursor.fetchall()
-            return [dict(zip(columns, row)) for row in rows]
-        finally:
-            cursor.close()
+def _resolve_month_years(
+    month: Optional[int],
+    year: Optional[int],
+    month_ref: Optional[int],
+    year_ref: Optional[int],
+):
+    now = datetime.now()
+    m = int(month) if month else now.month
+    y = int(year) if year else now.year
+    if month_ref is not None and year_ref is not None:
+        return m, y, int(month_ref), int(year_ref)
+    m1, y1 = _prev_month(m, y)
+    return m, y, m1, y1
+
+
+def _snapshot_rows(month: int, year: int, grain: str) -> List[Dict]:
+    ensure_par_snapshot(month, year, grain)
+    return load_par_snapshot(month, year, grain)
 
 
 def _safe_float(r: dict, *keys) -> float:
@@ -97,18 +103,17 @@ def get_portefeuille_risque_data(
     logger.info(f"🔍 get_portefeuille_risque_data appelé avec month={month}, year={year}, month_ref={month_ref}, year_ref={year_ref}")
 
     date_m_str, date_m1_str = _resolve_as_of_dates(month, year, month_ref, year_ref)
+    m, y, m1, y1 = _resolve_month_years(month, year, month_ref, year_ref)
     cache_key = f"par-agence:{generate_cache_key(date_m_str, date_m1_str)}"
     cached = get_cache(cache_key)
     if cached is not None:
         logger.info("⚡ PAR agence cache hit M=%s M-1=%s", date_m_str, date_m1_str)
         return cached
-    logger.info("📅 PAR AGENCE — Flexcube live: M=%s, M-1=%s", date_m_str, date_m1_str)
+    logger.info("📅 PAR AGENCE — snapshot SQLite: M=%s, M-1=%s", date_m_str, date_m1_str)
 
     try:
-        logger.info("🔍 Exécution requête PAR AGENCE (arrêté M=%s)...", date_m_str)
-        rows_m = _run_par_query(PORTEFEUILLE_AGENCE_QUERY, date_m_str)
-        logger.info("🔍 Exécution requête PAR AGENCE (arrêté M-1=%s)...", date_m1_str)
-        rows_m1 = _run_par_query(PORTEFEUILLE_AGENCE_QUERY, date_m1_str)
+        rows_m = _snapshot_rows(m, y, "agence")
+        rows_m1 = _snapshot_rows(m1, y1, "agence")
 
         key_m1_code = {(r.get("BRANCH_CODE") or "").strip(): r for r in rows_m1}
         key_m1_name = {((r.get("BRANCH_NAME") or "").strip() or "-"): r for r in rows_m1}
@@ -206,17 +211,16 @@ def _fetch_caf_raw_rows(
 ) -> List[Dict]:
     """Lignes PAR par CAF (agence + code gestionnaire) pour l'onglet PAR | CAF."""
     date_m_str, date_m1_str = _resolve_as_of_dates(month, year, month_ref, year_ref)
+    m, y, m1, y1 = _resolve_month_years(month, year, month_ref, year_ref)
     cache_key = f"par-caf-raw:{generate_cache_key(date_m_str, date_m1_str)}"
     cached = get_cache(cache_key)
     if cached is not None:
         logger.info("⚡ PAR CAF cache hit M=%s M-1=%s", date_m_str, date_m1_str)
         return cached
-    logger.info("📅 PAR CAF — Flexcube live: M=%s, M-1=%s", date_m_str, date_m1_str)
+    logger.info("📅 PAR CAF — snapshot SQLite: M=%s, M-1=%s", date_m_str, date_m1_str)
 
-    logger.info("🔍 Exécution requête PAR CAF (arrêté M=%s)...", date_m_str)
-    rows_m = _run_par_query(PORTEFEUILLE_GLOBAL_QUERY, date_m_str)
-    logger.info("🔍 Exécution requête PAR CAF (arrêté M-1=%s)...", date_m1_str)
-    rows_m1 = _run_par_query(PORTEFEUILLE_GLOBAL_QUERY, date_m1_str)
+    rows_m = _snapshot_rows(m, y, "caf")
+    rows_m1 = _snapshot_rows(m1, y1, "caf")
 
     key_m1 = {
         (

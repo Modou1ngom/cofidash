@@ -2,10 +2,11 @@
   <div class="dashboard">
     <div class="top-grey-bar"></div>
     <div class="dashboard-top">
-      <DashboardHeader />
+      <DashboardHeader :key="menuAccessVersion" />
     </div>
     <div class="dashboard-body">
       <Sidebar 
+        :key="menuAccessVersion"
         :selectedZone="selectedZone" 
         :activeSection="activeSection"
         :activeSubSection="activeSubSection"
@@ -14,8 +15,8 @@
         @sub-section-selected="handleSubSectionSelected"
       />
       <div class="main-content">
-        <ClientSection v-if="activeSection === 'client'" :selectedZoneProp="selectedZone" />
-        <CompteOuvertSection v-if="activeSection === 'comptes-ouverts'" />
+        <ClientSection v-if="canAccessSection('client') && activeSection === 'client'" :selectedZoneProp="selectedZone" />
+        <CompteOuvertSection v-if="canAccessSection('comptes-ouverts') && activeSection === 'comptes-ouverts'" />
         <CollectionSection 
           v-if="activeSection === 'collection'" 
           :selectedZoneProp="selectedZone"
@@ -57,7 +58,7 @@
           <h2>Renouvellement</h2>
           <p>Section Renouvellement en cours de développement</p>
         </div>
-        <NewDealSection v-if="activeSection === 'new-deal'" />
+        <NewDealSection v-if="canAccessSection('new-deal') && activeSection === 'new-deal'" />
         <div v-if="activeSection === 'restructuration'" class="section-placeholder">
           <h2>Restructuration</h2>
           <p>Section Restructuration en cours de développement</p>
@@ -70,8 +71,8 @@
           <h2>Recouvrement</h2>
           <p>Section Recouvrement en cours de développement</p>
         </div>
-        <PortefeuilleRisqueSection v-if="activeSection === 'portefeuille-risque' && activeSubSection === 'simple'" />
-        <PortefeuilleRisqueGlobalSection v-if="activeSection === 'portefeuille-risque' && activeSubSection === 'global'" />
+        <PortefeuilleRisqueSection v-if="canAccessSection('portefeuille-risque') && activeSection === 'portefeuille-risque' && activeSubSection === 'simple'" />
+        <PortefeuilleRisqueGlobalSection v-if="canAccessSection('portefeuille-risque') && activeSection === 'portefeuille-risque' && activeSubSection === 'global'" />
         
         <!-- Sections DEPOT -->
         <div v-if="activeSection === 'domiciliation-flux'" class="section-placeholder">
@@ -81,10 +82,10 @@
         <VolumeDatSection v-if="activeSection === 'encours-dat'" />
         <EncoursSection v-if="activeSection === 'encours-epargne'" :selectedZoneProp="selectedZone" />
         <DepotGarantieSection v-if="activeSection === 'depot-garantie'" />
-        <CollecteEpargneAVueSection v-if="activeSection === 'collecte-epargne-a-vue'" />
+        <CollecteEpargneAVueSection v-if="canAccessSection('collecte-epargne-a-vue') && activeSection === 'collecte-epargne-a-vue'" />
         
-        <AddObjectiveSection v-if="activeSection === 'objectives' && activeSubSection === 'add'" />
-        <ValidationSection v-if="activeSection === 'objectives' && activeSubSection === 'validation'" />
+        <AddObjectiveSection v-if="canAccessSection('objectives', 'add') && activeSection === 'objectives' && activeSubSection === 'add'" />
+        <ValidationSection v-if="canAccessSection('objectives', 'validation') && activeSection === 'objectives' && activeSubSection === 'validation'" />
         <AgencyPerformanceSection v-if="activeSection === 'performance'" />
         <AgencyPerformanceSection v-if="activeSection === 'performance-client'" :dataType="'client'" />
         <AgencyPerformanceSection 
@@ -98,9 +99,9 @@
         <AgencyPerformanceSection v-if="activeSection === 'performance-divers'" :dataType="'divers'" />
         <PrepaidCardSalesSection v-if="activeSection === 'prepaid-cards' && activeSubSection === 'sales'" />
         <PrepaidCardRechargeSection v-if="activeSection === 'prepaid-cards' && activeSubSection === 'recharge'" />
-        <TerritoryAgencyManagement v-if="isAdmin && activeSection === 'management'" />
-        <MoneyTransferSection v-if="activeSection === 'money-transfers'" />
-        <EnvironmentsSection v-if="isAdmin && activeSection === 'environments'" />
+        <TerritoryAgencyManagement v-if="canAccessSection('management') && activeSection === 'management'" />
+        <MoneyTransferSection v-if="canAccessSection('money-transfers') && activeSection === 'money-transfers'" />
+        <EnvironmentsSection v-if="canAccessSection('environments') && activeSection === 'environments'" />
         <ReferenceCompteSection v-if="activeSection === 'reporting-financier' && activeSubSection === 'reference-compte'" />
         <CRParAgenceSection v-if="activeSection === 'reporting-financier' && activeSubSection === 'cr-par-agence'" />
         <div v-if="activeSection === 'reporting-financier' && !activeSubSection" class="section-placeholder">
@@ -185,7 +186,8 @@ export default {
     return {
       selectedZone: null,
       activeSection: 'client',
-      activeSubSection: 'production'
+      activeSubSection: 'production',
+      menuAccessVersion: 0
     }
   },
   computed: {
@@ -193,9 +195,14 @@ export default {
       return ProfileManager.isAdmin();
     }
   },
-  mounted() {
-    if (!this.isAdmin && (this.activeSection === 'management' || this.activeSection === 'environments' || this.activeSection === 'performance-management')) {
-      this.activeSection = 'client';
+  async mounted() {
+    await ProfileManager.refreshCurrentUser();
+    this.menuAccessVersion += 1;
+    if (!ProfileManager.canAccessSection(this.activeSection)) {
+      this.activeSection = ProfileManager.firstAllowedDashboardSection();
+    }
+    if (!ProfileManager.canAccessSection('management') && !ProfileManager.canAccessSection('environments') && (this.activeSection === 'management' || this.activeSection === 'environments' || this.activeSection === 'performance-management')) {
+      this.activeSection = ProfileManager.firstAllowedDashboardSection();
     }
     const pendingSection = sessionStorage.getItem('dashboardSection');
     if (pendingSection) {
@@ -205,6 +212,9 @@ export default {
     }
   },
   methods: {
+    canAccessSection(section, subSection = null) {
+      return ProfileManager.canAccessSection(section, subSection);
+    },
     handleZoneSelected(zone) {
       this.selectedZone = zone;
     },
@@ -213,7 +223,11 @@ export default {
         this.$router.push('/vue360/recherche');
         return;
       }
-      if ((section === 'management' || section === 'environments' || section === 'performance-management') && !ProfileManager.isAdmin()) {
+      if (section === 'caf-overview') {
+        this.$router.push('/vue360/caf');
+        return;
+      }
+      if (!ProfileManager.canAccessSection(section)) {
         return;
       }
       console.log('Section sélectionnée:', section);
@@ -223,16 +237,18 @@ export default {
       } else if (section === 'renouvellement' || section === 'new-deal' || section === 'restructuration' || section === 'commission-credit' || section === 'recouvrement') {
         this.activeSubSection = null;
       } else if (section === 'portefeuille-risque') {
-        // Si aucune sous-section n'est définie, utiliser 'simple' par défaut
         if (!this.activeSubSection || (this.activeSubSection !== 'simple' && this.activeSubSection !== 'global')) {
           this.activeSubSection = 'simple';
         }
       } else if (section === 'objectives') {
-        // Ne pas forcer la sous-section si elle est déjà 'add' ou 'validation'
-        // Sinon, pour le MD, rediriger vers 'validation' au lieu de 'add'
-        if (this.activeSubSection !== 'add' && this.activeSubSection !== 'validation') {
-          const profileCode = ProfileManager.getProfileCode();
-          this.activeSubSection = profileCode === 'MD' ? 'validation' : 'add';
+        if (this.activeSubSection !== 'add' && this.activeSubSection !== 'validation' && this.activeSubSection !== 'mine') {
+          if (ProfileManager.canAccessSection('objectives', 'add')) {
+            this.activeSubSection = 'add';
+          } else if (ProfileManager.canAccessSection('objectives', 'validation')) {
+            this.activeSubSection = 'validation';
+          } else {
+            this.activeSubSection = 'mine';
+          }
         }
       } else if (section === 'client' || section === 'comptes-ouverts') {
         this.activeSubSection = null;
@@ -245,7 +261,6 @@ export default {
       } else if (section === 'prepaid-cards') {
         this.activeSubSection = 'sales';
       } else if (section.startsWith('performance-')) {
-        // Les sections de performance n'ont pas de sous-section
         this.activeSubSection = null;
       } else if (section === 'performance') {
         this.activeSubSection = null;
