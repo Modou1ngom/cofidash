@@ -431,7 +431,7 @@ export const ProfileManager = {
   },
 
   canViewVue360() {
-    return this.hasPermission(PERMISSIONS.VIEW_VUE360) || this.isCC();
+    return this.hasPermission(PERMISSIONS.VIEW_VUE360);
   },
 
   canAccessMenu(permission) {
@@ -456,8 +456,8 @@ export const ProfileManager = {
     return permissions.some((permission) => this.hasPermission(permission));
   },
 
-  firstAllowedDashboardSection() {
-    const order = [
+  dashboardSectionOrder() {
+    return [
       'client',
       'comptes-ouverts',
       'collecte-epargne-a-vue',
@@ -468,7 +468,14 @@ export const ProfileManager = {
       'management',
       'environments'
     ];
-    return order.find((section) => this.canAccessSection(section)) || 'client';
+  },
+
+  firstAllowedDashboardSection() {
+    return this.dashboardSectionOrder().find((section) => this.canAccessSection(section)) || 'client';
+  },
+
+  hasDashboardMenuAccess() {
+    return this.dashboardSectionOrder().some((section) => this.canAccessSection(section));
   },
 
   async refreshCurrentUser() {
@@ -491,12 +498,15 @@ export const ProfileManager = {
     }
   },
 
-  /** Page d'accueil après connexion selon le profil. */
+  /** Page d'accueil après connexion : selon les menus cochés, pas le code profil. */
   getHomeRoute() {
-    if (this.isCAF()) {
+    if (this.hasDashboardMenuAccess() || this.hasPermission(PERMISSIONS.VIEW_DASHBOARD)) {
+      return '/dashboard';
+    }
+    if (this.canAccessSection('caf-overview')) {
       return '/vue360/caf';
     }
-    if (this.isCC()) {
+    if (this.canViewVue360()) {
       return '/vue360/recherche';
     }
     return '/dashboard';

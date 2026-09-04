@@ -46,9 +46,9 @@ const routes = [
       {
         path: '',
         redirect: () => (
-          ProfileManager.isCAF()
-            ? { name: 'vue360-caf-overview' }
-            : { name: 'vue360' }
+          ProfileManager.canViewVue360()
+            ? { name: 'vue360' }
+            : { name: 'vue360-caf-overview' }
         ),
       },
       {
@@ -123,9 +123,9 @@ router.beforeEach((to, from, next) => {
     return;
   }
 
-  if (to.path === '/dashboard' && isAuthenticated && ProfileManager.isCAF()) {
+  if (to.path === '/dashboard' && isAuthenticated) {
     const section = sessionStorage.getItem('dashboardSection');
-    if (section === 'objectives') {
+    if (section === 'objectives' && ProfileManager.canAccessSection('objectives', 'mine') && !ProfileManager.canAccessSection('objectives', 'add') && !ProfileManager.canAccessSection('objectives', 'validation')) {
       next('/vue360/objectifs');
       return;
     }
@@ -133,22 +133,24 @@ router.beforeEach((to, from, next) => {
       next();
       return;
     }
-    next('/vue360/caf');
+    if (ProfileManager.hasDashboardMenuAccess() || ProfileManager.hasPermission('VIEW_DASHBOARD')) {
+      next();
+      return;
+    }
+    next(resolveHomeRoute());
     return;
   }
 
-  if (to.path === '/dashboard' && isAuthenticated && ProfileManager.isCC()) {
-    next('/vue360/recherche');
-    return;
-  }
-
-  if (isAuthenticated && ProfileManager.isCAF() && to.path === '/vue360') {
-    next('/vue360/caf');
-    return;
-  }
-
-  if (isAuthenticated && ProfileManager.isCC() && to.path === '/vue360/caf') {
-    next('/vue360/recherche');
+  if (isAuthenticated && to.path === '/vue360') {
+    if (ProfileManager.canViewVue360()) {
+      next('/vue360/recherche');
+      return;
+    }
+    if (ProfileManager.canAccessSection('caf-overview')) {
+      next('/vue360/caf');
+      return;
+    }
+    next(resolveHomeRoute());
     return;
   }
 

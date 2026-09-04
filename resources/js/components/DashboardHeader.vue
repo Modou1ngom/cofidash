@@ -122,16 +122,16 @@ export default {
     },
     visibleNavItems() {
       const items = [];
-      const homeRoute = ProfileManager.isCAF() && ProfileManager.canAccessSection('caf-overview')
-        ? '/vue360/caf'
-        : '/dashboard';
-      if (ProfileManager.hasPermission(PERMISSIONS.VIEW_DASHBOARD) || ProfileManager.canAccessSection(ProfileManager.firstAllowedDashboardSection())) {
+      const homeRoute = ProfileManager.getHomeRoute();
+      if (homeRoute === '/dashboard' || ProfileManager.hasDashboardMenuAccess() || ProfileManager.hasPermission(PERMISSIONS.VIEW_DASHBOARD)) {
+        items.push({ label: 'Accueil', icon: '🏠', route: '/dashboard' });
+      } else if (homeRoute !== '/login' && homeRoute !== '/') {
         items.push({ label: 'Accueil', icon: '🏠', route: homeRoute });
       }
       if (ProfileManager.canViewVue360()) {
         items.push({ label: 'Client Vue 360°', icon: '🤝', route: '/vue360/recherche' });
       }
-      if (ProfileManager.canAccessSection('caf-overview') && !ProfileManager.isCAF()) {
+      if (ProfileManager.canAccessSection('caf-overview')) {
         items.push({ label: 'Vue ensemble CAF', icon: '📊', route: '/vue360/caf' });
       }
       return items;

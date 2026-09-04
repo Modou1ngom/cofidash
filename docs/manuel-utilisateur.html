@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CofiDash — Manuel d’utilisation</title>
+  <style>
+    :root {
+      --green: #1a4d3a;
+      --green-mid: #2d6a4f;
+      --green-light: #e8f2ec;
+      --ink: #1c1917;
+      --muted: #57534e;
+      --line: #d6d3d1;
+      --paper: #fafaf9;
+      --white: #fff;
+      --warn: #92400e;
+      --warn-bg: #fef3c7;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Calibri, system-ui, sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+      line-height: 1.55;
+      font-size: 16px;
+    }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 32px 24px 80px; }
+    .cover {
+      background: linear-gradient(135deg, #1a4d3a 0%, #2d6a4f 55%, #3d7a5c 100%);
+      color: var(--white);
+      border-radius: 12px;
+      padding: 48px 40px 40px;
+      margin-bottom: 40px;
+    }
+    .cover .brand { font-size: 13px; letter-spacing: .18em; text-transform: uppercase; opacity: .85; }
+    .cover h1 { margin: 12px 0 8px; font-size: 34px; font-weight: 650; letter-spacing: -.02em; }
+    .cover .sub { margin: 0 0 24px; font-size: 18px; opacity: .92; }
+    .cover .meta { display: flex; gap: 24px; flex-wrap: wrap; font-size: 14px; opacity: .88; }
+    .print-hint {
+      background: var(--warn-bg);
+      color: var(--warn);
+      border-left: 4px solid #d97706;
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 0 0 32px;
+      font-size: 14.5px;
+    }
+    nav.toc {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 24px 28px;
+      margin-bottom: 40px;
+    }
+    nav.toc h2 { margin: 0 0 12px; font-size: 18px; color: var(--green); }
+    nav.toc ol { margin: 0; padding-left: 22px; columns: 1; }
+    nav.toc a { color: var(--green-mid); text-decoration: none; }
+    nav.toc a:hover { text-decoration: underline; }
+    h2 {
+      color: var(--green);
+      font-size: 24px;
+      margin: 48px 0 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--green-light);
+      page-break-after: avoid;
+    }
+    h3 { color: var(--green-mid); font-size: 18px; margin: 28px 0 10px; page-break-after: avoid; }
+    h4 { margin: 20px 0 8px; font-size: 16px; }
+    p { margin: 0 0 12px; }
+    ul, ol { margin: 0 0 14px; padding-left: 22px; }
+    li { margin-bottom: 6px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      font-size: 14.5px;
+      background: var(--white);
+      page-break-inside: auto;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 9px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: var(--green); color: var(--white); font-weight: 600; }
+    tr:nth-child(even) td { background: #f5f5f4; }
+    .callout {
+      background: var(--green-light);
+      border-left: 4px solid var(--green);
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 14px 0 20px;
+    }
+    .callout strong { color: var(--green); }
+    .steps { counter-reset: step; list-style: none; padding: 0; }
+    .steps li {
+      position: relative;
+      padding: 10px 12px 10px 52px;
+      margin-bottom: 8px;
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .steps li::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 12px; top: 10px;
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      background: var(--green);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    kbd {
+      font-family: inherit;
+      background: #e7e5e4;
+      border: 1px solid #a8a29e;
+      border-bottom-width: 2px;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 13px;
+    }
+    .muted { color: var(--muted); font-size: 14px; }
+    figure.screen {
+      margin: 16px 0 28px;
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    figure.screen img {
+      display: block;
+      width: 100%;
+      height: auto;
+      vertical-align: top;
+    }
+    figure.screen figcaption {
+      font-size: 13px;
+      color: var(--muted);
+      padding: 10px 14px 12px;
+      border-top: 1px solid var(--line);
+    }
+    footer {
+      margin-top: 56px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    @page {
+      size: A4;
+      margin: 16mm 14mm;
+    }
+    @media print {
+      body { background: #fff; font-size: 11.5pt; }
+      .wrap { max-width: none; padding: 0; }
+      .print-hint { display: none !important; }
+      .cover { border-radius: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      a { color: inherit; text-decoration: none; }
+      h2 { page-break-before: always; }
+      h2:first-of-type { page-break-before: avoid; }
+      nav.toc { page-break-after: always; }
+      table, .callout, .steps li, figure.screen { break-inside: avoid; }
+      figure.screen img { max-height: 110mm; object-fit: contain; object-position: top; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="cover">
+      <div class="brand">COFINA Sénégal</div>
+      <h1>CofiDash</h1>
+      <p class="sub">Manuel d’utilisation — à destination du métier</p>
+      <div class="meta">
+        <span>Version application : août 2026</span>
+        <span>Public : CAF, chefs d’agence, responsables de zone, direction, conseillers client</span>
+      </div>
+    </header>
+
+    <p class="print-hint">
+      <strong>Pour partager :</strong> utilisez le fichier PDF <code>manuel-utilisateur.pdf</code> (pas le HTML).
+      Si vous imprimez depuis le navigateur : <kbd>Ctrl</kbd> + <kbd>P</kbd> →
+      décochez <em>En-têtes et pieds de page</em>, cochez <em>Graphiques d’arrière-plan</em>.
+    </p>
+
+    <nav class="toc" aria-label="Sommaire">
+      <h2>Sommaire</h2>
+      <ol>
+        <li><a href="#intro">À quoi sert CofiDash</a></li>
+        <li><a href="#connexion">Connexion et premier accès</a></li>
+        <li><a href="#interface">Repères d’écran</a></li>
+        <li><a href="#profils">Profils et droits</a></li>
+        <li><a href="#vue360">Client Vue 360°</a></li>
+        <li><a href="#caf">Vue d’ensemble CAF</a></li>
+        <li><a href="#relation">Relation : clients et comptes ouverts</a></li>
+        <li><a href="#depot">Dépôt : collecte d’épargne à vue</a></li>
+        <li><a href="#credit">Crédit : portefeuille à risque et New Deal</a></li>
+        <li><a href="#transferts">Transferts d’argent</a></li>
+        <li><a href="#objectifs">Objectifs : fixer, valider, consulter</a></li>
+        <li><a href="#admin">Gestion (administrateurs)</a></li>
+        <li><a href="#glossaire">Glossaire</a></li>
+        <li><a href="#faq">Questions fréquentes</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="intro">1. À quoi sert CofiDash</h2>
+    <p>
+      CofiDash est le tableau de bord commercial de COFINA. Il permet de suivre la performance
+      (clients, dépôts, crédit, transferts), de consulter un client en vue 360°,
+      et de piloter les objectifs du réseau.
+    </p>
+    <p>Les données affichées proviennent principalement du système bancaire (Flexcube). Selon l’écran, elles sont à jour en temps réel ou issues d’un snapshot du matin.</p>
+    <div class="callout">
+      <strong>Important.</strong> Les menus visibles dépendent de votre profil.
+      Un conseiller client (CC) n’a pas les mêmes écrans qu’un chef d’agence ou qu’un CAF.
+      Si un menu décrit ici n’apparaît pas, c’est normal : vous n’avez pas le droit correspondant.
+    </div>
+
+    <h2 id="connexion">2. Connexion et premier accès</h2>
+    <h3>Se connecter</h3>
+    <ol class="steps">
+      <li>Ouvrez l’adresse de CofiDash fournie par l’équipe informatique.</li>
+      <li>Saisissez votre adresse e-mail professionnelle (ex. prenom.nom@cofina.sn) et votre mot de passe.</li>
+      <li>Cochez « Se souvenir de moi » si vous êtes sur un poste de travail personnel / sécurisé.</li>
+      <li>Cliquez sur le bouton de connexion.</li>
+    </ol>
+    <figure class="screen">
+      <img src="captures/connexion.jpg" alt="Écran de connexion CofiDash" />
+      <figcaption>Figure 1 — Connexion : e-mail professionnel, mot de passe, puis « Se connecter ».</figcaption>
+    </figure>
+    <p>En cas d’identifiants incorrects, un message d’erreur s’affiche. Vérifiez l’orthographe de l’e-mail puis réessayez. Utilisez « Mot de passe oublié ? » si besoin.</p>
+
+    <h3>Changement de mot de passe obligatoire</h3>
+    <p>
+      À la première connexion (compte nouvellement créé), l’application peut vous forcer à changer le mot de passe.
+      Saisissez le mot de passe actuel, puis le nouveau mot de passe deux fois. Tant que ce changement n’est pas fait, vous ne pouvez pas entrer dans le tableau de bord.
+    </p>
+
+    <h3>Se déconnecter</h3>
+    <p>En haut à droite, cliquez sur l’icône de déconnexion (flèche sortante). Fermez ensuite la session Windows si vous quittez un poste partagé.</p>
+
+    <h2 id="interface">3. Repères d’écran</h2>
+    <p>Après connexion, l’écran se compose de trois zones :</p>
+    <table>
+      <thead>
+        <tr><th>Zone</th><th>Rôle</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Bandeau du haut</td>
+          <td>Votre nom et profil, date comptable, raccourcis Accueil / Client Vue 360° / Vue ensemble CAF, barre de recherche client, déconnexion.</td>
+        </tr>
+        <tr>
+          <td>Menu de gauche</td>
+          <td>Modules métier : Relation, Dépôt, Crédit, Transferts, Objectifs, Gestion. Cliquez sur un titre pour déplier les sous-menus.</td>
+        </tr>
+        <tr>
+          <td>Zone centrale</td>
+          <td>Tableaux, indicateurs (KPI) et détails de la section choisie.</td>
+        </tr>
+      </tbody>
+    </table>
+    <figure class="screen">
+      <img src="captures/accueil.jpg" alt="Accueil CofiDash : bandeau, menu et clients" />
+      <figcaption>Figure 2 — Accueil : bandeau, menu de gauche (Relation, Dépôt, Crédit…) et zone centrale.</figcaption>
+    </figure>
+    <p>
+      La <strong>recherche client</strong> du bandeau accepte un nom, un matricule, un n° de compte, un téléphone, une CNI ou un passeport.
+      Appuyez sur <kbd>Entrée</kbd> ou cliquez sur « Rechercher ».
+    </p>
+    <p>
+      Sur la plupart des tableaux, un bouton <strong>Actualiser</strong> recharge les données de l’écran.
+      Les sélecteurs <strong>Semaine / Mois / Année</strong> (et le mois / l’année) filtrent la période affichée.
+    </p>
+    <div class="callout">
+      <strong>Lecture des tableaux hiérarchiques.</strong> Les lignes TERRITOIRE, puis territoire, agence, parfois CAF, se déplient avec les boutons <strong>+</strong> / <strong>−</strong>.
+      Cliquez d’abord le niveau supérieur pour descendre jusqu’à l’agence ou au chargé d’affaires.
+    </div>
+
+    <h2 id="profils">4. Profils et droits</h2>
+    <p>Chaque utilisateur a un profil. Il détermine les menus, le périmètre (toute la filiale, une zone, une agence, son portefeuille) et les actions autorisées sur les objectifs.</p>
+    <table>
+      <thead>
+        <tr><th>Profil</th><th>Rôle principal dans CofiDash</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Directeur Général (MD)</td><td>Consultation du tableau de bord. Valide les objectifs fixés par le DGA. Ne crée pas d’objectifs.</td></tr>
+        <tr><td>Directeur Général Adjoint (DGA)</td><td>Fixe les objectifs des territoires / zones. Soumis à validation du MD.</td></tr>
+        <tr><td>Responsable de zone</td><td>Fixe les objectifs des agences de sa zone. Soumis à validation du DGA.</td></tr>
+        <tr><td>Chef d’agence</td><td>Fixe les objectifs de ses CAF. Soumis à validation du responsable de zone.</td></tr>
+        <tr><td>CAF</td><td>Consulte sa vue d’ensemble, son portefeuille, ses objectifs. Ne crée pas d’objectifs.</td></tr>
+        <tr><td>Conseiller client (CC)</td><td>Accès principalement à la recherche Client Vue 360°.</td></tr>
+        <tr><td>Finances / Exploitations</td><td>Consultation (et, pour Finances, suivi financier selon droits).</td></tr>
+        <tr><td>Administrateur</td><td>Tous les menus, gestion des utilisateurs, territoires, agences et profils.</td></tr>
+      </tbody>
+    </table>
+    <p class="muted">Les menus exacts peuvent être ajustés par l’administrateur. Le tableau décrit le fonctionnement standard.</p>
+
+    <h2 id="vue360">5. Client Vue 360°</h2>
+    <p>
+      La Vue 360° rassemble la fiche d’un client : synthèse, KYC, comptes et crédits.
+      Accès : bandeau <strong>Client Vue 360°</strong>, ou menu Relation selon le profil.
+      Les résultats sont filtrés selon votre périmètre (agence, zone, portefeuille).
+    </p>
+
+    <h3>Rechercher un client</h3>
+    <ol class="steps">
+      <li>Ouvrez Client Vue 360°.</li>
+      <li>Saisissez un nom, matricule, n° de compte, téléphone, CNI ou passeport. Le type de saisie est détecté automatiquement.</li>
+      <li>Cliquez sur « Rechercher ».</li>
+      <li>Dans la liste, cliquez sur la fiche voulue (nom, statut, segment, nombre de comptes et de crédits).</li>
+    </ol>
+    <figure class="screen">
+      <img src="captures/vue360.jpg" alt="Recherche Client Vue 360°" />
+      <figcaption>Figure 3 — Client Vue 360° : un champ de recherche, puis la fiche (Synthèse, KYC, Banque, Crédits).</figcaption>
+    </figure>
+    <p>Si aucun résultat n’apparaît, vérifiez l’orthographe ou essayez un identifiant plus précis (matricule, compte, pièce d’identité).</p>
+
+    <h3>Onglet Synthèse</h3>
+    <ul>
+      <li><strong>Soldes</strong> : solde comptable, solde net, exigible.</li>
+      <li><strong>Montant global dû</strong> : répartition visuelle (barres colorées) des composantes du dû.</li>
+      <li><strong>Dernier mouvement crédit</strong> : dernière opération crédit connue.</li>
+      <li><strong>Score risque, éligibilité crédit, encours</strong> : indiqués s’il existe un crédit actif. Le PAR (jours) ouvre l’onglet Crédits.</li>
+    </ul>
+
+    <h3>Onglet KYC</h3>
+    <p>Identité, coordonnées et informations de conformité du dossier, avec le statut du dossier. Les champs sont regroupés par blocs.</p>
+
+    <h3>Onglet Banque au quotidien</h3>
+    <ol class="steps">
+      <li>Filtrez par type de compte (courant, épargne, etc.).</li>
+      <li>Cliquez un compte pour afficher solde comptable, solde disponible, montant dû et agence.</li>
+      <li>Consultez les dernières écritures sous le détail du compte.</li>
+    </ol>
+
+    <h3>Onglet Crédits</h3>
+    <p>Vue globale : encours global, encours sain, encours impayé, total exigible, soft scoring.</p>
+    <p>Pour chaque prêt de la liste :</p>
+    <ul>
+      <li><strong>Détail</strong> : statut, compte lié, type de prêt, chargé d’affaires, encours, impayé, pourcentage remboursé.</li>
+      <li><strong>TA</strong> : tableau d’amortissement (échéances, payé, impayé, pénalité, exigible, statut).</li>
+    </ul>
+
+    <h3>Onglet Checking-PI</h3>
+    <p>
+      Vérifie l’éligibilité au produit PI selon des règles paramétrées.
+      Le verdict s’affiche en vert (éligible) ou en alerte (non éligible), avec le détail des critères.
+      Les administrateurs habilités peuvent paramétrer les règles via le bouton dédié.
+    </p>
+
+    <h2 id="caf">6. Vue d’ensemble CAF</h2>
+    <p>
+      Écran d’accueil des CAF. Les autres profils y accèdent via le bandeau <strong>Vue ensemble CAF</strong>
+      ou le menu Relation → Vue d’ensemble, en choisissant un chargé d’affaires.
+    </p>
+    <h3>Filtres</h3>
+    <ul>
+      <li><strong>Mois</strong> et <strong>Année</strong> de reporting.</li>
+      <li><strong>Chargé d’affaires</strong> : obligatoire pour les profils qui ne sont pas CAF (liste des gestionnaires).</li>
+      <li><strong>Actualiser</strong> : recharge les indicateurs.</li>
+    </ul>
+    <h3>Cartes indicateurs</h3>
+    <p>Chaque carte a un bouton <strong>Voir détails</strong> (liste de dossiers, puis fiche d’un prêt).</p>
+    <table>
+      <thead><tr><th>Indicateur</th><th>Ce qu’il représente</th></tr></thead>
+      <tbody>
+        <tr><td>Encours total</td><td>Encours crédit du portefeuille du CAF sur la période.</td></tr>
+        <tr><td>PAR global</td><td>Poids du portefeuille à risque (impayés) dans l’encours.</td></tr>
+        <tr><td>Production du mois</td><td>Volume financé et nombre de dossiers du mois.</td></tr>
+        <tr><td>Nombre New Deal</td><td>Nouveaux dossiers New Deal vs objectif, avec volume financé.</td></tr>
+        <tr><td>Dossiers portefeuille</td><td>Nombre de dossiers et encours impayé associé.</td></tr>
+        <tr><td>Provisions</td><td>Montant de provisions du portefeuille.</td></tr>
+      </tbody>
+    </table>
+    <p>Dans le détail d’un prêt : client, n° de prêt, statut, santé (sain / à risque), jours PAR, encours, impayé, montant financé, taux de remboursement, type de prêt.</p>
+    <figure class="screen">
+      <img src="captures/vue-ensemble-caf.jpg" alt="Vue d’ensemble CAF" />
+      <figcaption>Figure 4 — Vue d’ensemble CAF : mois, année, chargé d’affaires, puis les indicateurs du portefeuille.</figcaption>
+    </figure>
+    <p>Les buckets PAR (PAR 0, 30, 90, 180, 360) permettent de zoomer sur les dossiers selon l’ancienneté de l’impayé.</p>
+
+    <h2 id="relation">7. Relation : clients et comptes ouverts</h2>
+    <p>Menu <strong>Relation</strong> (à gauche).</p>
+
+    <h3>Clients</h3>
+    <p>Suivi des <strong>nouveaux clients</strong> et des <strong>frais d’ouverture de compte</strong>, confrontés à l’objectif.</p>
+    <ol class="steps">
+      <li>Choisissez la période : semaine (avec une date), mois, ou année.</li>
+      <li>Lisez les KPI du haut : période en cours, période précédente, évolution, écart.</li>
+      <li>Dépliez le tableau Territoire → territoires → agences.</li>
+    </ol>
+    <p>Colonnes utiles : Objectif, Nouveaux clients (N-1 et N), variation, <strong>TRO</strong>, taux de croissance, frais d’ouverture. L’écran type est celui de la <strong>figure 2</strong>.</p>
+    <p>Les couleurs indiquent le sens de la variation (hausse / baisse) et le niveau d’atteinte de l’objectif.</p>
+    <p>En bas de page, un graphique d’évolution et les exports <strong>PNG / PDF / CSV</strong> permettent de récupérer le tableau ou le graphe.</p>
+
+    <h3>Comptes ouverts</h3>
+    <p>Deux vues : <strong>Dashboard</strong> et <strong>Performance</strong>. Filtrez par mois et année, puis Actualiser.</p>
+    <ul>
+      <li><strong>Dashboard</strong> : objectif annuel, objectif de la période, réalisé (courants et épargne), écart, TRO. Basculez <strong>YTD</strong> (cumul depuis janvier) ou mois.</li>
+      <li><strong>Performance</strong> : détail par territoire / agence pour comparer les réalisations.</li>
+      <li><strong>Paramétrage</strong> : visible pour les profils habilités (règles de comptage des ouvertures).</li>
+    </ul>
+
+    <h2 id="depot">8. Dépôt : collecte d’épargne à vue</h2>
+    <p>Menu <strong>Dépôt</strong> → Collecte d’épargne à vue. Trois onglets :</p>
+    <table>
+      <thead><tr><th>Onglet</th><th>Usage</th></tr></thead>
+      <tbody>
+        <tr><td>Dashboard</td><td>Vue synthétique de la collecte vs objectifs.</td></tr>
+        <tr><td>Collecte d’épargne à vue</td><td>Tableau territoire → agence → CAF → client. Objectif, réalisation, TRO, écart, total dépôts.</td></tr>
+        <tr><td>Évolution</td><td>Suivi dans le temps de la collecte.</td></tr>
+      </tbody>
+    </table>
+    <p>Choisissez le mois et l’année, puis Actualiser. Un filtre « Filtré : … / Tout voir » restreint le tableau à un territoire, une agence ou un CAF après clic dans la hiérarchie.</p>
+    <p class="muted">Les administrateurs disposent de « Recalculer Flexcube » (recalcul long depuis le core) et « Figer objectifs » (geler les objectifs du mois, en principe au 1er du mois). Ces boutons ne concernent pas le métier courant.</p>
+
+    <h2 id="credit">9. Crédit : portefeuille à risque et New Deal</h2>
+    <p>Menu <strong>Crédit</strong>.</p>
+
+    <h3>Portefeuille à risque</h3>
+    <p>Évolution du PAR en %. Période : semaine, mois ou année.</p>
+    <table>
+      <thead><tr><th>Onglet</th><th>Contenu</th></tr></thead>
+      <tbody>
+        <tr><td>PAR Agence</td><td>PAR par agence (et niveaux territoriaux).</td></tr>
+        <tr><td>PAR CAF</td><td>PAR par chargé d’affaires.</td></tr>
+        <tr><td>FLOP 30</td><td>Les 30 situations les plus dégradées.</td></tr>
+        <tr><td>TOP 50</td><td>Les 50 meilleures situations.</td></tr>
+        <tr><td>Entrées PAR 0 / 30 / 90 / 180 / 360</td><td>Nouveaux dossiers entrés dans chaque bucket d’impayé.</td></tr>
+      </tbody>
+    </table>
+    <p>Utilisez ces vues pour le comité risque, le recouvrement et le suivi quotidien des CAF.</p>
+
+    <h3>New Deal</h3>
+    <p>
+      Liste des dossiers New Deal : <strong>hors clients NAFA et hors clients déjà en prêt</strong>.
+      Colonnes : agence, n° de prêt, client, matricule, montant, date, compte, CAF.
+    </p>
+    <ul>
+      <li>Le champ de recherche filtre agence, client, prêt, etc.</li>
+      <li><strong>Actualiser</strong> recharge la liste affichée.</li>
+      <li><strong>Reconstruire la table</strong> relance le calcul de la base New Deal (opération plus longue, à utiliser si les chiffres semblent incomplets).</li>
+    </ul>
+    <p>Le bandeau affiche le nombre de dossiers et le montant total (sur la liste filtrée).</p>
+
+    <h2 id="transferts">10. Transferts d’argent</h2>
+    <p>Menu <strong>DESC Transferts</strong> → Données.</p>
+    <ol class="steps">
+      <li>Choisissez la période (semaine, mois, année).</li>
+      <li>Sélectionnez le service : Orange Money, Wave, Ria, Western Union, MoneyGram, Wizzal ou FREE Money.</li>
+      <li>Lisez le tableau par agence : objectif, volume M-1 et M, variation, TRO, etc., en dépliant territoire → agences.</li>
+    </ol>
+    <p>Changez de service pour comparer les canaux. Les objectifs de transfert, s’ils ont été saisis, alimentent la colonne Objectif et le TRO.</p>
+
+    <h2 id="objectifs">11. Objectifs : fixer, valider, consulter</h2>
+    <p>Les objectifs descendent dans le réseau. Chaque niveau fixe le niveau inférieur ; le niveau supérieur valide.</p>
+    <table>
+      <thead><tr><th>Qui</th><th>Fixe les objectifs de…</th><th>Validé par</th></tr></thead>
+      <tbody>
+        <tr><td>DGA</td><td>Territoires / zones</td><td>Directeur Général (MD)</td></tr>
+        <tr><td>Responsable de zone</td><td>Agences de sa zone</td><td>DGA</td></tr>
+        <tr><td>Chef d’agence</td><td>Ses CAF</td><td>Responsable de zone</td></tr>
+        <tr><td>CAF</td><td>—</td><td>Consulte uniquement « Mes objectifs »</td></tr>
+        <tr><td>MD</td><td>—</td><td>Valide uniquement, ne crée pas</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Types d’objectifs courants</h3>
+    <p>Client, Production (nombres et volume), New Deal, Encours crédit, Collecte, Dépôt de garantie, Épargne simple, Épargne projet, Volume DAT. Les types proposés dépendent du profil et du niveau (territoire, agence, CAF).</p>
+
+    <h3>Ajouter un objectif</h3>
+    <p>Menu <strong>Objectifs</strong> → Ajouter (profils habilités, hors CAF et hors MD).</p>
+    <ol class="steps">
+      <li>Choisissez la période : mensuel (mois + année), trimestriel, ou annuel.</li>
+      <li>Sélectionnez le type d’objectif (si le champ est affiché).</li>
+      <li>Saisissez les valeurs pour chaque territoire, agence ou CAF selon votre niveau. Pour la production : nombres et volume. Pour New Deal : un nombre de dossiers.</li>
+      <li>Enregistrez. L’objectif passe en général en <strong>attente de validation</strong>.</li>
+    </ol>
+    <p>Un message confirme la création. Corrigez les champs obligatoires s’il reste des erreurs de saisie (valeurs positives, période complète).</p>
+
+    <h3>Valider un objectif</h3>
+    <p>Menu <strong>Objectifs</strong> → Valider.</p>
+    <ol class="steps">
+      <li>Consultez la liste des objectifs en attente (agence / catégorie / type / valeur / créateur / date).</li>
+      <li>Cliquez <strong>Valider</strong> pour accepter, ou <strong>Rejeter</strong> en indiquant une raison.</li>
+      <li>Utilisez Actualiser si un collègue vient de soumettre un objectif.</li>
+    </ol>
+    <p>Tant qu’un objectif n’est pas validé, il n’est en principe pas pris comme référence de TRO dans les tableaux de performance.</p>
+
+    <h3>Mes objectifs (CAF)</h3>
+    <p>Menu Objectifs → Mes objectifs, ou l’écran dédié du CAF. Filtrez mois et année. Tableau : type, nombres, volume / valeur, période, statut (Validé, En attente, Brouillon, Rejeté).</p>
+    <p>Ce sont les objectifs fixés par le chef d’agence. Le CAF ne les modifie pas.</p>
+
+    <h2 id="admin">12. Gestion (administrateurs)</h2>
+    <p>Menu <strong>Gestion</strong> — réservé aux administrateurs.</p>
+    <h3>Données (organisation)</h3>
+    <p>Onglets Territoires, Agences, Utilisateurs, Profils.</p>
+    <ul>
+      <li><strong>Territoires</strong> : code, nom, responsable de zone. Création / modification.</li>
+      <li><strong>Agences</strong> : rattachement aux territoires. Bouton <strong>Synchroniser les agences</strong> pour aligner avec le référentiel bancaire.</li>
+      <li><strong>Utilisateurs</strong> : nom, e-mail, profil, code gestionnaire (nécessaire pour lier un CAF à son portefeuille Flexcube). Création, modification, suppression.</li>
+      <li><strong>Profils</strong> : droits et menus autorisés.</li>
+    </ul>
+    <p>À la création d’un utilisateur, un mot de passe temporaire est attribué ; l’utilisateur devra souvent le changer à la première connexion.</p>
+    <h3>Environnements</h3>
+    <p>Liste des environnements (ex. filiales ou contextes) et accès aux agences associées. Usage interne / paramétrage, pas le quotidien du réseau.</p>
+
+    <h2 id="glossaire">13. Glossaire</h2>
+    <table>
+      <thead><tr><th>Terme</th><th>Définition dans CofiDash</th></tr></thead>
+      <tbody>
+        <tr><td>CAF</td><td>Chargé d’affaires. Suit un portefeuille de clients et de crédits.</td></tr>
+        <tr><td>TRO</td><td>Taux de réalisation de l’objectif (réalisé / objectif), en %.</td></tr>
+        <tr><td>PAR</td><td>Portefeuille à risque : crédits avec impayés, classés par ancienneté (0, 30, 90, 180, 360 jours).</td></tr>
+        <tr><td>YTD</td><td>Year to date : cumul depuis le 1er janvier jusqu’à la date (ou au mois) sélectionné.</td></tr>
+        <tr><td>New Deal</td><td>Nouvelle mise en force, hors NAFA et hors client déjà en prêt.</td></tr>
+        <tr><td>Encours</td><td>Capital (et composantes associées) restant dû sur les crédits.</td></tr>
+        <tr><td>Exigible</td><td>Montant arrivé à échéance et dû par le client.</td></tr>
+        <tr><td>KYC</td><td>Know Your Customer : informations d’identité et de conformité du client.</td></tr>
+        <tr><td>TA</td><td>Tableau d’amortissement du prêt (échéancier).</td></tr>
+        <tr><td>PI</td><td>Produit concerné par le contrôle d’éligibilité Checking-PI.</td></tr>
+        <tr><td>Date comptable</td><td>Date du jour affichée dans le bandeau (repère de session, pas un filtre de données).</td></tr>
+        <tr><td>Snapshot</td><td>Photographie des données (souvent le matin). « Actualiser » relit ce snapshot ; un recalcul Flexcube le régénère.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="faq">14. Questions fréquentes</h2>
+    <h3>Je ne vois pas un menu décrit dans ce manuel</h3>
+    <p>Votre profil ne l’inclut pas. Demandez à l’administrateur d’ajouter le droit, ou de vérifier le bon profil sur votre compte.</p>
+
+    <h3>La liste de clients Vue 360° est vide ou incomplète</h3>
+    <p>Le périmètre est limité à votre zone, agence ou portefeuille. Un CAF ne voit pas les clients d’un autre CAF. Essayez un identifiant exact (matricule, compte, pièce).</p>
+
+    <h3>Les chiffres ne correspondent pas à ce que j’ai en agence</h3>
+    <ul>
+      <li>Vérifiez le mois / l’année (et YTD vs mois sur les comptes ouverts).</li>
+      <li>Cliquez sur Actualiser.</li>
+      <li>Sur l’épargne à vue, les données peuvent être celles du snapshot du matin.</li>
+      <li>Sur New Deal, essayez « Reconstruire la table » si vous y êtes autorisé, ou contactez l’exploitation.</li>
+    </ul>
+
+    <h3>Un objectif n’apparaît pas dans les TRO</h3>
+    <p>Il est probablement encore en attente de validation, rejeté, ou saisi sur une autre période / un autre type. Ouvrez Valider ou Mes objectifs et contrôlez le statut et le mois.</p>
+
+    <h3>Je n’arrive plus à me connecter</h3>
+    <p>Utilisez « Mot de passe oublié ? ». Si le compte est inactif ou sans profil, contactez l’administrateur CofiDash (pas le support Flexcube).</p>
+
+    <h3>La page reste en chargement</h3>
+    <p>Attendez quelques secondes (certains extraits Oracle sont longs). Si cela persiste, actualisez le navigateur (<kbd>F5</kbd>), déconnectez-vous puis reconnectez-vous. Signalez l’écran et l’heure à l’informatique si le problème continue.</p>
+
+    <h3>Qui contacter ?</h3>
+    <ul>
+      <li><strong>Droits, compte, mot de passe, agence manquante :</strong> administrateur CofiDash.</li>
+      <li><strong>Écart de chiffre vs core banking :</strong> exploitation / informatique, en précisant l’écran, la période et l’agence.</li>
+      <li><strong>Règles d’objectifs et de TRO :</strong> votre chef d’agence ou responsable de zone.</li>
+    </ul>
+
+    <footer>
+      CofiDash — Manuel d’utilisation métier — COFINA Sénégal.
+      Document interne. Les captures montrent uniquement les grands écrans (connexion, accueil, Vue 360°, vue CAF).
+    </footer>
+  </div>
+</body>
+</html>
