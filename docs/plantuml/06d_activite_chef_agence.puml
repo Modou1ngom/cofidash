@@ -1,0 +1,34 @@
+@startuml activite_chef
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.6d — Activité : Chef d'Agence
+
+start
+:S'authentifier;
+fork
+  :Consulter les KPI de l'agence;
+fork again
+  :Répartir l'objectif d'agence\nsur les CAF;
+  :status = pending_validation;
+  :Attendre la décision\ndu Responsable Zone;
+end fork
+stop
+
+note right
+  Pas d'étape « Valider » :
+  le Chef d'agence n'a pas
+  VALIDATE_* métier
+end note
+
+@enduml

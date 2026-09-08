@@ -1,0 +1,59 @@
+@startuml sequence_caf_objectifs
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.4f — Séquence : le CAF consulte ses objectifs et son dashboard
+
+actor "CAF" as CAF
+participant "Dashboard Vue" as V
+participant "Laravel API" as L
+participant "FastAPI" as P
+database "MySQL\nobjectives" as DB
+database "Oracle DASH_*" as DWH
+
+== Mes objectifs (lecture) ==
+
+CAF -> V : Ouvre « Mes objectifs »
+V -> L : GET /api/objectives\nAuthorization: Bearer
+activate L
+L -> DB : SELECT status IN (validated,\npending_validation) pour le CAF
+activate DB
+DB --> L : Objectifs
+deactivate DB
+L --> V : JSON
+deactivate L
+V --> CAF : Objectif vs réalisé
+
+== KPI de son portefeuille ==
+
+CAF -> V : Consulte collecte / PAR / comptes
+V -> L : GET /api/oracle/data/...
+activate L
+L -> P : Requête métier
+activate P
+P -> DWH : Snapshot MIGRATION_DATETIME
+activate DWH
+DWH --> P : Lignes agence du CAF
+deactivate DWH
+P --> L : JSON
+deactivate P
+L --> V : KPI
+deactivate L
+V --> CAF : Affichage
+
+note over CAF
+  Aucune création ni validation d'objectif
+  Périmètre : son agence uniquement
+end note
+
+@enduml

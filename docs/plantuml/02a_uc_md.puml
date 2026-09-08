@@ -1,0 +1,56 @@
+@startuml uc_md
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.2a — Cas d'utilisation : Directeur Général (MD)
+
+left to right direction
+
+actor "Directeur Général\n(MD)" as MD
+
+rectangle "COFIdash — profil MD" {
+  usecase "S'authentifier" as AUTH
+  usecase "Consulter le dashboard\nKPI (réseau national)" as KPI
+  usecase "Consulter les clients" as CLI
+  usecase "Consulter Vue 360°" as V360
+  usecase "Consulter le reporting\nfinancier" as FIN
+  usecase "Valider les objectifs\ndu DGA" as VAL
+  usecase "Rejeter un objectif\nDGA" as REJ
+}
+
+MD --> AUTH
+MD --> KPI
+MD --> CLI
+MD --> V360
+MD --> FIN
+MD --> VAL
+MD --> REJ
+
+KPI ..> AUTH : <<include>>
+CLI ..> AUTH : <<include>>
+VAL ..> AUTH : <<include>>
+
+note bottom of VAL
+  Cible : objectifs catégorie TERRITOIRE
+  créés par le DGA
+  Statut : pending_validation → validated
+  Permission : VALIDATE_DGA_OBJECTIVES
+end note
+
+note bottom of KPI
+  Menus : Clients, Vue CAF, Comptes ouverts,
+  Collecte épargne, PAR, New Deal, Transferts
+  Périmètre : tout le réseau (pas de filtre agence)
+end note
+
+@enduml

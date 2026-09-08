@@ -1,0 +1,54 @@
+@startuml sequence_cc_vue360
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.4g — Séquence : le Conseiller Client consulte Vue 360°
+
+actor "Conseiller Client\n(CC)" as CC
+participant "Vue 360\n(Web ou Flutter)" as F
+participant "Laravel /api/v1\nClientController" as L
+participant "Vue360ScopeService" as S
+participant "Vue360ApiService" as A
+participant "FastAPI\n/api/vue360" as P
+database "Oracle\nCUSTOMERS / TMP_CLIENTS_FLEX" as ORA
+
+CC -> F : Recherche nom / compte / matricule
+F -> L : GET /api/v1/clients?q=...\nAuthorization: Bearer
+activate L
+L -> L : Sanctum + VIEW_VUE360
+L -> S : branchCodesForUser(CC)
+activate S
+S --> L : [code agence du CC]
+deactivate S
+L -> A : search(q, branch_codes)
+activate A
+A -> P : GET /api/vue360/clients
+activate P
+P -> ORA : CUSTOMERS + TMP_CLIENTS_FLEX\nMAX(MIGRATION_DATETIME)
+activate ORA
+ORA --> P : Clients de l'agence
+deactivate ORA
+P --> A : JSON
+deactivate P
+A --> L : Liste
+deactivate A
+L --> F : Résultats
+deactivate L
+F --> CC : Fiche client (KYC, comptes, crédits)
+
+note over CC
+  Pas de dashboard opérationnel
+  Accueil : /vue360/recherche
+end note
+
+@enduml

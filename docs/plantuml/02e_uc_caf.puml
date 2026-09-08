@@ -1,0 +1,62 @@
+@startuml uc_caf
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.2e — Cas d'utilisation : CAF
+
+left to right direction
+
+actor "CAF" as CAF
+
+rectangle "COFIdash — profil CAF" {
+  usecase "S'authentifier" as AUTH
+  usecase "Consulter son tableau\nde bord (portefeuille)" as KPI
+  usecase "Consulter Vue d'ensemble CAF" as OVER
+  usecase "Consulter les comptes ouverts" as CPT
+  usecase "Consulter la collecte\nd'épargne à vue" as COL
+  usecase "Consulter le portefeuille\nà risque (PAR)" as PAR
+  usecase "Consulter New Deal" as ND
+  usecase "Consulter les transferts" as TR
+  usecase "Consulter mes objectifs" as OBJ
+  usecase "Consulter Vue 360° client" as V360
+  usecase "Synchroniser une fiche\nC360 (mobile)" as SYNC
+}
+
+CAF --> AUTH
+CAF --> KPI
+CAF --> OVER
+CAF --> CPT
+CAF --> COL
+CAF --> PAR
+CAF --> ND
+CAF --> TR
+CAF --> OBJ
+CAF --> V360
+CAF --> SYNC
+
+KPI ..> AUTH : <<include>>
+V360 ..> AUTH : <<include>>
+SYNC ..> AUTH : <<include>>
+
+note bottom of OBJ
+  Consultation uniquement
+  MENU_OBJECTIFS_VIEW
+  Pas de CREATE_* ni VALIDATE_*
+end note
+
+note bottom of V360
+  Périmètre : son agence (BRANCH_CODE)
+  Mobile Flutter + Web
+end note
+
+@enduml

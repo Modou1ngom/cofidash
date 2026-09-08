@@ -130,7 +130,7 @@ class AppSettingController extends Controller
         $allowed = array_keys(CheckingPiRules::defaults());
         $validator = Validator::make($request->all(), [
             'fields' => 'required|array',
-            'fields.*' => 'required|string|in:critical,optional,ignored',
+            'fields.*' => 'required|string|in:critical,optional,conditional,ignored',
         ]);
 
         if ($validator->fails()) {
@@ -148,12 +148,18 @@ class AppSettingController extends Controller
             }
         }
 
-        $fields = CheckingPiRules::normalize(['fields' => $incoming]);
+        $fields = CheckingPiRules::normalize([
+            'version' => CheckingPiRules::RULES_VERSION,
+            'fields' => $incoming,
+        ]);
 
         $setting = AppSetting::query()->updateOrCreate(
             ['key' => CheckingPiRules::SETTING_KEY],
             [
-                'value' => ['fields' => $fields],
+                'value' => [
+                    'version' => CheckingPiRules::RULES_VERSION,
+                    'fields' => $fields,
+                ],
                 'updated_by' => $user?->id,
             ]
         );

@@ -1,0 +1,50 @@
+@startuml sequence_chef_agence
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.4e — Séquence : le Chef d'agence fixe un objectif CAF
+
+actor "Chef d'Agence" as CA
+actor "Responsable Zone" as RZ
+participant "Vue Objectifs" as V
+participant "ObjectiveController" as L
+database "MySQL\nobjectives" as DB
+
+CA -> V : Répartit l'objectif entre ses CAF
+V -> L : POST /api/objectives
+activate L
+L -> L : CREATE_CAF_OBJECTIVES\nstatus = pending_validation
+L -> DB : INSERT created_by=Chef
+activate DB
+DB --> L : OK
+deactivate DB
+L --> V : Soumis au Responsable Zone
+deactivate L
+
+RZ -> V : Valide
+V -> L : POST /api/objectives/{id}/validate
+activate L
+L -> L : créateur == CHEF_AGENCE ?
+L -> DB : UPDATE status='validated'\nvalidated_by=RZ
+activate DB
+DB --> L : OK
+deactivate DB
+L --> V : Validé
+deactivate L
+
+note over CA
+  Le Chef d'agence ne valide pas
+  d'objectifs (pas de VALIDATE_* métier)
+end note
+
+@enduml

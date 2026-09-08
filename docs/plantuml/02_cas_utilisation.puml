@@ -1,67 +1,67 @@
-@startuml cas_utilisation_cofidash
+@startuml cas_utilisation_acteurs
 !theme plain
-title Figure 3.2 — Diagramme de cas d'utilisation COFIdash
-
 skinparam shadowing false
 skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.2 — Acteurs de COFIdash\n(un diagramme de cas d'utilisation par profil : figures 3.2a à 3.2i)
+
 left to right direction
+
+actor "Utilisateur\nauthentifié" as U
 
 actor "Directeur Général\n(MD)" as MD
 actor "Directeur Général\nAdjoint (DGA)" as DGA
-actor "Responsable\nde zone" as RZ
-actor "Chef\nd'agence" as CA
+actor "Responsable Zone" as RZ
+actor "Chef d'Agence" as CA
 actor "CAF" as CAF
-actor "Service\nFinances" as FIN
+actor "Conseiller Client\n(CC)" as CC
+actor "Finances" as FIN
+actor "Exploitations" as EXP
 actor "Administrateur" as ADM
 
-rectangle "Système COFIdash" {
-  usecase "S'authentifier" as UC1
-  usecase "Consulter dashboard\nKPIs" as UC2
-  usecase "Consulter clients" as UC3
-  usecase "Consulter crédits" as UC4
-  usecase "Gérer objectifs" as UC5
-  usecase "Valider objectifs" as UC6
-  usecase "Consulter risques\net alertes" as UC7
-  usecase "Consulter reporting\nfinancier" as UC8
-  usecase "Synchroniser fiche\nclient C360" as UC9
-  usecase "Administrer\nutilisateurs" as UC10
-  usecase "Consulter\nopportunités" as UC11
-}
+U <|-- MD
+U <|-- DGA
+U <|-- RZ
+U <|-- CA
+U <|-- CAF
+U <|-- CC
+U <|-- FIN
+U <|-- EXP
+U <|-- ADM
 
-MD --> UC1
-MD --> UC2
-MD --> UC6
+note bottom of U
+  Authentification : Laravel Sanctum
+  (jeton Bearer, pas JWT)
 
-DGA --> UC1
-DGA --> UC2
-DGA --> UC5
-DGA --> UC6
+  Périmètre des données (Vue360ScopeService) :
+  • MD / DGA / Admin → réseau national
+  • Responsable Zone → agences du territoire
+  • Chef d'agence / CAF / CC → son agence
+end note
 
-RZ --> UC1
-RZ --> UC2
-RZ --> UC3
-RZ --> UC5
-RZ --> UC6
-
-CA --> UC1
-CA --> UC2
-CA --> UC3
-CA --> UC5
-
-CAF --> UC1
-CAF --> UC3
-CAF --> UC4
-CAF --> UC7
-CAF --> UC9
-CAF --> UC11
-
-FIN --> UC1
-FIN --> UC8
-
-ADM --> UC10
-
-UC2 ..> UC1 : <<include>>
-UC5 ..> UC6 : <<extend>>
-UC3 ..> UC9 : <<extend>>\n(mobile)
+note right of MD
+  Figure 3.2a
+end note
+note right of DGA
+  Figure 3.2b
+end note
+note right of RZ
+  Figure 3.2c
+end note
+note right of CA
+  Figure 3.2d
+end note
+note right of CAF
+  Figure 3.2e
+end note
 
 @enduml

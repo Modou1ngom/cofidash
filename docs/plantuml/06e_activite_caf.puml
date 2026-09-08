@@ -1,0 +1,36 @@
+@startuml activite_caf
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.6e — Activité : CAF
+
+start
+:S'authentifier;
+fork
+  :Consulter Vue d'ensemble CAF;
+fork again
+  :Consulter collecte / PAR /\ncomptes / transferts / New Deal;
+fork again
+  :Ouvrir « Mes objectifs »;
+  :Comparer réalisé et objectif;
+fork again
+  :Ouvrir Vue 360°;
+  if (Mobile ?) then (oui)
+    :Synchroniser fiche C360;
+  else (web)
+    :Consulter la fiche;
+  endif
+end fork
+stop
+
+@enduml

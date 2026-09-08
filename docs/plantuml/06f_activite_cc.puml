@@ -1,0 +1,29 @@
+@startuml activite_cc
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.6f — Activité : Conseiller Client (CC)
+
+start
+:S'authentifier;
+:Arriver sur /vue360/recherche;
+:Saisir nom, compte ou matricule;
+if (Client trouvé dans l'agence ?) then (oui)
+  :Ouvrir la fiche Vue 360°;
+  :Consulter KYC, comptes, crédits;
+else (non)
+  :Aucun résultat\n(hors périmètre agence);
+endif
+stop
+
+@enduml

@@ -1,0 +1,44 @@
+@startuml sequence_md_validation
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.4c — Séquence : le MD valide un objectif du DGA
+
+actor "Directeur Général\n(MD)" as MD
+participant "ValidationSection" as V
+participant "Laravel API\nObjectiveController" as L
+database "MySQL\nobjectives" as DB
+
+MD -> V : Ouvre « Valider des objectifs »
+V -> L : GET /api/objectives/pending-validation
+activate L
+L -> DB : SELECT status='pending_validation'\ncréés par un DGA, category=TERRITOIRE
+activate DB
+DB --> L : Liste
+deactivate DB
+L --> V : JSON
+deactivate L
+
+MD -> V : Clique Valider
+V -> L : POST /api/objectives/{id}/validate
+activate L
+L -> L : status == pending_validation ?\ncréateur.profile == DGA ?
+L -> DB : UPDATE status='validated'\nvalidated_by=MD, validated_at=now()
+activate DB
+DB --> L : OK
+deactivate DB
+L --> V : Objectif validé
+deactivate L
+V --> MD : Confirmation
+
+@enduml

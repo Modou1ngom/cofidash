@@ -1377,12 +1377,24 @@ def get_kyc(
 
 
 _PI_CATEGORIE_LABELS = {
-    "C": "Personne morale",
     "P": "Personne physique",
     "I": "Personne physique",
+    "B": "Personne morale",
+    "C": "Personne morale",
+    "G": "Entité gouvernementale",
 }
-_PI_STATUT_COMPTE_LABELS = {"O": "Ouvert", "C": "Clôturé"}
-_PI_TYPE_COMPTE_LABELS = {"1": "Courant", "2": "Épargne"}
+_PI_TYPE_NUMERO_LABELS = {"I": "IBAN", "O": "Numéro interne"}
+_PI_TYPE_COMPTE_LABELS = {
+    "1": "Courant",
+    "2": "Épargne",
+    "3": "Compte de transaction",
+    "4": "Transaction sans KYC",
+}
+_PI_TYPE_ALIAS_LABELS = {
+    "S": "Identifiant interne BCEAO",
+    "M": "Numéro de mobile",
+    "C": "Compte marchand",
+}
 _PI_GENRE_LABELS = {"1": "Homme", "2": "Femme"}
 _PI_TYPE_PIECE_LABELS = {
     "1": "Passeport",
@@ -1390,6 +1402,7 @@ _PI_TYPE_PIECE_LABELS = {
     "CNI": "CNI",
     "PASS": "Passeport",
 }
+_WAMU_CALLING_CODES = ("221", "223", "225", "226", "227", "228", "229", "245")
 
 
 def _pi_row_value(row: Dict[str, Any], key: str) -> str:
@@ -1416,6 +1429,21 @@ def _pi_decode(value: str, mapping: Dict[str, str]) -> str:
     if not value:
         return ""
     return mapping.get(value, mapping.get(value.upper(), value))
+
+
+def _format_wamu_phone(raw: str) -> str:
+    text = (raw or "").strip()
+    digits = "".join(ch for ch in text if ch.isdigit())
+    if not digits:
+        return ""
+    for code in _WAMU_CALLING_CODES:
+        if digits.startswith(code):
+            return "+" + digits
+    if len(digits) == 9:
+        return "+221" + digits
+    if len(digits) == 8:
+        return "+228" + digits
+    return "+" + digits if text.startswith("+") else text
 
 
 def _pi_field(
@@ -1488,138 +1516,218 @@ def _build_checking_pi(row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     categorie = (raw["categorieClient"] or "").upper()
-    is_morale = categorie == "C"
+    if categorie in ("I", "P"):
+        raw["categorieClient"] = "P"
+    elif categorie == "C":
+        raw["categorieClient"] = "B"
+    categorie = raw["categorieClient"]
     client_type_label = _PI_CATEGORIE_LABELS.get(categorie, categorie or "—")
 
-    common_fields = [
-        _pi_field("nomClient", "Nom complet", "user", raw["nomClient"]),
-        _pi_field("telephoneClient", "Téléphone", "phone", raw["telephoneClient"]),
-        _pi_field("emailClient", "Email", "mail", raw["emailClient"]),
-        _pi_field("numeroCompte", "Numéro de compte", "card", raw["numeroCompte"]),
-        _pi_field("agenceCompte", "Agence", "building", raw["agenceCompte"]),
-        _pi_field(
-            "categorieClient",
-            "Type client",
-            "users",
-            raw["categorieClient"],
-            display=client_type_label,
-        ),
-        _pi_field(
-            "typeNumeroCompte",
-            "Statut compte",
-            "status",
-            raw["typeNumeroCompte"],
-            display=_pi_decode(raw["typeNumeroCompte"], _PI_STATUT_COMPTE_LABELS),
-        ),
-        _pi_field("nationaliteClient", "Nationalité", "flag", raw["nationaliteClient"]),
-        _pi_field(
-            "paysResidenceClient",
-            "Pays de résidence",
-            "globe",
-            raw["paysResidenceClient"],
-        ),
-        _pi_field("adresseGeoClient", "Adresse", "pin", raw["adresseGeoClient"]),
-        _pi_field("dateCreation", "Date de création CIF", "calendar", raw["dateCreation"]),
-        _pi_field(
-            "numeroPieceClient",
-            "N° pièce d'identité",
-            "id",
-            raw["numeroPieceClient"],
-        ),
-        _pi_field(
-            "typePieceClient",
-            "Type de pièce",
-            "badge",
-            raw["typePieceClient"],
-            display=_pi_decode(raw["typePieceClient"], _PI_TYPE_PIECE_LABELS),
-        ),
-        _pi_field("photoClient", "Photo client", "photo", raw["photoClient"]),
-    ]
+    piece = (raw["typePieceClient"] or "").upper()
+    if piece in ("CNI", "2"):
+        raw["typePieceClient"] = "2"
+    elif piece in ("PASS", "PASSPORT", "1"):
+        raw["typePieceClient"] = "1"
+    elif piece not in ("1", "2"):
+        raw["typePieceClient"] = ""
+
+    acct = "".join(ch for ch in raw["numeroCompte"] if not ch.isspace())
+    raw["typeNumeroCompte"] = "I" if len(acct) == 28 else "O"
+
+    phone = raw["telephoneClient"]
+    raw["typeAlias"] = "M" if _pi_is_filled(phone) else ""
+    raw["valeurAlias"] = _format_wamu_phone(phone) if raw["typeAlias"] == "M" else ""
+    if raw["valeurAlias"]:
+        raw["telephoneClient"] = raw["valeurAlias"]
 
     sections = [
         {
+            "id": "alias",
+            "title": "Alias PI",
+            "fields": [
+                _pi_field(
+                    "typeAlias",
+                    "Type d’alias",
+                    "badge",
+                    raw["typeAlias"],
+                    display=_pi_decode(raw["typeAlias"], _PI_TYPE_ALIAS_LABELS),
+                ),
+                _pi_field(
+                    "valeurAlias",
+                    "Valeur de l’alias",
+                    "hash",
+                    raw["valeurAlias"],
+                    required=False,
+                ),
+            ],
+        },
+        {
             "id": "communes",
             "title": "Informations communes",
-            "fields": common_fields,
-        }
+            "fields": [
+                _pi_field(
+                    "categorieClient",
+                    "Catégorie client",
+                    "users",
+                    raw["categorieClient"],
+                    display=client_type_label,
+                ),
+                _pi_field("nomClient", "Nom complet", "user", raw["nomClient"]),
+                _pi_field("telephoneClient", "Téléphone", "phone", raw["telephoneClient"]),
+                _pi_field("nationaliteClient", "Nationalité", "flag", raw["nationaliteClient"]),
+                _pi_field(
+                    "paysResidenceClient",
+                    "Pays de résidence",
+                    "globe",
+                    raw["paysResidenceClient"],
+                ),
+                _pi_field("photoClient", "Photo client", "photo", raw["photoClient"], required=False),
+                _pi_field("emailClient", "Email", "mail", raw["emailClient"], required=False),
+                _pi_field("adresseGeoClient", "Adresse", "pin", raw["adresseGeoClient"], required=False),
+                _pi_field(
+                    "codePostaleClient",
+                    "Code postal",
+                    "hash",
+                    raw["codePostaleClient"],
+                    required=False,
+                ),
+                _pi_field(
+                    "villeClient",
+                    "Ville de résidence",
+                    "pin",
+                    raw["villeClient"],
+                    required=False,
+                ),
+                _pi_field("agenceCompte", "Agence", "building", raw["agenceCompte"], required=False),
+            ],
+        },
+        {
+            "id": "compte",
+            "title": "Compte",
+            "fields": [
+                _pi_field(
+                    "typeNumeroCompte",
+                    "Type de numéro de compte",
+                    "status",
+                    raw["typeNumeroCompte"],
+                    display=_pi_decode(raw["typeNumeroCompte"], _PI_TYPE_NUMERO_LABELS),
+                ),
+                _pi_field(
+                    "typeCompteClient",
+                    "Type de compte",
+                    "card",
+                    raw["typeCompteClient"],
+                    display=_pi_decode(raw["typeCompteClient"], _PI_TYPE_COMPTE_LABELS),
+                ),
+                _pi_field("numeroCompte", "Numéro de compte", "card", raw["numeroCompte"]),
+                _pi_field(
+                    "dateOuvertureCompte",
+                    "Date d’ouverture du compte",
+                    "calendar",
+                    raw["dateOuvertureCompte"],
+                ),
+            ],
+        },
+        {
+            "id": "physique",
+            "title": "Personne physique",
+            "fields": [
+                _pi_field(
+                    "genreClient",
+                    "Genre",
+                    "users",
+                    raw["genreClient"],
+                    display=_pi_decode(raw["genreClient"], _PI_GENRE_LABELS),
+                    required=False,
+                ),
+                _pi_field(
+                    "dateNaissanceClient",
+                    "Date de naissance",
+                    "calendar",
+                    raw["dateNaissanceClient"],
+                    required=False,
+                ),
+                _pi_field(
+                    "paysNaissanceClient",
+                    "Pays de naissance",
+                    "globe",
+                    raw["paysNaissanceClient"],
+                    required=False,
+                ),
+                _pi_field(
+                    "villeNaissanceClient",
+                    "Ville de naissance",
+                    "pin",
+                    raw["villeNaissanceClient"],
+                    required=False,
+                ),
+                _pi_field(
+                    "numeroPieceClient",
+                    "N° pièce d'identité",
+                    "id",
+                    raw["numeroPieceClient"],
+                    required=False,
+                ),
+                _pi_field(
+                    "typePieceClient",
+                    "Type de pièce",
+                    "badge",
+                    raw["typePieceClient"],
+                    display=_pi_decode(raw["typePieceClient"], _PI_TYPE_PIECE_LABELS),
+                    required=False,
+                ),
+                _pi_field("nomMere", "Nom de la mère", "heart", raw["nomMere"], required=False),
+            ],
+        },
+        {
+            "id": "morale",
+            "title": "Personne morale",
+            "fields": [
+                _pi_field(
+                    "denominationSociale",
+                    "Dénomination sociale",
+                    "briefcase",
+                    raw["denominationSociale"],
+                    required=False,
+                ),
+                _pi_field(
+                    "raisonSociale",
+                    "Raison sociale",
+                    "briefcase",
+                    raw["raisonSociale"],
+                    required=False,
+                ),
+                _pi_field(
+                    "identificationFiscale",
+                    "Identification fiscale",
+                    "hash",
+                    raw["identificationFiscale"],
+                    required=False,
+                ),
+                _pi_field(
+                    "identificationRccm",
+                    "N° RCCM",
+                    "hash",
+                    raw["identificationRccm"],
+                    required=False,
+                ),
+                _pi_field(
+                    "categorieEntreprise",
+                    "Nature juridique",
+                    "scale",
+                    raw["categorieEntreprise"],
+                    required=False,
+                ),
+                _pi_field(
+                    "codeActivite",
+                    "Secteur d'activité",
+                    "layers",
+                    raw["codeActivite"],
+                    required=False,
+                ),
+            ],
+        },
     ]
-
-    if is_morale:
-        sections.append(
-            {
-                "id": "morale",
-                "title": "Informations spécifiques — Personne morale",
-                "fields": [
-                    _pi_field(
-                        "denominationSociale",
-                        "Dénomination sociale",
-                        "briefcase",
-                        raw["denominationSociale"],
-                    ),
-                    _pi_field(
-                        "raisonSociale",
-                        "Raison sociale",
-                        "briefcase",
-                        raw["raisonSociale"],
-                    ),
-                    _pi_field(
-                        "identificationRccm",
-                        "N° RCCM",
-                        "hash",
-                        raw["identificationRccm"],
-                    ),
-                    _pi_field(
-                        "identificationFiscale",
-                        "Identification fiscale",
-                        "hash",
-                        raw["identificationFiscale"],
-                        required=False,
-                    ),
-                    _pi_field(
-                        "categorieEntreprise",
-                        "Nature juridique",
-                        "scale",
-                        raw["categorieEntreprise"],
-                    ),
-                    _pi_field(
-                        "codeActivite",
-                        "Secteur d'activité",
-                        "layers",
-                        raw["codeActivite"],
-                    ),
-                ],
-            }
-        )
-    else:
-        sections.append(
-            {
-                "id": "physique",
-                "title": "Informations spécifiques — Personne physique",
-                "fields": [
-                    _pi_field(
-                        "dateNaissanceClient",
-                        "Date de naissance",
-                        "calendar",
-                        raw["dateNaissanceClient"],
-                    ),
-                    _pi_field(
-                        "paysNaissanceClient",
-                        "Pays de naissance",
-                        "globe",
-                        raw["paysNaissanceClient"],
-                        required=False,
-                    ),
-                    _pi_field(
-                        "genreClient",
-                        "Genre",
-                        "users",
-                        raw["genreClient"],
-                        display=_pi_decode(raw["genreClient"], _PI_GENRE_LABELS),
-                    ),
-                    _pi_field("nomMere", "Nom de la mère", "heart", raw["nomMere"]),
-                ],
-            }
-        )
 
     all_fields = [field for section in sections for field in section["fields"]]
     present = [f for f in all_fields if f["status"] == "present"]

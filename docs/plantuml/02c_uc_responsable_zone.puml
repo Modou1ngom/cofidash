@@ -1,0 +1,56 @@
+@startuml uc_responsable_zone
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.2c — Cas d'utilisation : Responsable Zone
+
+left to right direction
+
+actor "Responsable Zone" as RZ
+
+rectangle "COFIdash — profil Responsable Zone" {
+  usecase "S'authentifier" as AUTH
+  usecase "Consulter le dashboard\nKPI (son territoire)" as KPI
+  usecase "Consulter les clients\ndu territoire" as CLI
+  usecase "Consulter Vue 360°" as V360
+  usecase "Fixer les objectifs\nd'agence" as CRE
+  usecase "Valider les objectifs\ndu Chef d'agence" as VAL
+  usecase "Rejeter un objectif\nd'agence" as REJ
+}
+
+RZ --> AUTH
+RZ --> KPI
+RZ --> CLI
+RZ --> V360
+RZ --> CRE
+RZ --> VAL
+RZ --> REJ
+
+KPI ..> AUTH : <<include>>
+CRE ..> AUTH : <<include>>
+VAL ..> AUTH : <<include>>
+
+note bottom of CRE
+  Catégories : TERRITOIRE, POINT SERVICES,
+  GRAND COMPTE
+  Statut initial : pending_validation
+  Validé ensuite par le DGA
+  Permission : CREATE_AGENCY_OBJECTIVES
+end note
+
+note bottom of KPI
+  Périmètre Vue360ScopeService :
+  agences actives du territory_id
+end note
+
+@enduml

@@ -1,0 +1,39 @@
+@startuml sequence_finances
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.4h — Séquence : Finances consulte le CR par agence
+
+actor "Finances" as FIN
+participant "CRParAgenceSection" as V
+participant "Laravel API\nDataController" as L
+participant "FastAPI" as P
+database "Oracle REPORT_GROUPE\nDASH_CR_PAR_AGENCE" as DWH
+
+FIN -> V : Ouvre Reporting financier → CR par agence
+V -> L : GET /api/oracle/data/cr-par-agence\nAuthorization: Bearer
+activate L
+L -> L : Sanctum + VIEW_FINANCIAL\n/ MANAGE_FINANCIAL
+L -> P : GET /api/oracle/...
+activate P
+P -> DWH : SELECT ... WHERE MIGRATION_DATETIME =\nMAX(lot) du MIGRATION_DATE_MINUS1
+activate DWH
+DWH --> P : Montants CR par agence
+deactivate DWH
+P --> L : JSON
+deactivate P
+L --> V : Données
+deactivate L
+V --> FIN : Tableau CR + totaux
+
+@enduml

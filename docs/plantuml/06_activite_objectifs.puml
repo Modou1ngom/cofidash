@@ -1,54 +1,67 @@
-@startuml activite_validation_objectifs
+@startuml activite_objectifs_couloirs
 !theme plain
-title Figure 3.6 — Activité : workflow de validation des objectifs
-
 skinparam shadowing false
 skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
 skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.6 — Activité : chaîne de validation (un couloir par utilisateur)
 
+|Chef d'Agence|
 start
+:Fixe les objectifs CAF;
+:Statut = pending_validation;
 
-:Profil créateur ?;
-
-if (Profil ?) then (DGA)
-  :Créer objectif zone;
-elseif (Resp. Zone) then
-  :Créer objectif agence;
-elseif (Chef Agence) then
-  :Créer objectif CAF;
-else (Admin)
-  :Créer objectif direct;
-  :Statut = validated;
-  stop
+|Responsable Zone|
+:Fixe les objectifs d'agence;
+:Statut = pending_validation;
+if (Objectif du Chef ?) then (oui)
+  if (Décision ?) then (valider)
+    :status = validated;
+  else (rejeter)
+    :status = rejected;
+    stop
+  endif
 endif
 
+|DGA|
+:Répartit l'objectif MD\nsur les territoires;
 :Statut = pending_validation;
-:Notifier le validateur;
-
-repeat
-  if (Décision validateur ?) then (Validation)
-    :Statut = validated;
-    break
-  elseif (Rejet) then
-    :Statut = rejected;
-    :Enregistrer motif de rejet;
+if (Objectif du Resp. Zone ?) then (oui)
+  if (Décision ?) then (valider)
+    :status = validated;
+  else (rejeter)
+    :status = rejected;
     stop
-  else (En attente)
-    :Attente validateur;
   endif
-repeat while (En attente ?) is (Oui)
-->Non;
+endif
 
-:Objectif actif;
-:Comparaison KPI vs réalisé;
+|MD|
+if (Objectif du DGA ?) then (oui)
+  if (Décision ?) then (valider)
+    :status = validated;
+  else (rejeter)
+    :status = rejected;
+    stop
+  endif
+endif
+
+|CAF|
+:Consulte mes objectifs\nvalidés / en attente;
+:Compare réalisé vs objectif;
 
 stop
 
-note right
-  Chaîne de validation :
-  DGA → MD
-  Resp. Zone → DGA
-  Chef Agence → Resp. Zone
+note bottom
+  Statuts réels : draft, pending_validation, validated, rejected
+  MD / Admin : création en validated (pas de passage par pending_validation)
 end note
 
 @enduml

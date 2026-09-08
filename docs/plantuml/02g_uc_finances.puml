@@ -1,0 +1,48 @@
+@startuml uc_finances
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.2g — Cas d'utilisation : Finances
+
+left to right direction
+
+actor "Finances" as FIN
+
+rectangle "COFIdash — profil Finances" {
+  usecase "S'authentifier" as AUTH
+  usecase "Consulter le dashboard\nKPI" as KPI
+  usecase "Consulter le reporting\nfinancier" as REP
+  usecase "Gérer les références\nde comptes (GL)" as REF
+  usecase "Consulter le CR\npar agence" as CR
+  usecase "Consulter Vue 360°" as V360
+}
+
+FIN --> AUTH
+FIN --> KPI
+FIN --> REP
+FIN --> REF
+FIN --> CR
+FIN --> V360
+
+KPI ..> AUTH : <<include>>
+REP ..> AUTH : <<include>>
+REF ..> REP : <<extend>>
+CR ..> REP : <<extend>>
+
+note bottom of REP
+  Permissions :
+  VIEW_FINANCIAL, MANAGE_FINANCIAL
+  Tables DASH : DASH_CR_PAR_AGENCE
+end note
+
+@enduml

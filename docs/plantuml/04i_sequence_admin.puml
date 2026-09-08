@@ -1,0 +1,39 @@
+@startuml sequence_admin
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.4i — Séquence : l'Administrateur crée un utilisateur
+
+actor "Administrateur" as ADM
+participant "UserManagementPage" as V
+participant "Laravel API" as L
+database "MySQL\nusers / profiles" as DB
+
+ADM -> V : Saisit nom, e-mail, profil, agence
+V -> L : POST /api/users\nAuthorization: Bearer
+activate L
+L -> L : ADMIN_ACCESS / MANAGE_USERS
+L -> DB : INSERT user + profile_id\n+ territory_id / agency_id
+activate DB
+DB --> L : Utilisateur créé
+deactivate DB
+L --> V : 201
+deactivate L
+V --> ADM : Compte prêt (mot de passe initial)
+
+note over ADM
+  Peut aussi valider tout objectif
+  et gérer territoires / environnements
+end note
+
+@enduml

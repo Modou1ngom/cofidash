@@ -1,0 +1,45 @@
+@startuml uc_cc
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.2f — Cas d'utilisation : Conseiller Client (CC)
+
+left to right direction
+
+actor "Conseiller Client\n(CC)" as CC
+
+rectangle "COFIdash — profil CC" {
+  usecase "S'authentifier" as AUTH
+  usecase "Rechercher un client\n(Vue 360°)" as RECH
+  usecase "Consulter la fiche\nclient Vue 360°" as FICHE
+  usecase "Consulter les comptes\ndu client" as CPT
+  usecase "Consulter les crédits\ndu client" as CRED
+}
+
+CC --> AUTH
+CC --> RECH
+CC --> FICHE
+CC --> CPT
+CC --> CRED
+
+RECH ..> AUTH : <<include>>
+FICHE ..> RECH : <<include>>
+
+note bottom of RECH
+  Permissions : VIEW_VUE360, VIEW_CLIENT
+  Aucun menu dashboard (defaultMenuPermissions = [])
+  Page d'accueil : /vue360/recherche
+  Périmètre : son agence
+end note
+
+@enduml

@@ -1,0 +1,36 @@
+@startuml activite_dga
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.6b — Activité : Directeur Général Adjoint (DGA)
+
+start
+:S'authentifier;
+fork
+  :Consulter les KPI réseau;
+fork again
+  :Choisir un territoire;
+  :Saisir l'objectif (type, période, valeur);
+  :Enregistrer status = pending_validation;
+  :Attendre la décision du MD;
+fork again
+  :Ouvrir les objectifs du Responsable Zone;
+  if (Décision ?) then (Valider)
+    :status = validated;
+  else (Rejeter)
+    :status = rejected;
+  endif
+end fork
+stop
+
+@enduml

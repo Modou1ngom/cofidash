@@ -1,0 +1,57 @@
+@startuml uc_dga
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.2b — Cas d'utilisation : Directeur Général Adjoint (DGA)
+
+left to right direction
+
+actor "Directeur Général\nAdjoint (DGA)" as DGA
+
+rectangle "COFIdash — profil DGA" {
+  usecase "S'authentifier" as AUTH
+  usecase "Consulter le dashboard\nKPI (réseau national)" as KPI
+  usecase "Consulter les clients" as CLI
+  usecase "Consulter Vue 360°" as V360
+  usecase "Consulter le reporting\nfinancier" as FIN
+  usecase "Fixer les objectifs\nde territoire" as CRE
+  usecase "Valider les objectifs\ndu Responsable Zone" as VAL
+  usecase "Rejeter un objectif\nde zone" as REJ
+}
+
+DGA --> AUTH
+DGA --> KPI
+DGA --> CLI
+DGA --> V360
+DGA --> FIN
+DGA --> CRE
+DGA --> VAL
+DGA --> REJ
+
+KPI ..> AUTH : <<include>>
+CRE ..> AUTH : <<include>>
+VAL ..> AUTH : <<include>>
+
+note bottom of CRE
+  Catégorie : TERRITOIRE
+  Statut initial : pending_validation
+  Validé ensuite par le MD
+  Permission : CREATE_ZONE_OBJECTIVES
+end note
+
+note bottom of VAL
+  Objectifs créés par RESPONSABLE_ZONE
+  Permission : VALIDATE_ZONE_OBJECTIVES
+end note
+
+@enduml

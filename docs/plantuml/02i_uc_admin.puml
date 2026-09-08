@@ -1,0 +1,63 @@
+@startuml uc_admin
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.2i — Cas d'utilisation : Administrateur
+
+left to right direction
+
+actor "Administrateur" as ADM
+
+rectangle "COFIdash — profil Administrateur" {
+  usecase "S'authentifier" as AUTH
+  usecase "Consulter tout le\ndashboard KPI" as KPI
+  usecase "Consulter Vue 360°" as V360
+  usecase "Créer / modifier\nun objectif" as CRE
+  usecase "Valider un objectif\n(tous niveaux)" as VAL
+  usecase "Gérer les utilisateurs" as USR
+  usecase "Gérer les profils\net permissions" as PRO
+  usecase "Gérer territoires\net agences" as TER
+  usecase "Gérer les environnements" as ENV
+  usecase "Gérer le reporting\nfinancier" as FIN
+}
+
+ADM --> AUTH
+ADM --> KPI
+ADM --> V360
+ADM --> CRE
+ADM --> VAL
+ADM --> USR
+ADM --> PRO
+ADM --> TER
+ADM --> ENV
+ADM --> FIN
+
+KPI ..> AUTH : <<include>>
+USR ..> AUTH : <<include>>
+CRE ..> AUTH : <<include>>
+
+note bottom of VAL
+  ADMIN peut valider tout objectif
+  en pending_validation
+  (ObjectiveController : canValidate = true)
+  Statut à la création : validated
+end note
+
+note bottom of USR
+  Permissions : ADMIN_ACCESS,
+  MANAGE_USERS, MANAGE_SETTINGS,
+  MENU_GESTION_DONNEES,
+  MENU_GESTION_ENVIRONNEMENTS
+end note
+
+@enduml

@@ -1,11 +1,20 @@
 @startuml sequence_sync_c360
 !theme plain
-title Figure 3.5 — Séquence : synchronisation fiche client C360
-
 skinparam shadowing false
 skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.5 — Séquence : le CAF synchronise une fiche C360 (mobile)
 
-actor "Mobile CAF" as M
+actor "CAF (application mobile)" as M
 participant "Laravel API\n/api/c360" as L
 participant "FastAPI\n/api/c360" as P
 database "Oracle Flexcube\nCFSFCUBS145" as FC

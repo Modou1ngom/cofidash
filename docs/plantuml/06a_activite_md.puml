@@ -1,0 +1,32 @@
+@startuml activite_md
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.6a — Activité : Directeur Général (MD)
+
+start
+:S'authentifier (Sanctum);
+fork
+  :Consulter les KPI réseau;
+fork again
+  :Ouvrir les objectifs en attente;
+  :Filtrer ceux créés par le DGA\n(catégorie TERRITOIRE);
+  if (Décision ?) then (Valider)
+    :status = validated\nvalidated_by = MD;
+  else (Rejeter)
+    :status = rejected\nSaisir rejection_reason;
+  endif
+end fork
+stop
+
+@enduml

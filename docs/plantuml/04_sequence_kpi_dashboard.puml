@@ -1,50 +1,56 @@
-@startuml sequence_kpi_dashboard
+@startuml sequence_kpi_md
 !theme plain
-title Figure 3.4 — Séquence : consultation KPI Dashboard (production crédit)
-
 skinparam shadowing false
 skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
 skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.4a — Séquence : le MD consulte un KPI (production volume)
 
-actor "Utilisateur" as U
+actor "Directeur Général\n(MD)" as MD
 participant "Vue Dashboard" as V
 participant "Laravel API\nDataController" as L
 participant "OracleService" as O
 participant "FastAPI\n/api/oracle" as P
-database "Data Warehouse Oracle\nREPORT_GROUPE\n(table DASH_PRODUCTION_VOLUME)" as DWH
+database "Oracle REPORT_GROUPE\nDASH_PRODUCTION_VOLUME" as DWH
 
-U -> V : Sélectionne période / agence
-V -> L : GET /api/oracle/data/production-volume\nAuthorization: Bearer token
+MD -> V : Ouvre Production en volume\n(période / réseau national)
+V -> L : GET /api/oracle/data/production-volume\nAuthorization: Bearer (Sanctum)
 activate L
-L -> L : Vérifie Sanctum + permissions
-L -> O : getPythonGetCached(endpoint, params)
+L -> L : Vérifie token + profil MD
+L -> O : getPythonGetCached(...)
 activate O
 
-alt Cache Laravel (hit, TTL 300s)
+alt Cache Laravel (TTL 300 s)
   O --> L : Données en cache
 else Cache miss
   O -> P : GET /api/oracle/data/production-volume
   activate P
-  P -> P : Vérifie cache Python (TTL 300s)
-  P -> DWH : SELECT DASH_PRODUCTION_VOLUME\nWHERE MIGRATION_DATETIME = snapshot
+  P -> DWH : SELECT ... WHERE MIGRATION_DATETIME =\nMAX(lot) filtré sur MIGRATION_DATE_MINUS1
   activate DWH
-  DWH --> P : Lignes agrégées (snapshot mensuel)
+  DWH --> P : Lignes agrégées
   deactivate DWH
-  P --> O : JSON { data: [...] }
+  P --> O : JSON
   deactivate P
-  O -> O : Mise en cache Laravel
+  O -> O : Cache::put (300 s)
 end
 
-O --> L : Données KPI
+O --> L : KPI réseau
 deactivate O
-L --> V : JSON KPI + métadonnées
+L --> V : JSON
 deactivate L
-V --> U : Affichage graphiques Chart.js
+V --> MD : Cartes + graphiques (FCFA, variation %)
 
-note over DWH
-  REPORT_GROUPE = entrepôt de données (DWH)
-  Tables DASH_* : faits pré-agrégés
-  Filtre sur le dernier snapshot du mois (MIGRATION_DATETIME)
+note over MD
+  Périmètre : tout le réseau
+  (Vue360ScopeService : rôle dga, pas de filtre)
 end note
 
 @enduml

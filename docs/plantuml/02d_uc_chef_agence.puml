@@ -1,0 +1,53 @@
+@startuml uc_chef_agence
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.2d — Cas d'utilisation : Chef d'Agence
+
+left to right direction
+
+actor "Chef d'Agence" as CA
+
+rectangle "COFIdash — profil Chef d'Agence" {
+  usecase "S'authentifier" as AUTH
+  usecase "Consulter le dashboard\nKPI (son agence)" as KPI
+  usecase "Consulter les clients\nde l'agence" as CLI
+  usecase "Consulter Vue 360°" as V360
+  usecase "Fixer les objectifs\nde ses CAF" as CRE
+  usecase "Suivre les objectifs\nen attente de validation" as SUIV
+}
+
+CA --> AUTH
+CA --> KPI
+CA --> CLI
+CA --> V360
+CA --> CRE
+CA --> SUIV
+
+KPI ..> AUTH : <<include>>
+CRE ..> AUTH : <<include>>
+
+note bottom of CRE
+  Permission : CREATE_CAF_OBJECTIVES
+  Statut initial : pending_validation
+  Validé par le Responsable Zone
+  Le Chef d'agence ne valide pas
+  les objectifs des autres profils
+end note
+
+note bottom of KPI
+  Périmètre : code agence de l'utilisateur
+  (agency / managedAgency)
+end note
+
+@enduml

@@ -1,0 +1,35 @@
+@startuml activite_rz
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.6c — Activité : Responsable Zone
+
+start
+:S'authentifier;
+fork
+  :Consulter les KPI du territoire;
+fork again
+  :Répartir l'objectif DGA\nsur les agences;
+  :status = pending_validation;
+  :Attendre la décision du DGA;
+fork again
+  :Examiner les objectifs\ndu Chef d'agence;
+  if (Décision ?) then (Valider)
+    :status = validated;
+  else (Rejeter)
+    :status = rejected;
+  endif
+end fork
+stop
+
+@enduml

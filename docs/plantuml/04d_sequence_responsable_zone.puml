@@ -1,0 +1,46 @@
+@startuml sequence_rz_objectif
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.4d — Séquence : le Responsable Zone fixe puis le DGA valide
+
+actor "Responsable Zone" as RZ
+actor "DGA" as DGA
+participant "Vue Objectifs" as V
+participant "ObjectiveController" as L
+database "MySQL\nobjectives" as DB
+
+RZ -> V : Crée un objectif d'agence
+V -> L : POST /api/objectives
+activate L
+L -> L : status = pending_validation\nCREATE_AGENCY_OBJECTIVES
+L -> DB : INSERT created_by=RZ
+activate DB
+DB --> L : OK
+deactivate DB
+L --> V : En attente du DGA
+deactivate L
+
+DGA -> V : Valide l'objectif
+V -> L : POST /api/objectives/{id}/validate
+activate L
+L -> L : créateur == RESPONSABLE_ZONE ?
+L -> DB : UPDATE status='validated'\nvalidated_by=DGA
+activate DB
+DB --> L : OK
+deactivate DB
+L --> V : Validé
+deactivate L
+V --> DGA : Confirmation
+
+@enduml

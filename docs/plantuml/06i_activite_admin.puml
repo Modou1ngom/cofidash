@@ -1,0 +1,32 @@
+@startuml activite_admin
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.6i — Activité : Administrateur
+
+start
+:S'authentifier;
+fork
+  :Consulter tout le dashboard;
+fork again
+  :Créer un objectif\nstatus = validated (immédiat);
+fork again
+  :Valider n'importe quel\nobjectif pending_validation;
+fork again
+  :Gérer utilisateurs et profils;
+fork again
+  :Gérer territoires, agences,\nenvironnements;
+end fork
+stop
+
+@enduml

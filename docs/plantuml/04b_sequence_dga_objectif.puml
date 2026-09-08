@@ -1,0 +1,40 @@
+@startuml sequence_dga_objectif
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.4b — Séquence : le DGA fixe un objectif de territoire
+
+actor "DGA" as DGA
+participant "AddObjectiveSection" as V
+participant "Laravel API\nObjectiveController" as L
+database "MySQL\nobjectives" as DB
+
+DGA -> V : Choisit type, territoire, période, valeur
+V -> L : POST /api/objectives\nAuthorization: Bearer
+activate L
+L -> L : getInitialStatus(DGA)\n→ pending_validation
+L -> L : canCreateObjective : category = TERRITOIRE
+L -> DB : INSERT status='pending_validation'\ncreated_by=DGA
+activate DB
+DB --> L : Objectif créé
+deactivate DB
+L --> V : 201 + message « en attente de validation »
+deactivate L
+V --> DGA : Objectif soumis au MD
+
+note over DGA
+  Le DGA ne se valide pas lui-même.
+  Le MD appellera PUT /api/objectives/{id}/validate
+end note
+
+@enduml

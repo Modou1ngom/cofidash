@@ -474,27 +474,119 @@
         <div v-if="piLoading" class="loading">Vérification de l’éligibilité PI…</div>
         <p v-else-if="piError" class="empty">{{ piError }}</p>
         <template v-else-if="piCheck">
-          <div class="pi-verdict" :class="piCheck.eligible ? 'ok' : 'ko'">
-            <div class="pi-verdict-icon" aria-hidden="true">{{ piCheck.eligible ? '✓' : '!' }}</div>
-            <div class="pi-verdict-body">
-              <strong>{{ piCheck.verdict }}</strong>
-              <p>{{ piCheck.message }}</p>
-            </div>
-            <span v-if="piCheck.client_type_label" class="pi-type-chip">{{ piCheck.client_type_label }}</span>
+          <div class="pi-overview">
+            <article class="pi-id-card">
+              <h3>Client</h3>
+              <div class="pi-id-top">
+                <div class="pi-id-avatar" aria-hidden="true">{{ piIdentity.initials }}</div>
+                <div>
+                  <p class="pi-id-name">{{ piIdentity.name }}</p>
+                  <span class="pi-id-type">{{ piIdentity.type }}</span>
+                </div>
+              </div>
+              <dl class="pi-id-meta">
+                <div>
+                  <dt>Matricule</dt>
+                  <dd>{{ piIdentity.matricule }}</dd>
+                </div>
+                <div>
+                  <dt>Compte</dt>
+                  <dd>{{ piIdentity.compte }}</dd>
+                </div>
+                <div>
+                  <dt>Agence</dt>
+                  <dd>{{ piIdentity.agence }}</dd>
+                </div>
+                <div>
+                  <dt>Téléphone</dt>
+                  <dd>{{ piIdentity.telephone }}</dd>
+                </div>
+              </dl>
+            </article>
+
+            <article class="pi-complete-card">
+              <h3>Complétude du profil</h3>
+              <div class="pi-complete-body">
+                <div class="pi-ring-wrap">
+                  <svg class="pi-ring" viewBox="0 0 120 120" aria-hidden="true">
+                    <circle class="pi-ring-track" cx="60" cy="60" r="52" />
+                    <circle
+                      class="pi-ring-value"
+                      cx="60"
+                      cy="60"
+                      r="52"
+                      :stroke-dasharray="piRingCircumference"
+                      :stroke-dashoffset="piRingOffset"
+                    />
+                  </svg>
+                  <strong>{{ piCompleteness }}%</strong>
+                </div>
+                <ul class="pi-complete-stats">
+                  <li class="present">
+                    <b>{{ piCounts.present }}</b>
+                    <span>Renseignés</span>
+                  </li>
+                  <li class="critical">
+                    <b>{{ piCounts.critical }}</b>
+                    <span>Obligatoires manquants</span>
+                  </li>
+                  <li class="optional">
+                    <b>{{ piCounts.optional }}</b>
+                    <span>Optionnels manquants</span>
+                  </li>
+                </ul>
+              </div>
+            </article>
+
+            <article class="pi-status-card" :class="piCheck.eligible ? 'ok' : 'ko'">
+              <h3>Statut alias PI</h3>
+              <div class="pi-status-body">
+                <span class="pi-status-icon" aria-hidden="true">{{ piCheck.eligible ? '✓' : '!' }}</span>
+                <strong>{{ piCheck.verdict }}</strong>
+                <p v-if="!piCheck.eligible && piCheck.missing_critical.length">
+                  {{ piCheck.missing_critical.length }} champ(s) obligatoire(s) manquant(s)
+                </p>
+                <p v-else>{{ piCheck.message }}</p>
+                <div v-if="piCheck.missing_critical.length" class="pi-status-chips">
+                  <em v-for="item in piCheck.missing_critical" :key="item.key">{{ item.label }}</em>
+                </div>
+              </div>
+            </article>
           </div>
 
           <template v-if="piCheck.sections && piCheck.sections.length">
             <div class="pi-head">
               <h3>Détail des champs</h3>
-              <div class="pi-counts">
-                <span class="pi-count present">{{ piCheck.counts.present }} présent(s)</span>
-                <span class="pi-count critical">{{ piCheck.counts.critical }} critique(s)</span>
-                <span class="pi-count optional">{{ piCheck.counts.optional }} optionnel(s)</span>
+              <div class="pi-counts" role="tablist">
+                <button
+                  type="button"
+                  class="pi-count present"
+                  :class="{ active: piFieldFilter === 'present' }"
+                  @click="togglePiFilter('present')"
+                >
+                  {{ piCounts.present }} présents
+                </button>
+                <button
+                  type="button"
+                  class="pi-count critical"
+                  :class="{ active: piFieldFilter === 'critical' }"
+                  @click="togglePiFilter('critical')"
+                >
+                  {{ piCounts.critical }} obligatoires
+                </button>
+                <button
+                  type="button"
+                  class="pi-count optional"
+                  :class="{ active: piFieldFilter === 'optional' }"
+                  @click="togglePiFilter('optional')"
+                >
+                  {{ piCounts.optional }} optionnels
+                </button>
               </div>
             </div>
 
             <section
-              v-for="section in piCheck.sections"
+              v-for="section in piFilteredSections"
               :key="section.id"
               class="pi-section"
             >
@@ -517,34 +609,7 @@
                 </article>
               </div>
             </section>
-
-            <section v-if="piCheck.missing_critical.length" class="pi-missing pi-missing--critical">
-              <div class="pi-missing-head">
-                <h4>Champs critiques manquants</h4>
-                <span class="pi-missing-count">{{ piCheck.missing_critical.length }}</span>
-              </div>
-              <ul class="pi-missing-list">
-                <li v-for="item in piCheck.missing_critical" :key="item.key">
-                  <span class="pi-missing-icon">{{ piFieldIcon(item.icon) }}</span>
-                  <span>{{ item.label }}</span>
-                  <em>{{ item.badge || 'Requis pour PI' }}</em>
-                </li>
-              </ul>
-            </section>
-
-            <section v-if="piCheck.missing_optional.length" class="pi-missing pi-missing--optional">
-              <div class="pi-missing-head">
-                <h4>Champs optionnels manquants</h4>
-                <span class="pi-missing-count">{{ piCheck.missing_optional.length }}</span>
-              </div>
-              <ul class="pi-missing-list">
-                <li v-for="item in piCheck.missing_optional" :key="item.key">
-                  <span class="pi-missing-icon">{{ piFieldIcon(item.icon) }}</span>
-                  <span>{{ item.label }}</span>
-                  <em>{{ item.badge || 'Recommandé' }}</em>
-                </li>
-              </ul>
-            </section>
+            <p v-if="!piFilteredSections.length" class="empty">Aucun champ pour ce filtre</p>
           </template>
         </template>
         <p v-else class="empty">Données Checking-PI indisponibles</p>
@@ -557,7 +622,8 @@
                 <button type="button" class="pi-modal-close" aria-label="Fermer" @click="closePiRules">×</button>
               </div>
               <p class="pi-modal-intro">
-                Choisissez, pour chaque champ, s’il est <strong>critique</strong> (bloque le PI),
+                Pour chaque champ, choisissez s’il est <strong>obligatoire</strong> (bloque le PI),
+                <strong>conditionnel</strong> (obligatoire seulement si la règle s’applique),
                 <strong>optionnel</strong> (recommandé) ou <strong>ignoré</strong> (non évalué).
               </p>
               <div class="pi-modal-body">
@@ -569,7 +635,10 @@
                   <h3>{{ section.title }}</h3>
                   <ul class="pi-rules-list">
                     <li v-for="field in section.fields" :key="field.key">
-                      <span class="pi-rules-label">{{ field.label }}</span>
+                      <span class="pi-rules-label">
+                        {{ field.label }}
+                        <small v-if="field.condition_label" class="pi-rules-hint">{{ field.condition_label }}</small>
+                      </span>
                       <div class="pi-rules-choices" role="radiogroup" :aria-label="field.label">
                         <label
                           v-for="opt in piSeverityOptions"
@@ -656,8 +725,10 @@ export default {
       piRulesDraft: {},
       piRulesSaving: false,
       piRulesError: '',
+      piFieldFilter: 'all',
       piSeverityOptions: [
-        { id: 'critical', label: 'Critique' },
+        { id: 'critical', label: 'Obligatoire' },
+        { id: 'conditional', label: 'Conditionnel' },
         { id: 'optional', label: 'Optionnel' },
         { id: 'ignored', label: 'Ignoré' },
       ],
@@ -862,6 +933,56 @@ export default {
       ).toUpperCase();
       return code === 'DGA' || code === 'ADMIN';
     },
+    piCounts() {
+      return this.piCheck?.counts || { present: 0, critical: 0, optional: 0 };
+    },
+    piCompleteness() {
+      if (typeof this.piCheck?.completeness === 'number') {
+        return this.piCheck.completeness;
+      }
+      const total = this.piCounts.present + this.piCounts.critical + this.piCounts.optional;
+      return total ? Math.round((100 * this.piCounts.present) / total) : 0;
+    },
+    piRingCircumference() {
+      return 2 * Math.PI * 52;
+    },
+    piRingOffset() {
+      return this.piRingCircumference * (1 - this.piCompleteness / 100);
+    },
+    piIdentity() {
+      const raw = this.piCheck?.raw || {};
+      const name = raw.nomClient || this.client?.full_name || '—';
+      const matricule = String(this.client?.id || raw.customerNo || '')
+        .replace(/^CLT-/i, '')
+        .trim() || '—';
+      return {
+        name,
+        type: this.piCheck?.client_type_label || '—',
+        matricule,
+        compte: raw.numeroCompte || '—',
+        agence: raw.agenceCompte || this.client?.agency || '—',
+        telephone: raw.telephoneClient || '—',
+        initials: name
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((part) => part[0])
+          .join('')
+          .toUpperCase() || '?',
+      };
+    },
+    piFilteredSections() {
+      const sections = this.piCheck?.sections || [];
+      if (this.piFieldFilter === 'all') {
+        return sections;
+      }
+      return sections
+        .map((section) => ({
+          ...section,
+          fields: (section.fields || []).filter((field) => field.status === this.piFieldFilter),
+        }))
+        .filter((section) => section.fields.length);
+    },
   },
   watch: {
     activeTab(tab) {
@@ -895,6 +1016,7 @@ export default {
       this.selectedCredit = null;
       this.piCheck = null;
       this.piError = '';
+      this.piFieldFilter = 'all';
       try {
         const { data } = await window.axios.get(`/api/v1/clients/${encodeURIComponent(this.clientId)}`);
         this.client = data.data;
@@ -972,6 +1094,9 @@ export default {
       } finally {
         this.piLoading = false;
       }
+    },
+    togglePiFilter(status) {
+      this.piFieldFilter = this.piFieldFilter === status ? 'all' : status;
     },
     piFieldIcon(name) {
       const icons = {
@@ -2456,26 +2581,276 @@ export default {
 .pi-toolbar {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .pi-rules-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
-  background: #fff;
-  color: #1a4d3a;
-  font-size: 0.85rem;
+  padding: 7px 12px;
+  border: none;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
 }
 
 .pi-rules-btn:hover {
-  background: #f0fdf4;
-  border-color: #86efac;
+  background: #e8f5ee;
+  color: #1a4d3a;
+}
+
+.pi-overview {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 28px;
+  align-items: stretch;
+}
+
+.pi-id-card,
+.pi-complete-card,
+.pi-status-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 236px;
+  background: #f8faf9;
+  border: 1px solid #e6ece8;
+  border-radius: 18px;
+  padding: 18px 20px;
+}
+
+.pi-id-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pi-id-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #1a4d3a, #2d6a4f);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+
+.pi-id-name {
+  margin: 0 0 6px;
+  font-size: 1.02rem;
+  line-height: 1.25;
+  color: #12251c;
+  font-weight: 700;
+}
+
+.pi-id-type {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #e8f5ee;
+  color: #1a4d3a;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.pi-id-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0;
+}
+
+.pi-id-meta > div {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #eef2f0;
+}
+
+.pi-id-meta dt {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #7b8a82;
+}
+
+.pi-id-meta dd {
+  margin: 3px 0 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #12251c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pi-id-card h3,
+.pi-complete-card h3,
+.pi-status-card h3 {
+  margin: 0 0 12px;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7b8a82;
+}
+
+.pi-complete-body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.pi-ring-wrap {
+  position: relative;
+  width: 108px;
+  height: 108px;
+  flex-shrink: 0;
+}
+
+.pi-ring {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.pi-ring-track,
+.pi-ring-value {
+  fill: none;
+  stroke-width: 9;
+}
+
+.pi-ring-track {
+  stroke: #dce8e1;
+}
+
+.pi-ring-value {
+  stroke: #1a4d3a;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.4s ease;
+}
+
+.pi-ring-wrap strong {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  color: #12251c;
+}
+
+.pi-complete-stats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pi-complete-stats li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 0.78rem;
+  color: #5b6b63;
+}
+
+.pi-complete-stats b {
+  min-width: 1.4em;
+  font-size: 1rem;
+}
+
+.pi-complete-stats .present { border-left: 3px solid #16a34a; }
+.pi-complete-stats .critical { border-left: 3px solid #dc2626; }
+.pi-complete-stats .optional { border-left: 3px solid #ea580c; }
+.pi-complete-stats .present b { color: #15803d; }
+.pi-complete-stats .critical b { color: #dc2626; }
+.pi-complete-stats .optional b { color: #c2410c; }
+
+.pi-status-card.ok {
+  background: linear-gradient(180deg, #f3fbf6 0%, #e8f6ee 100%);
+  border-color: #c6e6d3;
+}
+
+.pi-status-card.ko {
+  background: linear-gradient(180deg, #fff8f8 0%, #fdecec 100%);
+  border-color: #f4c7c7;
+}
+
+.pi-status-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.pi-status-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 1.1rem;
+  margin-bottom: 12px;
+}
+
+.pi-status-card.ok .pi-status-icon { background: #16a34a; }
+.pi-status-card.ko .pi-status-icon { background: #dc2626; }
+
+.pi-status-body strong {
+  display: block;
+  font-size: 1.12rem;
+  line-height: 1.3;
+  color: #12251c;
+  margin-bottom: 6px;
+}
+
+.pi-status-card.ok .pi-status-body strong { color: #14532d; }
+.pi-status-card.ko .pi-status-body strong { color: #991b1b; }
+
+.pi-status-body p {
+  margin: 0;
+  font-size: 0.84rem;
+  color: #5b6b63;
+  line-height: 1.45;
+}
+
+.pi-status-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.pi-status-chips em {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #be123c;
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .pi-verdict {
@@ -2572,8 +2947,10 @@ export default {
 .pi-count {
   padding: 5px 12px;
   border-radius: 999px;
+  border: 1px solid transparent;
   font-size: 0.78rem;
   font-weight: 600;
+  cursor: pointer;
 }
 
 .pi-count.present {
@@ -2589,6 +2966,10 @@ export default {
 .pi-count.optional {
   background: #ffedd5;
   color: #9a3412;
+}
+
+.pi-count.active {
+  box-shadow: 0 0 0 2px currentColor;
 }
 
 .pi-section {
@@ -2613,22 +2994,27 @@ export default {
 .pi-card {
   display: grid;
   grid-template-columns: 28px 1fr 22px;
-  align-items: start;
+  align-items: center;
   gap: 10px;
-  padding: 14px 16px;
-  border-radius: 12px;
-  border: 1px solid #bbf7d0;
-  background: #ecfdf5;
+  padding: 13px 15px;
+  border-radius: 14px;
+  border: 1px solid #e6ece8;
+  background: #fff;
+  box-shadow: 0 1px 0 rgba(18, 37, 28, 0.03);
+}
+
+.pi-card.present {
+  border-color: #d8eee1;
 }
 
 .pi-card.critical {
-  background: #fef2f2;
-  border: 1px dashed #f9a8d4;
+  background: #fff7f7;
+  border-color: #f3c4c4;
 }
 
 .pi-card.optional {
-  background: #fff7ed;
-  border: 1px solid #fdba74;
+  background: #fff8f1;
+  border-color: #f3d3b3;
 }
 
 .pi-card-icon {
@@ -2651,11 +3037,35 @@ export default {
   color: #4b5563;
 }
 
+.pi-card-hint {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #6b7280;
+  line-height: 1.3;
+}
+
 .pi-card-value {
   font-size: 0.92rem;
   font-weight: 700;
   color: #111827;
   word-break: break-word;
+}
+
+.pi-card-badge {
+  align-self: flex-start;
+  margin-top: 2px;
+  font-style: normal;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #fda4af;
+  color: #9f1239;
+}
+
+.pi-card.optional .pi-card-badge {
+  background: #fdba74;
+  color: #9a3412;
 }
 
 .pi-card.critical .pi-card-value {
@@ -2870,8 +3280,8 @@ export default {
 
 .pi-rules-list li {
   display: grid;
-  grid-template-columns: minmax(140px, 1fr) auto;
-  align-items: center;
+  grid-template-columns: minmax(160px, 1fr) auto;
+  align-items: start;
   gap: 12px;
   padding: 10px 12px;
   border: 1px solid #e5e7eb;
@@ -2885,8 +3295,19 @@ export default {
   color: #111827;
 }
 
+.pi-rules-hint {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #6b7280;
+  line-height: 1.35;
+}
+
 .pi-rules-choices {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 6px;
 }
 
@@ -2913,6 +3334,12 @@ export default {
   background: #fee2e2;
   border-color: #fca5a5;
   color: #991b1b;
+}
+
+.pi-rules-choice.active.conditional {
+  background: #ede9fe;
+  border-color: #c4b5fd;
+  color: #5b21b6;
 }
 
 .pi-rules-choice.active.optional {
@@ -2974,7 +3401,26 @@ export default {
   cursor: default;
 }
 
+@media (max-width: 1100px) {
+  .pi-overview {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .pi-status-card {
+    grid-column: 1 / -1;
+    min-height: 180px;
+  }
+}
+
 @media (max-width: 720px) {
+  .pi-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .pi-status-card {
+    grid-column: auto;
+  }
+
   .pi-grid {
     grid-template-columns: 1fr;
   }

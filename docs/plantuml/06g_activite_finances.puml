@@ -1,0 +1,31 @@
+@startuml activite_finances
+!theme plain
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam usecase {
+  BackgroundColor #E8F4FD
+  BorderColor #1565C0
+}
+skinparam actor {
+  BackgroundColor #FFF8E1
+  BorderColor #F9A825
+}
+skinparam sequenceMessageAlign center
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+title Figure 3.6g — Activité : Finances
+
+start
+:S'authentifier;
+fork
+  :Consulter le dashboard KPI;
+fork again
+  :Ouvrir Reporting financier;
+  if (Écran ?) then (Références comptes)
+    :Gérer les GL (MANAGE_FINANCIAL);
+  else (CR par agence)
+    :Lire DASH_CR_PAR_AGENCE\n(snapshot MIGRATION_DATETIME);
+  endif
+end fork
+stop
+
+@enduml
