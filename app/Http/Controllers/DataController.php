@@ -1988,6 +1988,40 @@ class DataController extends Controller
     }
 
     /**
+     * Dashboard PI — enrôlements SPI / Mobile+ / USSD.
+     */
+    public function getPiDashboardData(Request $request): JsonResponse
+    {
+        try {
+            $month = $request->input('month');
+            $year = $request->input('year');
+            $refresh = filter_var($request->input('refresh', false), FILTER_VALIDATE_BOOLEAN);
+
+            $result = $this->oracleService->getPiDashboardData(
+                $month ? (int) $month : null,
+                $year ? (int) $year : null,
+                $refresh
+            );
+
+            if ($result['success']) {
+                return response()->json($result['data']);
+            }
+
+            return response()->json([
+                'error' => $result['error'],
+                'message' => $result['message']
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la récupération du dashboard PI: '.$e->getMessage());
+
+            return response()->json([
+                'error' => 'Erreur interne',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Récupère les entrées PAR et provisions pour un palier (0, 30, 90, 180, 360)
      */
     public function getEntreesParData(Request $request): JsonResponse

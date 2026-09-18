@@ -67,7 +67,8 @@ export const PERMISSIONS = {
   MENU_OBJECTIFS_ADD: 'MENU_OBJECTIFS_ADD',
   MENU_OBJECTIFS_VALIDATE: 'MENU_OBJECTIFS_VALIDATE',
   MENU_GESTION_DONNEES: 'MENU_GESTION_DONNEES',
-  MENU_GESTION_ENVIRONNEMENTS: 'MENU_GESTION_ENVIRONNEMENTS'
+  MENU_GESTION_ENVIRONNEMENTS: 'MENU_GESTION_ENVIRONNEMENTS',
+  MENU_PI: 'MENU_PI'
 };
 
 export const PERMISSION_GROUPS = [
@@ -98,7 +99,8 @@ export const PERMISSION_GROUPS = [
       { value: PERMISSIONS.MENU_OBJECTIFS_ADD, label: 'Ajouter des objectifs' },
       { value: PERMISSIONS.MENU_OBJECTIFS_VALIDATE, label: 'Valider des objectifs' },
       { value: PERMISSIONS.MENU_GESTION_DONNEES, label: 'Gestion — Données' },
-      { value: PERMISSIONS.MENU_GESTION_ENVIRONNEMENTS, label: 'Gestion — Environnements' }
+      { value: PERMISSIONS.MENU_GESTION_ENVIRONNEMENTS, label: 'Gestion — Environnements' },
+      { value: PERMISSIONS.MENU_PI, label: 'Paiement Instantané (PI)' }
     ]
   },
   {
@@ -155,7 +157,8 @@ const PERMISSION_ALIASES = {
   menu_objectifs_add: PERMISSIONS.MENU_OBJECTIFS_ADD,
   menu_objectifs_validate: PERMISSIONS.MENU_OBJECTIFS_VALIDATE,
   menu_gestion_donnees: PERMISSIONS.MENU_GESTION_DONNEES,
-  menu_gestion_environnements: PERMISSIONS.MENU_GESTION_ENVIRONNEMENTS
+  menu_gestion_environnements: PERMISSIONS.MENU_GESTION_ENVIRONNEMENTS,
+  menu_pi: PERMISSIONS.MENU_PI
 };
 
 export function normalizePermission(permission) {
@@ -198,7 +201,9 @@ export const SECTION_PERMISSIONS = {
   'new-deal': PERMISSIONS.MENU_NEW_DEAL,
   'money-transfers': PERMISSIONS.MENU_TRANSFERTS,
   management: PERMISSIONS.MENU_GESTION_DONNEES,
-  environments: PERMISSIONS.MENU_GESTION_ENVIRONNEMENTS
+  environments: PERMISSIONS.MENU_GESTION_ENVIRONNEMENTS,
+  pi: PERMISSIONS.MENU_PI,
+  modules: PERMISSIONS.MENU_PI
 };
 
 export const OBJECTIVE_SUB_PERMISSIONS = {
@@ -216,7 +221,8 @@ const MENUS_OPERATIONAL = [
   PERMISSIONS.MENU_NEW_DEAL,
   PERMISSIONS.MENU_TRANSFERTS,
   PERMISSIONS.MENU_OBJECTIFS_ADD,
-  PERMISSIONS.MENU_OBJECTIFS_VALIDATE
+  PERMISSIONS.MENU_OBJECTIFS_VALIDATE,
+  PERMISSIONS.MENU_PI
 ];
 
 const MENUS_CAF = [
@@ -226,7 +232,8 @@ const MENUS_CAF = [
   PERMISSIONS.MENU_PORTEFEUILLE_RISQUE,
   PERMISSIONS.MENU_NEW_DEAL,
   PERMISSIONS.MENU_TRANSFERTS,
-  PERMISSIONS.MENU_OBJECTIFS_VIEW
+  PERMISSIONS.MENU_OBJECTIFS_VIEW,
+  PERMISSIONS.MENU_PI
 ];
 
 const MENUS_MD = [
@@ -237,7 +244,8 @@ const MENUS_MD = [
   PERMISSIONS.MENU_PORTEFEUILLE_RISQUE,
   PERMISSIONS.MENU_NEW_DEAL,
   PERMISSIONS.MENU_TRANSFERTS,
-  PERMISSIONS.MENU_OBJECTIFS_VALIDATE
+  PERMISSIONS.MENU_OBJECTIFS_VALIDATE,
+  PERMISSIONS.MENU_PI
 ];
 
 const MENUS_ADMIN = [
@@ -498,16 +506,19 @@ export const ProfileManager = {
     }
   },
 
-  /** Page d'accueil après connexion : selon les menus cochés, pas le code profil. */
+  hasAnyModule() {
+    return this.isAdmin()
+      || this.hasDashboardMenuAccess()
+      || this.hasPermission(PERMISSIONS.VIEW_DASHBOARD)
+      || this.canViewVue360()
+      || this.canAccessSection('caf-overview')
+      || this.canAccessSection('pi');
+  },
+
+  /** Page d'accueil : choix du module, puis logique Cofidash / PI / Admin. */
   getHomeRoute() {
-    if (this.hasDashboardMenuAccess() || this.hasPermission(PERMISSIONS.VIEW_DASHBOARD)) {
-      return '/dashboard';
-    }
-    if (this.canAccessSection('caf-overview')) {
-      return '/vue360/caf';
-    }
-    if (this.canViewVue360()) {
-      return '/vue360/recherche';
+    if (this.hasAnyModule()) {
+      return '/modules';
     }
     return '/dashboard';
   },

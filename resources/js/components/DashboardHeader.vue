@@ -2,7 +2,9 @@
   <header class="dashboard-header">
     <div class="header-brand">
       <div class="logo-area">
-        <img src="/logo.png" alt="COFINA" class="logo-icon" />
+        <router-link to="/modules" class="logo-link" aria-label="Retour aux modules">
+          <img src="/logo.png" alt="COFINA" class="logo-icon" />
+        </router-link>
       </div>
       <div class="user-bar">
         <span class="user-avatar">{{ userInitials }}</span>
@@ -14,16 +16,6 @@
     </div>
 
     <div class="header-main">
-      <div class="header-top-row">
-        <div class="date-chip">
-          <svg class="date-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="4" width="18" height="18" rx="2" />
-            <path d="M16 2v4M8 2v4M3 10h18" stroke-linecap="round" />
-          </svg>
-          <span>Date comptable <strong>{{ currentDate }}</strong></span>
-        </div>
-      </div>
-
       <nav class="horizontal-nav" aria-label="Navigation principale">
         <div
           v-for="item in visibleNavItems"
@@ -43,26 +35,6 @@
     </div>
 
     <div class="header-actions">
-      <div v-if="showClientSearch" class="search-box">
-        <label class="sr-only" for="header-client-search">Recherche client</label>
-        <div class="search-field">
-          <svg class="search-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="7" />
-            <path d="M20 20l-3.5-3.5" stroke-linecap="round" />
-          </svg>
-          <input
-            id="header-client-search"
-            v-model="clientName"
-            type="text"
-            class="client-input"
-            placeholder="Nom, matricule, compte, téléphone, CNI ou passeport…"
-            @keyup.enter="searchClient"
-          />
-        </div>
-        <button type="button" class="search-submit" @click="searchClient">
-          Rechercher
-        </button>
-      </div>
       <button class="logout-button" type="button" @click="logout" title="Déconnexion">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke-linecap="round" />
@@ -86,7 +58,6 @@ export default {
   },
   data() {
     return {
-      clientName: '',
       navItems: [
         { label: 'Accueil', icon: '🏠', route: '/dashboard' },
         { label: 'Client Vue 360°', icon: '🤝', route: '/vue360/recherche' },
@@ -95,13 +66,6 @@ export default {
     };
   },
   computed: {
-    currentDate() {
-      const d = new Date();
-      const day = String(d.getDate()).padStart(2, '0');
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const year = d.getFullYear();
-      return `${day}/${month}/${year}`;
-    },
     currentUser() {
       return ProfileManager.getCurrentUser();
     },
@@ -136,9 +100,6 @@ export default {
       }
       return items;
     },
-    showClientSearch() {
-      return ProfileManager.canViewVue360() || ProfileManager.hasPermission(PERMISSIONS.VIEW_CLIENT);
-    },
   },
   methods: {
     isNavActive(item) {
@@ -154,14 +115,6 @@ export default {
         return this.$route.path === '/dashboard' || this.$route.path.startsWith('/dashboard/');
       }
       return this.$route.path === item.route || this.$route.path.startsWith(`${item.route}/`);
-    },
-    searchClient() {
-      const query = this.clientName.trim();
-      if (!query) {
-        this.router.push('/vue360/recherche');
-        return;
-      }
-      this.router.push({ path: '/vue360/recherche', query: { q: query } });
     },
     async logout() {
       try {
@@ -180,17 +133,6 @@ export default {
 </script>
 
 <style scoped>
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  border: 0;
-}
-
 .dashboard-header {
   display: flex;
   align-items: stretch;
@@ -221,6 +163,12 @@ export default {
   justify-content: center;
   padding: 8px 12px;
   box-sizing: border-box;
+}
+
+.logo-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .logo-icon {
@@ -280,43 +228,12 @@ export default {
   letter-spacing: 0.04em;
 }
 
-/* ── Centre : date + navigation ── */
 .header-main {
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
+  align-items: center;
   padding: 12px 24px;
-  gap: 10px;
-}
-
-.header-top-row {
-  display: flex;
-  align-items: center;
-}
-
-.date-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 12px;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 999px;
-  font-size: 0.78rem;
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.date-chip strong {
-  font-weight: 600;
-  color: #fff;
-}
-
-.date-icon {
-  width: 14px;
-  height: 14px;
-  opacity: 0.85;
 }
 
 .horizontal-nav {
@@ -369,7 +286,6 @@ export default {
   line-height: 1.2;
 }
 
-/* ── Recherche + déconnexion ── */
 .header-actions {
   display: flex;
   align-items: center;
@@ -377,64 +293,6 @@ export default {
   padding: 12px 20px;
   flex-shrink: 0;
   border-left: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.search-box {
-  display: flex;
-  align-items: stretch;
-  background: #fff;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  min-width: 280px;
-  max-width: 380px;
-}
-
-.search-field {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-  min-width: 0;
-}
-
-.search-field-icon {
-  width: 18px;
-  height: 18px;
-  color: #9ca3af;
-  flex-shrink: 0;
-}
-
-.client-input {
-  flex: 1;
-  border: none;
-  outline: none;
-  padding: 11px 0;
-  font-size: 0.85rem;
-  color: #111827;
-  min-width: 0;
-  background: transparent;
-}
-
-.client-input::placeholder {
-  color: #9ca3af;
-}
-
-.search-submit {
-  padding: 0 18px;
-  border: none;
-  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-  color: #fff;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: opacity 0.15s;
-}
-
-.search-submit:hover {
-  opacity: 0.92;
 }
 
 .logout-button {
@@ -465,16 +323,6 @@ export default {
 @media (max-width: 1200px) {
   .logo-icon {
     height: 44px;
-  }
-
-  .search-box {
-    min-width: 220px;
-    max-width: 300px;
-  }
-
-  .search-submit {
-    padding: 0 14px;
-    font-size: 0.75rem;
   }
 }
 
@@ -508,12 +356,7 @@ export default {
     width: 100%;
     border-left: none;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
-    justify-content: stretch;
-  }
-
-  .search-box {
-    flex: 1;
-    max-width: none;
+    justify-content: flex-end;
   }
 }
 
@@ -530,10 +373,6 @@ export default {
   .header-actions {
     padding: 10px 14px;
     gap: 8px;
-  }
-
-  .search-submit span {
-    display: none;
   }
 }
 </style>

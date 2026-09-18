@@ -60,6 +60,12 @@ export default {
       if (this.$route.path.startsWith('/vue360/recherche') || this.$route.path.startsWith('/vue360/clients')) {
         return 'vue360';
       }
+      if (this.$route.path.startsWith('/pi')) {
+        return 'pi';
+      }
+      if (this.$route.path.startsWith('/modules')) {
+        return 'modules';
+      }
       return 'vue360';
     },
   },
@@ -96,6 +102,24 @@ export default {
         }
         if (!this.$route.path.startsWith('/vue360/recherche') && !this.$route.path.startsWith('/vue360/clients')) {
           this.$router.push('/vue360/recherche');
+        }
+        return;
+      }
+      if (section === 'modules') {
+        if (!ProfileManager.canAccessSection('pi')) {
+          return;
+        }
+        if (!this.$route.path.startsWith('/modules')) {
+          this.$router.push('/modules');
+        }
+        return;
+      }
+      if (section === 'pi') {
+        if (!ProfileManager.canAccessSection('pi')) {
+          return;
+        }
+        if (!this.$route.path.startsWith('/pi')) {
+          this.$router.push('/pi');
         }
         return;
       }

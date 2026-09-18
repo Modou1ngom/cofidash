@@ -1,7 +1,9 @@
 <template>
   <div class="user-management page-adapt">
     <div class="page-header">
-      <h1>Gestion des Utilisateurs</h1>
+      <div>
+        <h1>Gestion des Utilisateurs</h1>
+      </div>
       <button @click="showCreateModal = true" class="btn-primary">
         + Créer un utilisateur
       </button>
@@ -244,8 +246,7 @@ export default {
 <style scoped>
 .user-management {
   width: 100%;
-  min-height: 100vh;
-  padding: 20px;
+  min-width: 0;
   box-sizing: border-box;
 }
 
@@ -261,6 +262,14 @@ export default {
 .page-header h1 {
   font-size: 28px;
   color: #333;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 6px;
+  color: #64748b;
+  text-decoration: none;
+  font-size: 14px;
 }
 
 .btn-primary {

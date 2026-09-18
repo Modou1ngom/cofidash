@@ -78,16 +78,54 @@ const routes = [
     ],
   },
   {
-    path: '/admin/profiles',
-    name: 'profile-management',
-    component: () => import('../pages/ProfileManagementPage.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true }
+    path: '/modules',
+    name: 'modules',
+    component: () => import('../pages/ModulesPage.vue'),
+    meta: { requiresAuth: true }
   },
   {
-    path: '/admin/users',
-    name: 'user-management',
-    component: () => import('../pages/UserManagementPage.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true }
+    path: '/pi',
+    component: () => import('../layouts/PiLayout.vue'),
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
+        name: 'pi-dashboard',
+        component: () => import('../pages/PiDashboardPage.vue'),
+      },
+      {
+        path: 'enrollements',
+        name: 'pi-enrollements',
+        component: () => import('../pages/PiEnrollementsPage.vue'),
+      },
+      {
+        path: 'performance',
+        name: 'pi-performance',
+        component: () => import('../pages/PiPerformancePage.vue'),
+      },
+    ],
+  },
+  {
+    path: '/admin',
+    component: () => import('../layouts/AdminLayout.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true },
+    children: [
+      {
+        path: '',
+        name: 'admin-module',
+        component: () => import('../pages/AdminModulePage.vue'),
+      },
+      {
+        path: 'users',
+        name: 'user-management',
+        component: () => import('../pages/UserManagementPage.vue'),
+      },
+      {
+        path: 'profiles',
+        name: 'profile-management',
+        component: () => import('../pages/ProfileManagementPage.vue'),
+      },
+    ],
   },
   {
     path: '/objectives/add',
@@ -165,6 +203,21 @@ router.beforeEach((to, from, next) => {
   }
 
   if (to.path === '/vue360/objectifs' && isAuthenticated && !ProfileManager.canAccessSection('objectives', 'mine')) {
+    next(resolveHomeRoute());
+    return;
+  }
+
+  if (to.path.startsWith('/pi') && isAuthenticated && !ProfileManager.canAccessSection('pi')) {
+    next(resolveHomeRoute());
+    return;
+  }
+
+  if (to.path.startsWith('/modules') && isAuthenticated && !ProfileManager.hasAnyModule()) {
+    next('/dashboard');
+    return;
+  }
+
+  if (to.path.startsWith('/admin') && isAuthenticated && !ProfileManager.isAdmin()) {
     next(resolveHomeRoute());
     return;
   }

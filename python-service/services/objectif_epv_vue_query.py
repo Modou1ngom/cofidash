@@ -1,5 +1,6 @@
 # Objectifs collecte épargne à vue — snapshot mensuel (Flexcube).
 # Pas de filtre date : photo des encours / objectifs à l'instant T (typiquement le 1er du mois).
+# Périmètre ENCOURS_CLIENT aligné sur collecte_epargne_a_vue_query.py.
 
 OBJECTIF_EPV_VUE_SNAPSHOT_QUERY = """
 WITH ENCOURS AS (
@@ -53,11 +54,6 @@ ENCOURS_CLIENT AS (
     WHERE REBOOKER != 'YES'
       AND ID_PROTOCOLES NOT LIKE 'PC%'
       AND CODE_REF_CREDIT_RESTRUCTURE != 'YES'
-      AND CUSTOMER_ID NOT IN (
-            SELECT DISTINCT CUSTOMER_ID
-            FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER
-            WHERE FIELD_CHAR_13 LIKE 'PC%'
-      )
 ),
 OBJ_COL_EPV AS (
     SELECT

@@ -130,7 +130,7 @@ class Vue360ApiService
         string $id,
         string $accountNo,
         bool $refresh = false,
-        int $transactionsLimit = 20,
+        int $transactionsLimit = 10,
     ): array {
         $params = $this->scopedParams($user, [
             'refresh' => $refresh ? 'true' : 'false',

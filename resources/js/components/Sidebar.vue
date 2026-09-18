@@ -25,7 +25,6 @@
           <a v-if="canAccessSection('comptes-ouverts')" href="#" @click.stop.prevent="selectSection('comptes-ouverts')" class="nav-link indent" :class="{ active: activeSection === 'comptes-ouverts' }">
             Comptes ouverts
           </a>
-         
         </div>
         <div v-if="canAccessDepot" class="nav-section-header" @click.stop="toggleDepot" :class="{ active: activeSection === 'collection' || activeSection === 'performance-collection' || activeSection === 'domiciliation-flux' || activeSection === 'encours-dat' || activeSection === 'encours-epargne' || activeSection === 'depot-garantie' || activeSection === 'collecte-epargne-a-vue' }">
           <span class="nav-title">
@@ -282,13 +281,20 @@ export default {
       epsExpanded: false,
       diversExpanded: false,
       portefeuilleRisqueExpanded: false,
-      reportingFinancierExpanded: false
+      reportingFinancierExpanded: false,
+      modulesExpanded: false
     }
   },
   watch: {
     activeSection(newVal) {
-      if (newVal === 'client' || newVal === 'vue360' || newVal === 'caf-overview' || newVal === 'performance-client' || newVal === 'comptes-ouverts') {
+      if (newVal === 'modules' || newVal === 'pi') {
+        this.modulesExpanded = true;
+        this.clientExpanded = false;
+        this.objectivesExpanded = false;
+        this.managementExpanded = false;
+      } else if (newVal === 'client' || newVal === 'vue360' || newVal === 'caf-overview' || newVal === 'performance-client' || newVal === 'comptes-ouverts') {
         this.clientExpanded = true;
+        this.modulesExpanded = false;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
       } else if (newVal === 'collection' || newVal === 'performance-collection' || newVal === 'domiciliation-flux' || newVal === 'encours-dat' || newVal === 'encours-epargne' || newVal === 'depot-garantie' || newVal === 'collecte-epargne-a-vue') {
@@ -368,7 +374,12 @@ export default {
   },
   mounted() {
     // Initialiser l'état selon la section active
-    if (this.activeSection === 'client' || this.activeSection === 'vue360' || this.activeSection === 'caf-overview' || this.activeSection === 'performance-client' || this.activeSection === 'comptes-ouverts') {
+    if (this.activeSection === 'modules' || this.activeSection === 'pi') {
+      this.modulesExpanded = true;
+      this.clientExpanded = false;
+      this.objectivesExpanded = false;
+      this.managementExpanded = false;
+    } else if (this.activeSection === 'client' || this.activeSection === 'vue360' || this.activeSection === 'caf-overview' || this.activeSection === 'performance-client' || this.activeSection === 'comptes-ouverts') {
       this.clientExpanded = true;
       this.objectivesExpanded = false;
       this.managementExpanded = false;
@@ -500,7 +511,8 @@ export default {
         divers: 'diversExpanded',
         objectives: 'objectivesExpanded',
         reportingFinancier: 'reportingFinancierExpanded',
-        management: 'managementExpanded'
+        management: 'managementExpanded',
+        modules: 'modulesExpanded'
       };
       const keepProp = keep[except];
       Object.values(keep).forEach((prop) => {
@@ -511,6 +523,16 @@ export default {
       this.performanceExpanded = false;
       if (except !== 'credit') {
         this.portefeuilleRisqueExpanded = false;
+      }
+    },
+    toggleModules() {
+      const next = !this.modulesExpanded;
+      if (next) {
+        this.closeAllNavSectionsExcept('modules');
+      }
+      this.modulesExpanded = next;
+      if (next) {
+        this.$emit('section-selected', 'modules');
       }
     },
     toggleClient() {
@@ -633,8 +655,14 @@ export default {
       if (!this.canAccessSection(section) && section !== 'objectives') {
         return;
       }
-      if (section === 'client' || section === 'performance-client' || section === 'caf-overview' || section === 'vue360' || section === 'comptes-ouverts') {
+      if (section === 'modules' || section === 'pi') {
+        this.modulesExpanded = true;
+        this.clientExpanded = false;
+        this.objectivesExpanded = false;
+        this.managementExpanded = false;
+      } else if (section === 'client' || section === 'performance-client' || section === 'caf-overview' || section === 'vue360' || section === 'comptes-ouverts') {
         this.clientExpanded = true;
+        this.modulesExpanded = false;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
       } else if (section === 'collection' || section === 'performance-collection' || section === 'domiciliation-flux' || section === 'encours-dat' || section === 'encours-epargne' || section === 'depot-garantie' || section === 'collecte-epargne-a-vue') {

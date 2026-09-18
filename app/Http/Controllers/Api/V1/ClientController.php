@@ -102,7 +102,7 @@ class ClientController extends Controller
             $id,
             $accountNo,
             $refresh,
-            (int) $request->query('transactions_limit', 20),
+            (int) $request->query('transactions_limit', 10),
         );
 
         if (!$result['success']) {

@@ -54,6 +54,7 @@ class Profile extends Model
         'MENU_OBJECTIFS_VALIDATE',
         'MENU_GESTION_DONNEES',
         'MENU_GESTION_ENVIRONNEMENTS',
+        'MENU_PI',
     ];
 
     public const ALIASES = [
@@ -81,6 +82,7 @@ class Profile extends Model
         'menu_objectifs_validate' => 'MENU_OBJECTIFS_VALIDATE',
         'menu_gestion_donnees' => 'MENU_GESTION_DONNEES',
         'menu_gestion_environnements' => 'MENU_GESTION_ENVIRONNEMENTS',
+        'menu_pi' => 'MENU_PI',
     ];
 
     public const CAF_PERMISSIONS = [
@@ -96,6 +98,7 @@ class Profile extends Model
         'MENU_NEW_DEAL',
         'MENU_TRANSFERTS',
         'MENU_OBJECTIFS_VIEW',
+        'MENU_PI',
     ];
 
     public static function defaultMenuPermissions(string $code): array
@@ -114,6 +117,7 @@ class Profile extends Model
             'MENU_NEW_DEAL',
             'MENU_TRANSFERTS',
             'MENU_OBJECTIFS_VIEW',
+            'MENU_PI',
         ];
 
         if ($code === 'CAF') {
@@ -128,6 +132,7 @@ class Profile extends Model
             'MENU_PORTEFEUILLE_RISQUE',
             'MENU_NEW_DEAL',
             'MENU_TRANSFERTS',
+            'MENU_PI',
         ];
 
         if ($code === 'MD') {

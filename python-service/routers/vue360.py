@@ -174,7 +174,7 @@ async def vue360_client_account_detail(
     client_id: str,
     account_number: str,
     refresh: bool = Query(False),
-    transactions_limit: int = Query(20, ge=1, le=100),
+    transactions_limit: int = Query(10, ge=1, le=100),
 ):
     try:
         account = vue360_service.get_client_account(

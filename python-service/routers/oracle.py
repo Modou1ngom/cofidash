@@ -32,6 +32,7 @@ from services.portefeuille_risque_service import (
 )
 from services.entrees_par_service import get_entrees_par_data
 from services.comptes_ouverts_service import get_comptes_ouverts_data
+from services.pi_enrollement_service import get_pi_dashboard_data
 from services.reference_compte_service import get_gl_by_code, search_gl
 from services.cr_par_agence_service import get_cr_data_by_parent_gl
 from services.agencies_from_flexcube_service import fetch_agencies_from_flexcube
@@ -1059,6 +1060,28 @@ async def get_comptes_ouverts_endpoint(
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de la récupération des ouvertures de comptes: {error_message}",
+        )
+
+
+@router.get("/data/pi-dashboard")
+async def get_pi_dashboard_endpoint(
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    refresh: bool = False,
+):
+    """Dashboard PI : enrôlements SPI / Mobile+ / USSD des nouveaux clients."""
+    try:
+        return get_pi_dashboard_data(month=month, year=year, refresh=refresh)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_message = str(e) if str(e) else repr(e)
+        logger.error("Erreur pi-dashboard: %s", error_message, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors de la récupération du dashboard PI: {error_message}",
         )
 
 

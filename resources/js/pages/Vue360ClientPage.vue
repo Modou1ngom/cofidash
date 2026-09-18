@@ -264,20 +264,64 @@
                 <span class="stat-value stat-value--money">{{ formatMoney(selectedAccount.amount_due) }}</span>
               </div>
             </div>
-            <div
-              v-if="selectedAccount.transactions?.length"
-              class="transactions-block"
-            >
-              <h5 class="transactions-title">Dernières écritures</h5>
-              <ul class="transactions-list">
-                <li v-for="(tx, i) in selectedAccount.transactions.slice(0, 5)" :key="i" class="tx-row">
-                  <span class="tx-date">{{ formatTxDate(tx) }}</span>
-                  <span class="tx-label">{{ tx.entry_label || tx.description || tx.batch_label || 'Opération' }}</span>
-                  <strong class="tx-amount" :class="tx.direction === 'credit' ? 'credit' : 'debit'">
-                    {{ tx.direction === 'credit' ? '+' : '−' }}{{ formatMoney(Math.abs(tx.amount || tx.credit || tx.debit || 0)) }}
-                  </strong>
-                </li>
-              </ul>
+            <div class="transactions-block">
+              <div class="transactions-head">
+                <div class="transactions-head-text">
+                  <span class="transactions-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M4 6h16M4 12h10M4 18h14" stroke-linecap="round"/>
+                    </svg>
+                  </span>
+                  <div>
+                    <h5 class="transactions-title">Historique des écritures</h5>
+                    <p class="transactions-subtitle">{{ recentTransactions.length }} derniers mouvements</p>
+                  </div>
+                </div>
+              </div>
+              <div v-if="recentTransactions.length" class="tx-timeline">
+                <section
+                  v-for="group in transactionsByDate"
+                  :key="group.date"
+                  class="tx-day"
+                >
+                  <div class="tx-day-rail" aria-hidden="true"></div>
+                  <h6 class="tx-day-label">
+                    <span class="tx-day-dot"></span>
+                    {{ formatTxDateLong(group.date) }}
+                  </h6>
+                  <ul class="transactions-list">
+                    <li
+                      v-for="(tx, i) in group.items"
+                      :key="i"
+                      class="tx-row"
+                      :class="txDirection(tx)"
+                    >
+                      <span class="tx-dir" :class="txDirection(tx)" aria-hidden="true">
+                        <svg v-if="txDirection(tx) === 'credit'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                          <path d="M12 19V5M5 12l7-7 7 7" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                          <path d="M12 5v14M19 12l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      </span>
+                      <div class="tx-body">
+                        <span class="tx-label">{{ txLabel(tx) }}</span>
+                        <span class="tx-meta">
+                          <span class="tx-kind" :class="txDirection(tx)">
+                            {{ txDirection(tx) === 'credit' ? 'Crédit' : 'Débit' }}
+                          </span>
+                          <span v-if="txSubtitle(tx)" class="tx-sub">{{ txSubtitle(tx) }}</span>
+                        </span>
+                      </div>
+                      <strong class="tx-amount" :class="txDirection(tx)">
+                        {{ txDirection(tx) === 'credit' ? '+' : '−' }}{{ formatAmount(txAmount(tx)) }}
+                        <small>FCFA</small>
+                      </strong>
+                    </li>
+                  </ul>
+                </section>
+              </div>
+              <p v-else class="tx-empty">Aucune écriture récente sur ce compte</p>
             </div>
           </div>
         </template>
@@ -688,6 +732,7 @@
 import { ProfileManager } from '../utils/profiles.js';
 
 const PI_RULES_API_KEY = 'checking-pi-rules';
+const LAST_TRANSACTIONS_COUNT = 10;
 const DEFAULT_ENCOURS_REPARTITION = [
   { id: 'capital', label: 'Capital dû', amount: 0, percent: 0, color: '#14B8A6' },
   { id: 'interest', label: 'Intérêt dû', amount: 0, percent: 0, color: '#EAB308' },
@@ -701,6 +746,7 @@ export default {
   name: 'Vue360ClientPage',
   data() {
     return {
+      LAST_TRANSACTIONS_COUNT,
       client: null,
       summary: {},
       kyc: null,
@@ -844,6 +890,20 @@ export default {
       if (!this.accountsData?.accounts) return [];
       if (!this.selectedAccountType) return this.accountsData.accounts;
       return this.accountsData.accounts.filter((a) => a.type === this.selectedAccountType);
+    },
+    recentTransactions() {
+      const txs = this.selectedAccount?.transactions || [];
+      return txs.slice(0, LAST_TRANSACTIONS_COUNT);
+    },
+    transactionsByDate() {
+      const groups = [];
+      for (const tx of this.recentTransactions) {
+        const date = this.formatTxDate(tx) || '—';
+        const last = groups[groups.length - 1];
+        if (last && last.date === date) last.items.push(tx);
+        else groups.push({ date, items: [tx] });
+      }
+      return groups;
     },
     creditFilters() {
       const counts = this.creditsSummary.counts || {};
@@ -1074,6 +1134,7 @@ export default {
       try {
         const { data } = await window.axios.get(
           `/api/v1/clients/${encodeURIComponent(this.clientId)}/accounts/${encodeURIComponent(acc.account_number)}`,
+          { params: { transactions_limit: LAST_TRANSACTIONS_COUNT } },
         );
         this.selectedAccount = { ...acc, ...data.data };
       } catch {
@@ -1274,9 +1335,55 @@ export default {
       const n = Number(value) || 0;
       return `${n.toLocaleString('fr-FR')} FCFA`;
     },
+    formatAmount(value) {
+      return (Number(value) || 0).toLocaleString('fr-FR');
+    },
     formatTxDate(tx) {
       const raw = tx.accounting_date || tx.date_comptable || tx.value_date || tx.date_valeur || tx.date || '';
       return this.formatDate(raw);
+    },
+    formatTxDateLong(value) {
+      const raw = String(value || '').trim();
+      let date = null;
+      const fr = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (fr) date = new Date(Number(fr[3]), Number(fr[2]) - 1, Number(fr[1]));
+      else if (iso) date = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+      if (date && !Number.isNaN(date.getTime())) {
+        const label = date.toLocaleDateString('fr-FR', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        });
+        return label.charAt(0).toUpperCase() + label.slice(1);
+      }
+      return raw || '—';
+    },
+    txDirection(tx) {
+      if (tx?.direction === 'credit' || Number(tx?.credit || 0) > 0) return 'credit';
+      return 'debit';
+    },
+    txAmount(tx) {
+      return Math.abs(Number(tx?.amount || tx?.credit || tx?.debit || 0));
+    },
+    txLabel(tx) {
+      const raw = tx?.entry_label || tx?.description || tx?.batch_label || 'Opération';
+      const text = String(raw).trim().replace(/\s+/g, ' ');
+      if (!text) return 'Opération';
+      const lower = text.toLocaleLowerCase('fr-FR');
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    },
+    txSubtitle(tx) {
+      const label = this.txLabel(tx);
+      const batch = String(tx?.batch_label || '').trim();
+      if (batch && batch !== label) return batch;
+      const valueDate = tx?.value_date || tx?.date_valeur || '';
+      const accounting = tx?.accounting_date || tx?.date_comptable || '';
+      if (valueDate && accounting && this.formatDate(valueDate) !== this.formatDate(accounting)) {
+        return `Date valeur ${this.formatDate(valueDate)}`;
+      }
+      return '';
     },
     accountTypeIcon(typeId) {
       const icons = {
@@ -2101,61 +2208,241 @@ export default {
 }
 
 .transactions-block {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid #e5e7eb;
+  margin-top: 22px;
+  background: #fff;
+  border: 1px solid rgba(26, 77, 58, 0.08);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(26, 77, 58, 0.06);
+}
+
+.transactions-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  background: linear-gradient(135deg, #f0fdf4 0%, #fff 70%);
+  border-bottom: 1px solid #e8f0ec;
+}
+
+.transactions-head-text {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.transactions-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #1a4d3a;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.transactions-icon svg {
+  width: 18px;
+  height: 18px;
 }
 
 .transactions-title {
-  margin: 0 0 12px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #374151;
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #1a4d3a;
+}
+
+.transactions-subtitle {
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.tx-timeline {
+  padding: 8px 8px 14px;
+}
+
+.tx-day {
+  position: relative;
+  padding: 10px 10px 6px 22px;
+}
+
+.tx-day-rail {
+  position: absolute;
+  left: 18px;
+  top: 28px;
+  bottom: 8px;
+  width: 2px;
+  background: #dce8e2;
+  border-radius: 2px;
+}
+
+.tx-day-label {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #1a4d3a;
+}
+
+.tx-day-dot {
+  width: 10px;
+  height: 10px;
+  margin-left: -16px;
+  border-radius: 50%;
+  background: #1a4d3a;
+  box-shadow: 0 0 0 4px #ecfdf3;
+  flex-shrink: 0;
 }
 
 .transactions-list {
   list-style: none;
   padding: 0;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .tx-row {
   display: grid;
-  grid-template-columns: 90px 1fr auto;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid #f3f4f6;
-  font-size: 0.85rem;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f8faf9;
+  transition: background 0.15s;
 }
 
-.tx-row:last-child {
-  border-bottom: none;
+.tx-row:hover {
+  background: #eef7f1;
 }
 
-.tx-date {
-  color: #9ca3af;
-  font-size: 0.8rem;
+.tx-dir {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tx-dir svg {
+  width: 16px;
+  height: 16px;
+}
+
+.tx-dir.credit {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.tx-dir.debit {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.tx-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .tx-label {
-  color: #4b5563;
+  color: #111827;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.tx-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tx-kind {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.tx-kind.credit {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.tx-kind.debit {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.tx-sub {
+  color: #9ca3af;
+  font-size: 0.74rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .tx-amount {
-  font-size: 0.88rem;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 0.95rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tx-amount small {
+  font-size: 0.68rem;
+  font-weight: 600;
+  opacity: 0.7;
 }
 
 .tx-amount.credit {
-  color: #16a34a;
+  color: #15803d;
 }
 
 .tx-amount.debit {
   color: #dc2626;
+}
+
+.tx-empty {
+  margin: 0 12px 14px;
+  padding: 22px 16px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 0.88rem;
+  background: #f8faf9;
+  border-radius: 12px;
+}
+
+@media (max-width: 640px) {
+  .tx-row {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .tx-amount {
+    grid-column: 2;
+    justify-self: start;
+    font-size: 0.88rem;
+  }
 }
 
 .type-btn {

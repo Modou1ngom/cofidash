@@ -867,6 +867,37 @@ class OracleService
     }
 
     /**
+     * Dashboard PI — enrôlements SPI / Mobile+ / USSD.
+     */
+    public function getPiDashboardData(?int $month = null, ?int $year = null, bool $refresh = false): array
+    {
+        $params = [];
+        if ($month) {
+            $params['month'] = $month;
+        }
+        if ($year) {
+            $params['year'] = $year;
+        }
+        if ($refresh) {
+            $params['refresh'] = 1;
+        }
+
+        try {
+            $response = $this->pythonHttp()->get(
+                "{$this->pythonServiceUrl}/api/oracle/data/pi-dashboard",
+                $params
+            );
+            if ($response->successful()) {
+                return ['success' => true, 'data' => $response->json()];
+            }
+
+            return $this->failure('Dashboard PI', $response->body());
+        } catch (\Exception $e) {
+            return $this->failure('Dashboard PI', $e->getMessage(), 'Erreur HTTP Python');
+        }
+    }
+
+    /**
      * Récupère les entrées PAR et provisions pour un palier (0, 30, 90, 180, 360)
      */
     public function getEntreesParData(?int $month = null, ?int $year = null, ?int $par = 0): array

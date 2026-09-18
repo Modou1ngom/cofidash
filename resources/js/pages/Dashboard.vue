@@ -201,6 +201,10 @@ export default {
     if (!ProfileManager.canAccessSection(this.activeSection)) {
       this.activeSection = ProfileManager.firstAllowedDashboardSection();
     }
+    if (this.activeSection === 'pi') {
+      this.$router.push('/pi');
+      return;
+    }
     if (!ProfileManager.canAccessSection('management') && !ProfileManager.canAccessSection('environments') && (this.activeSection === 'management' || this.activeSection === 'environments' || this.activeSection === 'performance-management')) {
       this.activeSection = ProfileManager.firstAllowedDashboardSection();
     }
@@ -225,6 +229,14 @@ export default {
       }
       if (section === 'caf-overview') {
         this.$router.push('/vue360/caf');
+        return;
+      }
+      if (section === 'modules') {
+        this.$router.push('/modules');
+        return;
+      }
+      if (section === 'pi') {
+        this.$router.push('/pi');
         return;
       }
       if (!ProfileManager.canAccessSection(section)) {

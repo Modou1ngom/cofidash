@@ -255,7 +255,8 @@ def _transform_credit(row: Dict[str, Any]) -> Dict[str, Any]:
     par_days = int(_to_float(row.get("PAR_DAYS")))
     health_status = str(row.get("HEALTH_STATUS") or "sain").lower()
     unpaid = _to_float(row.get("UNPAID_AMOUNT") or row.get("OVERDUE_AMOUNT"))
-    return _finalize_credit_status({
+    healthy = _to_float(row.get("HEALTHY_OUTSTANDING"))
+    credit = _finalize_credit_status({
         "id": loan_number,
         "client_id": f"CLT-{client_id}" if client_id else "",
         "client_name": row.get("CLIENT_NAME") or "",
@@ -291,10 +292,20 @@ def _transform_credit(row: Dict[str, Any]) -> Dict[str, Any]:
         "coficarte_fee_due": _to_float(row.get("COFICARTE_FEE_DUE")),
         "due_amount": _to_float(row.get("DUE_AMOUNT")),
         "unpaid_amount": unpaid,
-        "healthy_outstanding": _to_float(row.get("HEALTHY_OUTSTANDING")),
+        "healthy_outstanding": healthy,
         "total_repaid": _to_float(row.get("TOTAL_REPAID")),
         "guarantee": "",
     })
+    if credit.get("health_status") == "sain":
+        credit["healthy_outstanding"] = max(
+            _to_float(credit.get("healthy_outstanding")),
+            max(
+                _to_float(credit.get("total_outstanding"))
+                - _to_float(credit.get("unpaid_amount")),
+                0.0,
+            ),
+        )
+    return credit
 
 
 def _parse_fr_date(value: str) -> str:
@@ -2085,7 +2096,7 @@ def get_client_account(
     client_id: str,
     account_number: str,
     refresh: bool = False,
-    transactions_limit: int = 20,
+    transactions_limit: int = 10,
 ) -> Optional[Dict[str, Any]]:
     del refresh
     from services.c360_oracle_service import (
@@ -2161,6 +2172,8 @@ def _build_credits_summary(
     total_healthy = sum(_to_float(c.get("healthy_outstanding")) for c in active)
     total_unpaid = sum(_to_float(c.get("unpaid_amount")) for c in active)
     total_due = sum(_to_float(c.get("due_amount")) for c in active)
+    if total_global > 0:
+        total_healthy = max(total_global - total_unpaid, 0.0)
     max_par = max((int(c.get("par_days") or 0) for c in active), default=0)
     repayments = [
         _to_float(c.get("repayment_percent"))
