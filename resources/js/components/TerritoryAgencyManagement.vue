@@ -2,6 +2,7 @@
   <div class="tam">
     <header class="tam-page-header">
       <div>
+        <p class="eyebrow">Organisation</p>
         <h1>Gestion organisationnelle</h1>
         <p>Territoires, agences, utilisateurs et profils d’accès.</p>
       </div>
@@ -55,7 +56,7 @@
                 <th>Code</th>
                 <th>Nom</th>
                 <th>Description</th>
-                <th>Responsable de zone</th>
+                <th>Responsable</th>
                 <th class="col-actions">Actions</th>
               </tr>
             </thead>
@@ -744,14 +745,26 @@ export default {
       if (!isCaf) {
         this.userForm.manager_code = '';
       }
-    }
+    },
+    '$route.query.tab'(tab) {
+      this.applyRouteTab(tab);
+    },
   },
   mounted() {
+    this.applyRouteTab();
     this.loadData();
   },
   methods: {
+    applyRouteTab(tab = this.$route?.query?.tab) {
+      const allowed = ['territories', 'agencies', 'users', 'profiles'];
+      if (allowed.includes(tab) && tab !== this.activeTab) {
+        this.activeTab = tab;
+      }
+    },
     setTab(tab) {
       this.activeTab = tab;
+      if (this.$route?.query?.tab === tab) return;
+      this.$router.replace({ query: { ...this.$route.query, tab } });
     },
     slicePage(list) {
       const start = (this.currentPage - 1) * this.pageSize;
@@ -1425,9 +1438,9 @@ export default {
   --danger: #b91c1c;
 
   width: 100%;
-  min-height: 100%;
-  padding: 24px 28px 40px;
-  background: var(--bg);
+  min-height: 0;
+  padding: 0;
+  background: transparent;
   color: var(--text);
   box-sizing: border-box;
 }
@@ -1440,11 +1453,20 @@ export default {
   margin-bottom: 20px;
 }
 
+.eyebrow {
+  margin: 0 0 6px;
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .tam-page-header h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: 26px;
   font-weight: 650;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   color: var(--text);
 }
 
@@ -1506,22 +1528,33 @@ export default {
 }
 
 .btn-link {
-  background: none;
-  border: none;
-  padding: 0;
-  margin-right: 12px;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  margin-right: 6px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
   color: var(--brand);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 650;
   cursor: pointer;
 }
 
 .btn-link:hover {
-  text-decoration: underline;
+  border-color: var(--brand);
+  background: #f0f6f3;
 }
 
 .btn-link.danger {
   color: var(--danger);
+  border-color: #fecaca;
+}
+
+.btn-link.danger:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
 }
 
 .spinner {
@@ -1560,8 +1593,9 @@ export default {
 .tam-panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .tam-tabs {
@@ -1714,19 +1748,20 @@ export default {
 
 .data-table th {
   text-align: left;
-  padding: 11px 16px;
+  padding: 12px 16px;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: #6b7280;
-  background: #f9fafb;
+  background: #f7faf8;
   border-bottom: 1px solid var(--border);
+  white-space: nowrap;
 }
 
 .data-table td {
-  padding: 13px 16px;
-  font-size: 13px;
+  padding: 14px 16px;
+  font-size: 13.5px;
   border-bottom: 1px solid #f1f3f5;
   vertical-align: middle;
 }
@@ -1736,7 +1771,7 @@ export default {
 }
 
 .data-table tbody tr:hover {
-  background: #fafbfc;
+  background: #f4faf7;
 }
 
 .col-actions {
@@ -1847,10 +1882,11 @@ export default {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
   font-weight: 600;
-  color: #374151;
-  background: #f3f4f6;
-  padding: 2px 7px;
-  border-radius: 4px;
+  color: #1a4d3a;
+  background: #eef5f1;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
 }
 
 .person {
@@ -1891,11 +1927,12 @@ export default {
 .tag {
   display: inline-flex;
   align-items: center;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 4px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 650;
+  white-space: nowrap;
 }
 
 .tag-neutral {
@@ -2141,10 +2178,6 @@ textarea.control {
 }
 
 @media (max-width: 860px) {
-  .tam {
-    padding: 16px;
-  }
-
   .tam-page-header {
     flex-direction: column;
   }

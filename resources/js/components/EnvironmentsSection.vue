@@ -21,7 +21,6 @@
           Nouveau
         </button>
         <button class="btn-refresh" @click="handleRefresh">
-          <span class="icon">🔄</span>
           Actualiser
         </button>
       </div>
@@ -102,6 +101,42 @@
         </button>
       </div>
     </div>
+
+    <p v-if="notice" class="env-notice" :class="{ error: noticeError }" role="status">{{ notice }}</p>
+
+    <div v-if="showForm" class="env-overlay" @click.self="closeForm">
+      <div class="env-modal" role="dialog" aria-modal="true">
+        <h3>{{ editing ? 'Modifier l’environnement' : 'Nouvel environnement' }}</h3>
+        <form @submit.prevent="saveEnvironment">
+          <label for="env-name">Nom</label>
+          <input id="env-name" v-model="formName" type="text" required maxlength="120" placeholder="SENEGAL" />
+          <p v-if="formError" class="form-error">{{ formError }}</p>
+          <div class="env-modal-actions">
+            <button type="button" class="btn-refresh" @click="closeForm">Annuler</button>
+            <button type="submit" class="btn-new" :disabled="saving">{{ saving ? 'Enregistrement…' : 'Enregistrer' }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div v-if="agenciesEnv" class="env-overlay" @click.self="agenciesEnv = null">
+      <div class="env-modal env-modal--wide" role="dialog" aria-modal="true">
+        <h3>Agences — {{ agenciesEnv.name }}</h3>
+        <p v-if="agenciesLoading" class="env-muted">Chargement…</p>
+        <p v-else-if="agenciesError" class="form-error">{{ agenciesError }}</p>
+        <p v-else-if="!agencies.length" class="env-muted">Aucune agence rattachée à cet environnement.</p>
+        <ul v-else class="agency-list">
+          <li v-for="agency in agencies" :key="agency.id">
+            <code>{{ agency.code }}</code>
+            <span>{{ agency.name }}</span>
+            <em v-if="agency.territory">{{ agency.territory.name }}</em>
+          </li>
+        </ul>
+        <div class="env-modal-actions">
+          <button type="button" class="btn-new" @click="agenciesEnv = null">Fermer</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -113,18 +148,24 @@ export default {
   data() {
     return {
       searchQuery: '',
-      environments: [
-        { id: 1, name: 'SENEGAL' },
-        
-        { id: 5, name: 'TOGO' },
-     
-        { id: 14, name: 'GABON' },
-        { id: 15, name: 'CONGO' },
-      
-      ],
+      environments: [],
       currentPage: 1,
-      itemsPerPage: 8
+      itemsPerPage: 8,
+      notice: '',
+      noticeError: false,
+      showForm: false,
+      editing: null,
+      formName: '',
+      formError: '',
+      saving: false,
+      agenciesEnv: null,
+      agencies: [],
+      agenciesLoading: false,
+      agenciesError: '',
     }
+  },
+  mounted() {
+    this.loadEnvironments();
   },
   computed: {
     filteredEnvironments() {
@@ -160,48 +201,93 @@ export default {
       // Réinitialiser à la première page lors de la recherche
       this.currentPage = 1;
     },
-    handleNew() {
-      // TODO: Implémenter la création d'un nouvel environnement
-      console.log('Créer un nouvel environnement');
-      alert('Fonctionnalité de création d\'environnement à implémenter');
-    },
-    async handleRefresh() {
-      // TODO: Implémenter le rafraîchissement depuis l'API
+    async loadEnvironments() {
+      this.notice = '';
+      this.noticeError = false;
       try {
-        // const response = await axios.get('/api/environments');
-        // this.environments = response.data;
-        console.log('Actualisation des environnements');
-        // Pour l'instant, on simule juste un rafraîchissement
-        alert('Environnements actualisés');
+        const response = await axios.get('/api/environments');
+        const payload = response.data?.data || response.data || [];
+        this.environments = Array.isArray(payload) ? payload : [];
       } catch (error) {
-        console.error('Erreur lors de l\'actualisation:', error);
-        alert('Erreur lors de l\'actualisation des environnements');
+        this.noticeError = true;
+        this.notice = error.response?.data?.message || 'Impossible de charger les environnements.';
       }
     },
-    handleAction(environment, action) {
-      console.log(`Action ${action} sur l'environnement:`, environment);
-      switch (action) {
-        case 'view-agencies':
-          // TODO: Implémenter l'affichage des agences pour cet environnement
-          alert(`Voir les agences de ${environment.name}`);
-          break;
-        case 'edit':
-          // TODO: Implémenter la modification de l'environnement
-          alert(`Modifier ${environment.name}`);
-          break;
-        case 'delete':
-          if (confirm(`Êtes-vous sûr de vouloir supprimer ${environment.name} ?`)) {
-            this.deleteEnvironment(environment.id);
-          }
-          break;
-        default:
-          console.log('Action non reconnue:', action);
+    handleNew() {
+      this.editing = null;
+      this.formName = '';
+      this.formError = '';
+      this.showForm = true;
+    },
+    handleRefresh() {
+      this.loadEnvironments();
+    },
+    closeForm() {
+      if (this.saving) return;
+      this.showForm = false;
+      this.editing = null;
+      this.formError = '';
+    },
+    async saveEnvironment() {
+      const name = this.formName.trim();
+      if (!name) {
+        this.formError = 'Le nom est obligatoire.';
+        return;
+      }
+      this.saving = true;
+      this.formError = '';
+      try {
+        if (this.editing) {
+          await axios.put(`/api/environments/${this.editing.id}`, { name });
+        } else {
+          await axios.post('/api/environments', { name });
+        }
+        this.showForm = false;
+        this.editing = null;
+        await this.loadEnvironments();
+      } catch (error) {
+        const errors = error.response?.data?.errors;
+        this.formError = errors?.name?.[0]
+          || error.response?.data?.message
+          || 'Enregistrement impossible.';
+      } finally {
+        this.saving = false;
       }
     },
-    deleteEnvironment(id) {
-      // TODO: Implémenter la suppression via l'API
-      this.environments = this.environments.filter(env => env.id !== id);
-      console.log('Environnement supprimé:', id);
+    async handleAction(environment, action) {
+      if (action === 'view-agencies') {
+        this.agenciesEnv = environment;
+        this.agencies = [];
+        this.agenciesError = '';
+        this.agenciesLoading = true;
+        try {
+          const response = await axios.get(`/api/environments/${environment.id}/agencies`);
+          const payload = response.data?.data || response.data || [];
+          this.agencies = Array.isArray(payload) ? payload : [];
+        } catch (error) {
+          this.agenciesError = error.response?.data?.message || 'Impossible de charger les agences.';
+        } finally {
+          this.agenciesLoading = false;
+        }
+        return;
+      }
+      if (action === 'edit') {
+        this.editing = environment;
+        this.formName = environment.name;
+        this.formError = '';
+        this.showForm = true;
+        return;
+      }
+      if (action === 'delete') {
+        if (!confirm(`Supprimer l’environnement ${environment.name} ?`)) return;
+        try {
+          await axios.delete(`/api/environments/${environment.id}`);
+          await this.loadEnvironments();
+        } catch (error) {
+          this.noticeError = true;
+          this.notice = error.response?.data?.message || 'Suppression impossible.';
+        }
+      }
     },
     previousPage() {
       if (this.currentPage > 1) {
@@ -223,8 +309,9 @@ export default {
 <style scoped>
 .environments-section {
   width: 100%;
-  padding: 20px;
-  background: #ffffff;
+  padding: 0;
+  background: transparent;
+  color: #1c2430;
 }
 
 .section-header {
@@ -276,22 +363,30 @@ export default {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 20px;
-  border: none;
+  padding: 9px 16px;
+  border: 1px solid transparent;
   border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 650;
   cursor: pointer;
-  transition: all 0.2s;
-  background: #9333ea;
+  transition: background 0.15s, border-color 0.15s;
+  background: #1a4d3a;
   color: white;
 }
 
-.btn-new:hover,
+.btn-refresh {
+  background: #fff;
+  color: #1a4d3a;
+  border-color: #c9d8d0;
+}
+
+.btn-new:hover {
+  background: #163f30;
+}
+
 .btn-refresh:hover {
-  background: #7e22ce;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(147, 51, 234, 0.3);
+  background: #f0f6f3;
+  border-color: #1a4d3a;
 }
 
 .btn-new:active,
@@ -389,13 +484,14 @@ export default {
 }
 
 .action-btn.btn-edit {
-  color: #9333ea;
-  border-color: #9333ea;
+  color: #1a4d3a;
+  border-color: #c9d8d0;
 }
 
 .action-btn.btn-edit:hover {
-  background: #9333ea;
-  color: white;
+  background: #f0f6f3;
+  border-color: #1a4d3a;
+  color: #1a4d3a;
 }
 
 .action-btn.btn-delete {
@@ -459,13 +555,119 @@ export default {
 }
 
 .pagination-btn.page-number.active {
-  background: #9333ea;
+  background: #1a4d3a;
   color: white;
-  border-color: #9333ea;
+  border-color: #1a4d3a;
   font-weight: 600;
 }
 
 .pagination-btn.page-number.active:hover {
-  background: #7e22ce;
+  background: #163f30;
+}
+
+.env-notice {
+  margin-top: 12px;
+  color: #065f46;
+  font-size: 13px;
+}
+
+.env-notice.error,
+.form-error {
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.env-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.env-modal {
+  width: min(440px, 100%);
+  background: #fff;
+  border-radius: 12px;
+  padding: 22px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.16);
+}
+
+.env-modal--wide {
+  width: min(640px, 100%);
+}
+
+.env-modal h3 {
+  margin: 0 0 14px;
+  font-size: 18px;
+}
+
+.env-modal label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.env-modal input {
+  width: 100%;
+  height: 38px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+
+.env-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.env-muted {
+  margin: 0;
+  color: #64748b;
+}
+
+.agency-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid #e6ece8;
+  border-radius: 8px;
+}
+
+.agency-list li {
+  display: grid;
+  grid-template-columns: 88px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f3f5;
+  font-size: 13px;
+}
+
+.agency-list li:last-child {
+  border-bottom: none;
+}
+
+.agency-list code {
+  color: #1a4d3a;
+  background: #eef5f1;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 12px;
+}
+
+.agency-list em {
+  font-style: normal;
+  color: #64748b;
+  font-size: 12px;
 }
 </style>

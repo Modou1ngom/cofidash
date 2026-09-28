@@ -14,6 +14,7 @@ class Agency extends Model
         'name',
         'description',
         'territory_id',
+        'environment_id',
         'chef_agence_user_id',
         'is_active'
     ];
@@ -26,6 +27,11 @@ class Agency extends Model
     public function territory()
     {
         return $this->belongsTo(Territory::class);
+    }
+
+    public function environment()
+    {
+        return $this->belongsTo(Environment::class);
     }
 
     // Relation avec le chef d'agence

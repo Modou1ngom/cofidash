@@ -117,13 +117,21 @@ const routes = [
       },
       {
         path: 'users',
-        name: 'user-management',
-        component: () => import('../pages/UserManagementPage.vue'),
+        redirect: { path: '/admin/organisation', query: { tab: 'users' } },
       },
       {
         path: 'profiles',
-        name: 'profile-management',
-        component: () => import('../pages/ProfileManagementPage.vue'),
+        redirect: { path: '/admin/organisation', query: { tab: 'profiles' } },
+      },
+      {
+        path: 'organisation',
+        name: 'admin-organisation',
+        component: () => import('../components/TerritoryAgencyManagement.vue'),
+      },
+      {
+        path: 'environnements',
+        name: 'admin-environments',
+        component: () => import('../components/EnvironmentsSection.vue'),
       },
     ],
   },
@@ -218,8 +226,12 @@ router.beforeEach((to, from, next) => {
   }
 
   if (to.path.startsWith('/admin') && isAuthenticated && !ProfileManager.isAdmin()) {
-    next(resolveHomeRoute());
-    return;
+    const canOrganisation = to.path.startsWith('/admin/organisation') && ProfileManager.canAccessSection('management');
+    const canEnvironments = to.path.startsWith('/admin/environnements') && ProfileManager.canAccessSection('environments');
+    if (!canOrganisation && !canEnvironments) {
+      next(resolveHomeRoute());
+      return;
+    }
   }
 
   next();

@@ -223,23 +223,6 @@
           </a>
         </div>-->
 
-        <template v-if="canAccessGestion">
-          <div class="nav-section-header" @click.stop="toggleManagement" :class="{ active: activeSection === 'management' || activeSection === 'performance-management' || activeSection === 'environments' }">
-            <span class="nav-title">
-              <span class="nav-icon">⚙️</span>
-              <span class="nav-label">Gestion</span>
-            </span>
-            <span class="toggle-icon">{{ managementExpanded ? '▼' : '▶' }}</span>
-          </div>
-          <div v-if="managementExpanded" class="nav-section-items">
-            <a v-if="canAccessSection('management')" href="#" @click.stop.prevent="selectSection('management')" class="nav-link indent" :class="{ active: activeSection === 'management' }">
-              Données
-            </a>
-            <a v-if="canAccessSection('environments')" href="#" @click.stop.prevent="selectSection('environments')" class="nav-link indent" :class="{ active: activeSection === 'environments' }">
-              Environnements
-            </a>
-          </div>
-        </template>
       </div>
     </nav>
     <div class="sidebar-footer">
@@ -488,12 +471,6 @@ export default {
     },
     canAccessObjectives() {
       return ProfileManager.canAccessSection('objectives');
-    },
-    canAccessGestion() {
-      return ProfileManager.canAccessAny([
-        PERMISSIONS.MENU_GESTION_DONNEES,
-        PERMISSIONS.MENU_GESTION_ENVIRONNEMENTS
-      ]);
     }
   },
   methods: {

@@ -118,6 +118,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/territories/{id}/assign-responsible', [TerritoryController::class, 'assignResponsible']);
     Route::apiResource('territories', TerritoryController::class);
+
+    Route::get('/environments/{environment}/agencies', [\App\Http\Controllers\EnvironmentController::class, 'agencies']);
+    Route::apiResource('environments', \App\Http\Controllers\EnvironmentController::class);
     
     // Routes admin
     Route::prefix('admin')->group(function () {

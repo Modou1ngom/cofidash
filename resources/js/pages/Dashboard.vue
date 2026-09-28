@@ -99,9 +99,7 @@
         <AgencyPerformanceSection v-if="activeSection === 'performance-divers'" :dataType="'divers'" />
         <PrepaidCardSalesSection v-if="activeSection === 'prepaid-cards' && activeSubSection === 'sales'" />
         <PrepaidCardRechargeSection v-if="activeSection === 'prepaid-cards' && activeSubSection === 'recharge'" />
-        <TerritoryAgencyManagement v-if="canAccessSection('management') && activeSection === 'management'" />
         <MoneyTransferSection v-if="canAccessSection('money-transfers') && activeSection === 'money-transfers'" />
-        <EnvironmentsSection v-if="canAccessSection('environments') && activeSection === 'environments'" />
         <ReferenceCompteSection v-if="activeSection === 'reporting-financier' && activeSubSection === 'reference-compte'" />
         <CRParAgenceSection v-if="activeSection === 'reporting-financier' && activeSubSection === 'cr-par-agence'" />
         <div v-if="activeSection === 'reporting-financier' && !activeSubSection" class="section-placeholder">
@@ -140,9 +138,7 @@ const ValidationSection = lazySection(() => import('../components/ValidationSect
 const AgencyPerformanceSection = lazySection(() => import('../components/AgencyPerformanceSection.vue'));
 const PrepaidCardSalesSection = lazySection(() => import('../components/PrepaidCardSalesSection.vue'));
 const PrepaidCardRechargeSection = lazySection(() => import('../components/PrepaidCardRechargeSection.vue'));
-const TerritoryAgencyManagement = lazySection(() => import('../components/TerritoryAgencyManagement.vue'));
 const MoneyTransferSection = lazySection(() => import('../components/MoneyTransferSection.vue'));
-const EnvironmentsSection = lazySection(() => import('../components/EnvironmentsSection.vue'));
 const DepotGarantieSection = lazySection(() => import('../components/DepotGarantieSection.vue'));
 const CollecteEpargneAVueSection = lazySection(() => import('../components/CollecteEpargneAVueSection.vue'));
 const VolumeDatSection = lazySection(() => import('../components/VolumeDatSection.vue'));
@@ -169,9 +165,7 @@ export default {
     AgencyPerformanceSection,
     PrepaidCardSalesSection,
     PrepaidCardRechargeSection,
-    TerritoryAgencyManagement,
     MoneyTransferSection,
-    EnvironmentsSection,
     DepotGarantieSection,
     CollecteEpargneAVueSection,
     VolumeDatSection,
@@ -205,8 +199,13 @@ export default {
       this.$router.push('/pi');
       return;
     }
-    if (!ProfileManager.canAccessSection('management') && !ProfileManager.canAccessSection('environments') && (this.activeSection === 'management' || this.activeSection === 'environments' || this.activeSection === 'performance-management')) {
-      this.activeSection = ProfileManager.firstAllowedDashboardSection();
+    if (this.activeSection === 'management' || this.activeSection === 'performance-management') {
+      this.$router.push('/admin/organisation');
+      return;
+    }
+    if (this.activeSection === 'environments') {
+      this.$router.push('/admin/environnements');
+      return;
     }
     const pendingSection = sessionStorage.getItem('dashboardSection');
     if (pendingSection) {
@@ -237,6 +236,14 @@ export default {
       }
       if (section === 'pi') {
         this.$router.push('/pi');
+        return;
+      }
+      if (section === 'management' || section === 'performance-management') {
+        this.$router.push('/admin/organisation');
+        return;
+      }
+      if (section === 'environments') {
+        this.$router.push('/admin/environnements');
         return;
       }
       if (!ProfileManager.canAccessSection(section)) {

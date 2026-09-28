@@ -98,8 +98,6 @@ export const PERMISSION_GROUPS = [
       { value: PERMISSIONS.MENU_OBJECTIFS_VIEW, label: 'Mes objectifs' },
       { value: PERMISSIONS.MENU_OBJECTIFS_ADD, label: 'Ajouter des objectifs' },
       { value: PERMISSIONS.MENU_OBJECTIFS_VALIDATE, label: 'Valider des objectifs' },
-      { value: PERMISSIONS.MENU_GESTION_DONNEES, label: 'Gestion — Données' },
-      { value: PERMISSIONS.MENU_GESTION_ENVIRONNEMENTS, label: 'Gestion — Environnements' },
       { value: PERMISSIONS.MENU_PI, label: 'Paiement Instantané (PI)' }
     ]
   },
@@ -124,7 +122,9 @@ export const PERMISSION_GROUPS = [
       { value: PERMISSIONS.MANAGE_FINANCIAL, label: 'Gérer les finances' },
       { value: PERMISSIONS.ADMIN_ACCESS, label: 'Accès administrateur' },
       { value: PERMISSIONS.MANAGE_USERS, label: 'Gérer les utilisateurs' },
-      { value: PERMISSIONS.MANAGE_SETTINGS, label: 'Gérer les paramètres' }
+      { value: PERMISSIONS.MANAGE_SETTINGS, label: 'Gérer les paramètres' },
+      { value: PERMISSIONS.MENU_GESTION_DONNEES, label: 'Données (territoires, agences, accès)' },
+      { value: PERMISSIONS.MENU_GESTION_ENVIRONNEMENTS, label: 'Environnements' }
     ]
   }
 ];
@@ -472,9 +472,7 @@ export const ProfileManager = {
       'portefeuille-risque',
       'new-deal',
       'money-transfers',
-      'objectives',
-      'management',
-      'environments'
+      'objectives'
     ];
   },
 
@@ -512,6 +510,8 @@ export const ProfileManager = {
       || this.hasPermission(PERMISSIONS.VIEW_DASHBOARD)
       || this.canViewVue360()
       || this.canAccessSection('caf-overview')
+      || this.canAccessSection('management')
+      || this.canAccessSection('environments')
       || this.canAccessSection('pi');
   },
 

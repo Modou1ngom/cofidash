@@ -163,7 +163,6 @@
 
             <template v-if="expandedSections.TERRITOIRE">
               <template v-for="(territory, territoryKey) in hierarchicalData.TERRITOIRE" :key="territoryKey">
-                <template v-if="territoryKey !== 'grand_compte'">
                   <tr
                     class="level-2-row"
                     :class="{ focused: isCollecteFocused('territory', territoryKey) }"
@@ -287,93 +286,6 @@
                       </template>
                     </template>
                   </template>
-                </template>
-              </template>
-            </template>
-
-            <template v-if="grandCompte">
-              <tr class="grand-compte-row" @click="toggleExpand('GRAND_COMPTE')">
-                <td class="level-2">
-                  <button
-                    v-if="(grandCompte.chargeAffaireDetails || []).length"
-                    class="expand-btn"
-                    type="button"
-                    @click.stop="toggleExpand('GRAND_COMPTE')"
-                  >
-                    {{ expandedSections.GRAND_COMPTE ? '−' : '+' }}
-                  </button>
-                  <span>Grand compte ({{ grandCompte.BRANCH_CODE || '526' }})</span>
-                </td>
-                <td>{{ agencyCodeGestion(grandCompte) }}</td>
-                <td class="col-left">{{ agencyCharge(grandCompte) }}</td>
-                <td class="muted">—</td>
-                <td class="muted">—</td>
-                <td class="muted">—</td>
-                <td class="col-num">{{ formatCurrency(grandCompte.cumMontantFinance) }}</td>
-                <td class="col-num">{{ formatCurrency(grandCompte.objectif) }}</td>
-                <td class="col-num">{{ formatCurrency(grandCompte.encoursCredit) }}</td>
-                <td class="col-num">{{ formatCurrency(grandCompte.mtEcheance) }}</td>
-                <td class="col-num">{{ formatCurrency(grandCompte.totalDepot) }}</td>
-                <td class="col-num">{{ formatCurrency(grandCompte.collecteM) }}</td>
-                <td class="col-num"><span :class="troBadge(grandCompte.tro)">{{ formatTro(grandCompte.tro) }}</span></td>
-              </tr>
-
-              <template v-if="expandedSections.GRAND_COMPTE">
-                <template
-                  v-for="(charge, cIdx) in (grandCompte.chargeAffaireDetails || [])"
-                  :key="`gc-${cIdx}`"
-                >
-                  <tr
-                    class="level-4-row"
-                    @click.stop="toggleExpand(`GRAND_COMPTE_CAF_${cIdx}`)"
-                  >
-                    <td class="level-3">
-                      <button
-                        v-if="(charge.clients || []).length"
-                        class="expand-btn expand-btn--sm"
-                        type="button"
-                        @click.stop="toggleExpand(`GRAND_COMPTE_CAF_${cIdx}`)"
-                      >
-                        {{ expandedSections[`GRAND_COMPTE_CAF_${cIdx}`] ? '−' : '+' }}
-                      </button>
-                      <span class="branch-chip">{{ grandCompte.BRANCH_CODE || '526' }}</span>
-                    </td>
-                    <td><code class="code-caf">{{ charge.codeGestion || charge.CODE_CAF || '—' }}</code></td>
-                    <td class="col-left">{{ charge.chargeAffaire || charge.CHARGE_AFFAIRE || '—' }}</td>
-                    <td class="muted">—</td>
-                    <td class="muted">—</td>
-                    <td class="muted">{{ chargeClientCount(charge) }} client(s)</td>
-                    <td class="col-num">{{ formatCurrency(charge.cumMontantFinance) }}</td>
-                    <td class="col-num">{{ formatCurrency(charge.objectif) }}</td>
-                    <td class="col-num">{{ formatCurrency(charge.encoursCredit) }}</td>
-                    <td class="col-num">{{ formatCurrency(charge.mtEcheance) }}</td>
-                    <td class="col-num">{{ formatCurrency(charge.totalDepot) }}</td>
-                    <td class="col-num">{{ formatCurrency(charge.collecteM) }}</td>
-                    <td class="col-num"><span :class="troBadge(charge.tro)">{{ formatTro(charge.tro) }}</span></td>
-                  </tr>
-
-                  <template v-if="expandedSections[`GRAND_COMPTE_CAF_${cIdx}`]">
-                    <tr
-                      v-for="(client, clIdx) in (charge.clients || [])"
-                      :key="`gc-${cIdx}-c-${clIdx}`"
-                      class="level-5-row"
-                    >
-                      <td class="level-4 muted">Client</td>
-                      <td><code class="code-caf">{{ client.CODE_CAF || charge.codeGestion }}</code></td>
-                      <td class="col-left">{{ client.CHARGE_AFFAIRE || charge.chargeAffaire }}</td>
-                      <td>{{ client.MATRICULE_CLIENT || '—' }}</td>
-                      <td><code class="compte">{{ client.NUMERO_COMPTE || '—' }}</code></td>
-                      <td class="col-left client-name">{{ client.NOM_CLIENT || '—' }}</td>
-                      <td class="col-num">{{ formatCurrency(client.CUM_MONTANT_FINANCE) }}</td>
-                      <td class="col-num">{{ formatCurrency(client.OBJ_COL_EPV_VUE) }}</td>
-                      <td class="col-num">{{ formatCurrency(client.CUM_ENCOURS_CREDIT) }}</td>
-                      <td class="col-num">{{ formatCurrency(client.MONTANT_ECHEANCE) }}</td>
-                      <td class="col-num">{{ formatCurrency(client.TOTAL_DEPOT) }}</td>
-                      <td class="col-num">{{ formatCurrency(client.COL_EP_VUE) }}</td>
-                      <td class="col-num"><span :class="troBadge(client.tro)">{{ formatTro(client.tro) }}</span></td>
-                    </tr>
-                  </template>
-                </template>
               </template>
             </template>
 
@@ -911,11 +823,11 @@ export default {
     },
     hasTerritoires() {
       const t = this.hierarchicalData?.TERRITOIRE || {};
-      return Object.keys(t).some((k) => k !== 'grand_compte' && (t[k]?.agencies || []).length);
+      return Object.keys(t).some((k) => (t[k]?.agencies || []).length);
     },
     territoireEntries() {
       const t = this.hierarchicalData?.TERRITOIRE || {};
-      return Object.entries(t).filter(([k]) => k !== 'grand_compte');
+      return Object.entries(t);
     },
     territoireTotal() {
       const totals = {
@@ -939,22 +851,8 @@ export default {
       totals.tro = totals.objectif > 0 ? (totals.collecteM / totals.objectif) * 100 : 0;
       return totals;
     },
-    grandCompte() {
-      const gc = this.hierarchicalData?.TERRITOIRE?.grand_compte;
-      return gc?.agencies?.[0] || null;
-    },
     grandTotal() {
-      const t = { ...this.territoireTotal };
-      if (this.grandCompte) {
-        t.cumMontantFinance += Number(this.grandCompte.cumMontantFinance) || 0;
-        t.encoursCredit += Number(this.grandCompte.encoursCredit) || 0;
-        t.mtEcheance += Number(this.grandCompte.mtEcheance) || 0;
-        t.objectif += Number(this.grandCompte.objectif) || 0;
-        t.collecteM += Number(this.grandCompte.collecteM) || 0;
-        t.totalDepot += Number(this.grandCompte.totalDepot) || 0;
-        t.tro = t.objectif > 0 ? (t.collecteM / t.objectif) * 100 : 0;
-      }
-      return t;
+      return this.territoireTotal;
     },
     chartTitle() {
       if (this.activeLevel.type === 'agency') return `Évolution — ${this.activeLevel.name}`;
@@ -1191,11 +1089,6 @@ export default {
           }
         }
       }
-      if (this.grandCompte) {
-        for (const charge of this.grandCompte.chargeAffaireDetails || []) {
-          count += this.chargeClientCount(charge);
-        }
-      }
       return count;
     },
     dashboardAgencyRows() {
@@ -1277,7 +1170,7 @@ export default {
           id: key,
           type: 'territory',
           territoryKey: key,
-          name: territory.name,
+          name: String(territory.name || '').replace(/^TERRITOIRE\s+/i, '').trim() || territory.name,
           objectif,
           collecteM,
           ecart: collecteM - objectif,

@@ -89,12 +89,12 @@ export default {
         {
           id: 'administration',
           title: 'Administration',
-          description: 'Gérez les comptes, les profils et les droits d’accès à la plateforme.',
-          points: ['Utilisateurs', 'Profils', 'Permissions'],
-          route: '/admin',
+          description: 'Territoires, agences, environnements, utilisateurs et profils d’accès.',
+          points: ['Données', 'Environnements'],
+          route: this.adminRoute,
           tone: 'red',
           icon: ICONS.admin,
-          visible: ProfileManager.isAdmin(),
+          visible: this.canOpenAdmin,
         },
         {
           id: 'cofidash',
@@ -117,6 +117,16 @@ export default {
           visible: ProfileManager.canAccessSection('pi'),
         },
       ].filter((module) => module.visible);
+    },
+    canOpenAdmin() {
+      return ProfileManager.isAdmin()
+        || ProfileManager.canAccessSection('management')
+        || ProfileManager.canAccessSection('environments');
+    },
+    adminRoute() {
+      if (ProfileManager.isAdmin()) return '/admin';
+      if (ProfileManager.canAccessSection('management')) return '/admin/organisation';
+      return '/admin/environnements';
     },
     canOpenCofidash() {
       return ProfileManager.hasDashboardMenuAccess()

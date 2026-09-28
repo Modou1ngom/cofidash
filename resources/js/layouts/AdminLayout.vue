@@ -24,14 +24,17 @@
         <div class="aside-top">
           <p class="aside-product">Navigation</p>
           <nav aria-label="Administration">
-            <router-link to="/admin" class="aside-item" exact-active-class="is-active" active-class="">
+            <router-link v-if="isAdmin" to="/admin" class="aside-item" exact-active-class="is-active" active-class="">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
               Tableau de bord
             </router-link>
-            <router-link to="/admin/users" class="aside-item" active-class="is-active">
-              Utilisateurs
+            <router-link v-if="canManageData" to="/admin/organisation" class="aside-item" active-class="is-active">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10" stroke-linecap="round"/></svg>
+              Données
             </router-link>
-            <router-link to="/admin/profiles" class="aside-item" active-class="is-active">
-              Profils
+            <router-link v-if="canManageEnvironments" to="/admin/environnements" class="aside-item" active-class="is-active">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.2 2.4 3.3 5.1 3.3 8S14.2 17.6 12 20c-2.2-2.4-3.3-5.1-3.3-8S9.8 6.4 12 4z"/></svg>
+              Environnements
             </router-link>
           </nav>
         </div>
@@ -73,6 +76,15 @@ export default {
         .join('')
         .toUpperCase();
     },
+    isAdmin() {
+      return ProfileManager.isAdmin();
+    },
+    canManageData() {
+      return ProfileManager.isAdmin() || ProfileManager.canAccessSection('management');
+    },
+    canManageEnvironments() {
+      return ProfileManager.isAdmin() || ProfileManager.canAccessSection('environments');
+    },
   },
   methods: {
     async logout() {
@@ -96,21 +108,21 @@ export default {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f4f6f8;
-  color: #111827;
+  background: #f3f6f4;
+  color: #1c2430;
   font-family: Inter, "Segoe UI", Helvetica, Arial, sans-serif;
 }
 
 .topbar {
   display: flex;
-  min-height: 84px;
-  background: #163d2e;
+  min-height: 76px;
+  background: linear-gradient(135deg, #1a4d3a 0%, #2d6a4f 55%, #3d7a5c 100%);
   color: #fff;
-  box-shadow: 0 8px 24px rgba(15, 40, 30, 0.18);
+  box-shadow: 0 1px 0 rgba(15, 40, 30, 0.12);
 }
 
 .logo-slab {
-  width: 196px;
+  width: 228px;
   flex-shrink: 0;
   background: #fff;
   display: flex;
@@ -207,10 +219,10 @@ export default {
 }
 
 .admin-aside {
-  width: 196px;
+  width: 228px;
   background: #fff;
-  border-right: 1px solid #eef2f6;
-  padding: 24px 18px;
+  border-right: 1px solid #e6ece8;
+  padding: 22px 16px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -218,36 +230,63 @@ export default {
 }
 
 .aside-product {
-  margin: 0 0 16px;
+  margin: 0 0 14px;
   color: #94a3b8;
-  font-size: 13px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .aside-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 10px 12px;
   border-radius: 8px;
   text-decoration: none;
   color: #334155;
   font-size: 14px;
+  font-weight: 500;
   margin-bottom: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.aside-item svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+
+.aside-item:hover {
+  background: #f3f6f4;
+  color: #1a4d3a;
 }
 
 .aside-item.is-active {
-  background: #fff1f2;
-  color: #111827;
-  font-weight: 600;
+  background: #e7f2ec;
+  color: #1a4d3a;
+  font-weight: 650;
 }
 
 .aside-item--back {
   color: #64748b;
+  font-size: 13px;
+}
+
+.aside-item--back:hover {
+  background: transparent;
+  color: #1a4d3a;
 }
 
 .admin-main {
   flex: 1;
   min-width: 0;
   overflow: auto;
-  padding: 28px 32px;
+  padding: 28px 36px 40px;
 }
 
 @media (max-width: 900px) {
