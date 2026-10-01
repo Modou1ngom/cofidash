@@ -1,6 +1,6 @@
 # Objectifs collecte épargne à vue — snapshot mensuel (Flexcube).
 # Pas de filtre date : photo des encours / objectifs à l'instant T (typiquement le 1er du mois).
-# Périmètre ENCOURS_CLIENT aligné sur collecte_epargne_a_vue_query.py.
+# Périmètre ENCOURS_CLIENT aligné sur requete mobile/collecte_epargne_a_vue/collecte_epargne_a_vue.sql.
 
 OBJECTIF_EPV_VUE_SNAPSHOT_QUERY = """
 WITH ENCOURS AS (

@@ -20,7 +20,6 @@ from services.collecte_epargne_a_vue_backup_service import (
     materialize_collecte_display,
     refresh_collecte_epv_vue_snapshot,
 )
-from services.collecte_epargne_a_vue_query import COLLECTE_EPARGNE_A_VUE_QUERY
 from services.objectif_epv_vue_backup_service import apply_frozen_objectifs
 from services.utils import (
     get_territory_from_agency,

@@ -12,21 +12,52 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from database.oracle_pool import get_pool_flexcube
-from services.collecte_epargne_a_vue_query import COLLECTE_EPARGNE_A_VUE_QUERY
 
 logger = logging.getLogger(__name__)
 
 _PY_ROOT = Path(__file__).resolve().parent.parent
+SQL_PATH = (
+    _PY_ROOT / "requete mobile" / "collecte_epargne_a_vue" / "collecte_epargne_a_vue.sql"
+)
 LOCAL_DB_PATH = _PY_ROOT / "data" / "collecte_epargne_a_vue_local.db"
 _CALL_TIMEOUT_MS = 240_000
+
+
+_FLEXCUBE_TABLES = (
+    "CLTB_ACCOUNT_MASTER",
+    "CLTB_ACCOUNT_SCHEDULES",
+    "STTM_CUST_ACCOUNT",
+    "STTM_ACCOUNT_CLASS",
+    "ACVW_ALL_AC_ENTRIES",
+)
+
+
+def _qualify_flexcube(sql: str) -> str:
+    """Préfixe les tables Flexcube. Le fichier SQL reste sans schéma."""
+    for table in _FLEXCUBE_TABLES:
+        sql = re.sub(
+            rf"(?i)(?<!CFSFCUBS145\.)\b{table}\b",
+            f"CFSFCUBS145.{table}",
+            sql,
+        )
+    return sql
+
+
+def _load_collecte_query() -> str:
+    if not SQL_PATH.is_file():
+        raise FileNotFoundError(f"Requête introuvable : {SQL_PATH}")
+    sql = SQL_PATH.read_text(encoding="utf-8").strip().rstrip(";").strip()
+    return _qualify_flexcube(sql)
+
 
 _SQLITE_DDL = """
 CREATE TABLE IF NOT EXISTS collecte_epv_vue_rows (
@@ -330,8 +361,103 @@ def get_collecte_snapshot_meta(month: int, year: int) -> Optional[Dict[str, Any]
         conn.close()
 
 
+_BRANCH_NAMES_SQL = """
+SELECT BRANCH_CODE, BRANCH_NAME
+FROM CFSFCUBS145.STTM_BRANCH
+WHERE BRANCH_CODE IS NOT NULL
+  AND BRANCH_NAME IS NOT NULL
+"""
+
+
+def _reference_labels() -> tuple[Dict[str, str], Dict[str, str]]:
+    """Noms d'agence et chargés d'affaires, hors requête métier."""
+    from services.caf_manager_service import list_gestion_pret_managers
+
+    caf_names = {
+        str(item.get("code_gestion_pret") or "").strip(): str(item.get("charge_affaire") or "").strip()
+        for item in list_gestion_pret_managers()
+        if str(item.get("code_gestion_pret") or "").strip()
+        and str(item.get("charge_affaire") or "").strip()
+    }
+    branch_names: Dict[str, str] = {}
+    pool = get_pool_flexcube()
+    with pool.get_connection_context() as conn:
+        cursor = conn.cursor()
+        try:
+            if hasattr(cursor, "callTimeout"):
+                cursor.callTimeout = 30_000
+            cursor.execute(_BRANCH_NAMES_SQL)
+            for code, name in cursor.fetchall():
+                code_s = str(code or "").strip()
+                name_s = str(name or "").strip()
+                if code_s and name_s:
+                    branch_names[code_s] = name_s
+        finally:
+            cursor.close()
+    return branch_names, caf_names
+
+
+def _apply_reference_labels(rows: List[Dict[str, Any]]) -> None:
+    if not rows:
+        return
+    missing = False
+    for row in rows:
+        code_agence = str(row.get("code_agence") or "").strip()
+        branch_name = str(row.get("branch_name") or "").strip()
+        charge = str(row.get("charge_affaire") or "").strip()
+        if not charge or not branch_name or branch_name == code_agence:
+            missing = True
+            break
+    if not missing:
+        return
+
+    branch_names, caf_names = _reference_labels()
+    for row in rows:
+        code_agence = str(row.get("code_agence") or "").strip()
+        branch_name = str(row.get("branch_name") or "").strip()
+        if not branch_name or branch_name == code_agence:
+            row["branch_name"] = branch_names.get(code_agence) or branch_name or code_agence
+        code_caf = str(row.get("code_caf") or "").strip()
+        if not str(row.get("charge_affaire") or "").strip():
+            row["charge_affaire"] = caf_names.get(code_caf) or ""
+
+
+def _persist_reference_labels(month_key: str, rows: List[Dict[str, Any]]) -> None:
+    if not rows:
+        return
+    conn = _connect_local()
+    try:
+        conn.executemany(
+            """
+            UPDATE collecte_epv_vue_rows
+            SET branch_name = ?, charge_affaire = ?
+            WHERE month_key = ?
+              AND IFNULL(code_agence, '') = ?
+              AND IFNULL(code_caf, '') = ?
+              AND IFNULL(matricule_client, '') = ?
+              AND IFNULL(numero_compte, '') = ?
+            """,
+            [
+                (
+                    str(row.get("branch_name") or ""),
+                    str(row.get("charge_affaire") or ""),
+                    month_key,
+                    str(row.get("code_agence") or ""),
+                    str(row.get("code_caf") or ""),
+                    str(row.get("matricule_client") or ""),
+                    str(row.get("numero_compte") or ""),
+                )
+                for row in rows
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _fetch_collecte_from_flexcube(month: int, year: int) -> tuple[List[Dict[str, Any]], str, str]:
     date_debut, date_fin_exclusive = _month_bounds_iso(month, year)
+    date_fin = (date.fromisoformat(date_fin_exclusive) - timedelta(days=1)).isoformat()
     pool = get_pool_flexcube()
     with pool.get_connection_context() as conn:
         cursor = conn.cursor()
@@ -339,10 +465,10 @@ def _fetch_collecte_from_flexcube(month: int, year: int) -> tuple[List[Dict[str,
             if hasattr(cursor, "callTimeout"):
                 cursor.callTimeout = _CALL_TIMEOUT_MS
             cursor.execute(
-                COLLECTE_EPARGNE_A_VUE_QUERY,
+                _load_collecte_query(),
                 {
                     "date_debut": date_debut,
-                    "date_fin_exclusive": date_fin_exclusive,
+                    "date_fin": date_fin,
                 },
             )
             columns = [str(col[0]).lower() for col in cursor.description]
@@ -351,6 +477,7 @@ def _fetch_collecte_from_flexcube(month: int, year: int) -> tuple[List[Dict[str,
                 rows.append(
                     {columns[i]: _serialize_cell(raw[i]) for i in range(len(columns))}
                 )
+            _apply_reference_labels(rows)
             return rows, date_debut, date_fin_exclusive
         finally:
             cursor.close()
@@ -572,6 +699,8 @@ def materialize_collecte_display(
         raise ValueError(f"Pas de lignes brutes pour matérialiser l'affichage {key}")
 
     rows = load_collecte_snapshot_rows(m, y)
+    _apply_reference_labels(rows)
+    _persist_reference_labels(key, rows)
     rows, objectifs_meta = apply_frozen_objectifs(rows, m, y)
     hierarchical = _build_hierarchical(rows)
     snapshot_meta = get_collecte_snapshot_meta(m, y) or {}

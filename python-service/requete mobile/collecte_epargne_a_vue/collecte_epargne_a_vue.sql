@@ -1,0 +1,305 @@
+WITH ENCOURS  AS (
+    SELECT 
+        w.BRANCH_CODE,
+        w.FIELD_CHAR_2,
+        w.CUSTOMER_ID,
+        w.DR_PROD_AC,
+        w.PRIMARY_APPLICANT_NAME,
+        w.ACCOUNT_NUMBER,
+        w.AMOUNT_FINANCED,
+        w.USER_DEFINED_STATUS,
+        w.FIELD_CHAR_10 "REFERENCE_COMITE" ,
+        nvl (w.FIELD_CHAR_13, 'NO') as  "ID_PROTOCOLES" , 
+
+        NVL(w.FIELD_CHAR_19, 'NO') AS "REBOOKER"
+       ,w.FIELD_CHAR_14 "ID_LIGNE_FINANCEMENT" 
+       ,NVL(w.FIELD_CHAR_7,'NO') as "CODE_REF_CREDIT_RESTRUCTURE"  
+       ,w.FIELD_NUMBER_5 "NO_CONTRAT_RESTRUCTURE"
+
+        ,SUM(
+            NVL(z.AMOUNT_DUE, 0) - NVL(z.AMOUNT_SETTLED, 0)
+        ) AS ENCOURS_TOTAL_M,
+
+        SUM(
+            CASE 
+                WHEN w.USER_DEFINED_STATUS IN ('NORM', 'IMPA') 
+                THEN NVL(z.AMOUNT_DUE, 0) - NVL(z.AMOUNT_SETTLED, 0)
+                ELSE 0 
+            END
+        ) AS ENCOURS_SAIN_M,
+
+        SUM(
+            CASE 
+                WHEN w.USER_DEFINED_STATUS NOT IN ('NORM', 'IMPA') 
+                THEN NVL(z.AMOUNT_DUE, 0) - NVL(z.AMOUNT_SETTLED, 0)
+                ELSE 0 
+            END                      
+        ) AS ENCOURS_IMPAYE_M
+
+    FROM CLTB_ACCOUNT_MASTER w
+
+    LEFT JOIN CLTB_ACCOUNT_SCHEDULES z 
+        ON z.ACCOUNT_NUMBER = w.ACCOUNT_NUMBER
+       AND z.COMPONENT_NAME = 'PRINCIPAL'
+
+    WHERE w.ACCOUNT_STATUS NOT IN ('L', 'V')
+      and w.USER_DEFINED_STATUS IN ('NORM', 'IMMO')
+      and w.ACCOUNT_NUMBER not like '%RA%'
+      and w.DR_PROD_AC not in (select CUST_AC_NO from STTM_CUST_ACCOUNT  where ACCOUNT_CLASS='25136')
+
+    GROUP BY 
+        w.BRANCH_CODE,
+        w.FIELD_CHAR_2,
+        w.CUSTOMER_ID,
+        w.DR_PROD_AC,
+        w.PRIMARY_APPLICANT_NAME,
+        w.ACCOUNT_NUMBER,
+        w.AMOUNT_FINANCED,
+        w.USER_DEFINED_STATUS
+        ,w.FIELD_CHAR_13 
+       ,w.FIELD_CHAR_14 
+       ,w.FIELD_NUMBER_5 
+       ,w.FIELD_CHAR_7 
+       , w.FIELD_CHAR_10
+       ,w.FIELD_CHAR_19
+)
+,
+
+
+ENCOURS_CLIENT  as (  select * from ENCOURS  where REBOOKER !='YES'   and  ID_PROTOCOLES not like 'PC%' and CODE_REF_CREDIT_RESTRUCTURE !='YES'  ),
+
+
+OBJ_COL_EPV_LIM_DEX AS (
+    SELECT 
+        BRANCH_CODE,
+        FIELD_CHAR_2,
+        CUSTOMER_ID,
+        DR_PROD_AC,
+        PRIMARY_APPLICANT_NAME,
+        ACCOUNT_NUMBER,
+        AMOUNT_FINANCED,
+        USER_DEFINED_STATUS,
+        ENCOURS_TOTAL_M,
+
+        ROUND(ENCOURS_TOTAL_M * 0.10, 0) AS OBJ_COL_EPV_VUE
+
+    FROM ENCOURS_CLIENT
+
+    WHERE AMOUNT_FINANCED <= 10000000
+)
+,OBJ_COL_EPV_SUP_LIM_DEX AS (
+    SELECT 
+        BRANCH_CODE,
+        FIELD_CHAR_2,
+        CUSTOMER_ID,
+        DR_PROD_AC,
+        PRIMARY_APPLICANT_NAME,
+        ACCOUNT_NUMBER,
+        AMOUNT_FINANCED,
+        USER_DEFINED_STATUS,
+        ENCOURS_TOTAL_M,
+
+        ROUND(ENCOURS_TOTAL_M * 0.5, 0) AS OBJ_COL_EPV_VUE
+
+    FROM ENCOURS_CLIENT
+
+    WHERE AMOUNT_FINANCED > 10000000
+)
+
+
+,OBJ_COL_EP_VUE as (
+SELECT *
+FROM OBJ_COL_EPV_SUP_LIM_DEX
+union 
+SELECT *
+FROM OBJ_COL_EPV_LIM_DEX 
+),
+
+OBJ_COL_EP_VUE_F as (select 
+        BRANCH_CODE as CODE_AGENCE,
+        FIELD_CHAR_2 as CODE_CAF,
+        CUSTOMER_ID as MATRICULE_CLIENT,
+        DR_PROD_AC as NUMERO_COMPTE,
+        PRIMARY_APPLICANT_NAME as NOM_CLIENT,
+   
+        sum (AMOUNT_FINANCED) AS CUM_MONTANT_FINANCE,
+       sum (ENCOURS_TOTAL_M)  AS CUM_ENCOURS_CREDIT,
+        sum (OBJ_COL_EPV_VUE) AS  OBJ_COL_EPV_VUE
+from OBJ_COL_EP_VUE 
+
+group by BRANCH_CODE,
+        FIELD_CHAR_2,
+        CUSTOMER_ID,
+        DR_PROD_AC,
+        PRIMARY_APPLICANT_NAME,
+        AMOUNT_FINANCED)
+
+        ,
+        
+        
+ DEPOT AS (
+    SELECT
+        CPT.CUST_NO,
+        A.AC_NO,
+        COUNT(A.TRN_REF_NO) AS NB_TRANSACTIONS,
+        SUM(A.LCY_AMOUNT) AS TOTAL_VERSEMENTS
+    FROM ACVW_ALL_AC_ENTRIES A
+    JOIN STTM_CUST_ACCOUNT CPT
+        ON A.AC_NO = CPT.CUST_AC_NO
+    JOIN STTM_ACCOUNT_CLASS CL
+        ON CPT.ACCOUNT_CLASS = CL.ACCOUNT_CLASS
+    WHERE CL.ACCOUNT_CODE IN ('251', '253')
+      AND A.DRCR_IND = 'C'
+      AND A.TRN_CODE IN ('001', '310', '320', '315', '317','301','303','094','510')
+      AND A.MODULE NOT IN ('CL')
+      AND A.VALUE_DT BETWEEN TO_DATE(:date_debut, 'YYYY-MM-DD')
+                         AND TO_DATE(:date_fin, 'YYYY-MM-DD')
+    GROUP BY
+        CPT.CUST_NO,
+        A.AC_NO
+)
+,
+
+DEPOT_CLIENT as( SELECT
+    CUST_NO as MATRICULE_CLIENT,
+    SUM(TOTAL_VERSEMENTS) AS TOTAL_DEPOT
+FROM DEPOT
+GROUP BY
+    CUST_NO
+ORDER BY
+    CUST_NO)
+    ,
+PENALITE AS (
+    SELECT 
+        c.account_number AS NO_PRET,
+        z.SCHEDULE_NO,
+        SUM(NVL(z.AMOUNT_DUE, 0)) AS TOTAL_PENALITE,
+        SUM(NVL(z.AMOUNT_SETTLED, 0)) AS TOTAL_PENALITE_PAYE,
+        SUM(NVL(z.AMOUNT_DUE, 0) - NVL(z.AMOUNT_SETTLED, 0)) AS TOTAL_PENALITE_RESTANT
+    FROM CFSFCUBS145.cltb_account_master c
+    LEFT JOIN CFSFCUBS145.cltb_account_schedules z 
+        ON z.account_number = c.account_number
+    WHERE 
+        c.ACCOUNT_STATUS NOT IN ('L', 'V')
+        AND z.COMPONENT_NAME IN ('ODIN_PNTY', 'ODIN_PNTYT', 'ODPR_PNTY', 'ODPR_PNTYT')
+    GROUP BY 
+        c.account_number,
+        z.SCHEDULE_NO
+)
+
+,
+
+BASE AS (
+    SELECT  
+        ACCOUNT_NUMBER,
+        SCHEDULE_DUE_DATE,
+        SUM(NVL(AMOUNT_DUE, 0)) AS MONTANT_ECHEANCE,
+        SUM(NVL(AMOUNT_SETTLED, 0)) AS MONTANT_ECHEANCE_PAYE,
+        SUM(
+            CASE 
+                WHEN SCHEDULE_DUE_DATE > TRUNC(SYSDATE) THEN 0
+                ELSE NVL(AMOUNT_DUE, 0) - NVL(AMOUNT_SETTLED, 0)
+            END
+        ) AS MONTANT_ECHEANCE_IMPY
+    FROM CLTB_ACCOUNT_SCHEDULES
+    WHERE COMPONENT_NAME IN ('MAIN_INT', 'PRINCIPAL')
+    GROUP BY 
+        ACCOUNT_NUMBER,
+        SCHEDULE_DUE_DATE
+)
+,
+
+BASE_NUM AS (
+    SELECT  
+        e.*,
+        ROW_NUMBER() OVER (
+            PARTITION BY e.ACCOUNT_NUMBER 
+            ORDER BY e.SCHEDULE_DUE_DATE
+        ) AS NUMERO_ECHEANCE
+    FROM BASE e
+)
+
+,
+
+FINAL AS (
+    SELECT  
+        e.ACCOUNT_NUMBER,
+        e.SCHEDULE_DUE_DATE,
+        e.NUMERO_ECHEANCE,
+        e.MONTANT_ECHEANCE,
+        e.MONTANT_ECHEANCE_PAYE,
+        e.MONTANT_ECHEANCE_IMPY,
+        NVL(pen.TOTAL_PENALITE_RESTANT, 0) AS PENALITE,
+        (NVL(e.MONTANT_ECHEANCE_IMPY,0) + NVL(pen.TOTAL_PENALITE_RESTANT, 0)) AS EXIGIBLE,
+
+        /* AJOUT DU STATUS */
+        CASE 
+            WHEN (NVL(e.MONTANT_ECHEANCE_IMPY,0) + NVL(pen.TOTAL_PENALITE_RESTANT, 0)) > 0 
+                THEN 'I'  -- IMPAYÉ
+
+            WHEN (NVL(e.MONTANT_ECHEANCE_IMPY,0) + NVL(pen.TOTAL_PENALITE_RESTANT, 0)) = 0 
+                 AND e.SCHEDULE_DUE_DATE < TRUNC(SYSDATE)
+                THEN 'R'  -- REMBOURSÉ
+
+            WHEN (NVL(e.MONTANT_ECHEANCE_IMPY,0) + NVL(pen.TOTAL_PENALITE_RESTANT, 0)) = 0 
+                 AND e.SCHEDULE_DUE_DATE >= TRUNC(SYSDATE)
+                THEN 'A'  -- ATTENTE
+
+            ELSE NULL
+        END AS STATUS
+
+    FROM BASE_NUM e
+    LEFT JOIN PENALITE pen 
+        ON pen.NO_PRET = e.ACCOUNT_NUMBER 
+       AND pen.SCHEDULE_NO = e.NUMERO_ECHEANCE
+)
+
+,
+---------------------------------------------------------------------------------------------------------------------------------------------------
+TA AS (
+SELECT *
+FROM FINAL where SCHEDULE_DUE_DATE Between TO_DATE(:date_debut, 'YYYY-MM-DD') and TO_DATE(:date_fin, 'YYYY-MM-DD')
+
+UNION ALL
+
+SELECT  
+    NULL as ACCOUNT_NUMBER,
+    NULL AS SCHEDULE_DUE_DATE,
+    NULL AS NUMERO_ECHEANCE,
+    SUM(MONTANT_ECHEANCE) AS MONTANT_ECHEANCE,
+    SUM(MONTANT_ECHEANCE_PAYE) AS MONTANT_ECHEANCE_PAYE,
+    SUM(MONTANT_ECHEANCE_IMPY) AS MONTANT_ECHEANCE_IMPY,
+    SUM(PENALITE) AS PENALITE,
+    SUM(EXIGIBLE) AS EXIGIBLE,
+    NULL as STATUS
+FROM FINAL where SCHEDULE_DUE_DATE Between TO_DATE(:date_debut, 'YYYY-MM-DD') and TO_DATE(:date_fin, 'YYYY-MM-DD')
+)
+
+,
+
+TA_M as (
+select 
+c.BRANCH_CODE,
+c.CUSTOMER_ID,
+c.PRIMARY_APPLICANT_NAME,
+sum (z.MONTANT_ECHEANCE) as MONTANT_ECHEANCE
+
+from TA  z
+LEFT JOIN CFSFCUBS145.cltb_account_master c
+ON z.account_number = c.account_number
+where c.USER_DEFINED_STATUS IN ('NORM', 'IMMO')
+and c.PRODUCT_CODE NOT LIKE 'RA%'
+group by 
+c.BRANCH_CODE,
+c.CUSTOMER_ID,
+c.PRIMARY_APPLICANT_NAME
+)
+
+SELECT v.*,nvl(t.MONTANT_ECHEANCE,0) AS MONTANT_ECHEANCE ,nvl(d.TOTAL_DEPOT,0) AS TOTAL_DEPOT,
+(CASE 
+WHEN (nvl(d.TOTAL_DEPOT,0) - nvl(t.MONTANT_ECHEANCE,0)) <= 0 
+THEN 0 ELSE (nvl(d.TOTAL_DEPOT,0) - nvl(t.MONTANT_ECHEANCE,0)) 
+END) AS COL_EP_VUE
+FROM OBJ_COL_EP_VUE_F v
+LEFT JOIN DEPOT_CLIENT d ON d.MATRICULE_CLIENT=v.MATRICULE_CLIENT
+LEFT JOIN TA_M t ON t.CUSTOMER_ID=v.MATRICULE_CLIENT
