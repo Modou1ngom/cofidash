@@ -4,11 +4,17 @@ avec le même filtre MIGRATION_DATE_MINUS1 que Volume DAT (jour / mois / semaine
 """
 import logging
 from datetime import date as dt_date
-from datetime import timedelta
+from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Optional
 
-from database.oracle_pool import get_pool
+from database.oracle_pool import get_pool, get_pool_flexcube
+from services.cache_service import TTL_DASHBOARD, get_cache, set_cache
 from services.volume_dat_service import _ref_month_year, _week_range_dd_mm_yyyy
+
+_PY_ROOT = Path(__file__).resolve().parent.parent
+_PRODUCTION_SQL_PATH = _PY_ROOT / "requete mobile" / "production" / "production.sql"
+_PRODUCTION_CALL_TIMEOUT_MS = 240_000
 
 logger = logging.getLogger(__name__)
 
@@ -459,10 +465,12 @@ def normalize_volume_row_from_dash(row: dict) -> dict:
     for fk in ("OBJECTIF_PRODUCTION", "TAUX_REALISATION"):
         if fk not in out or out[fk] is None:
             out[fk] = 0
-    out["FRAIS_DOSSIER_M"] = 0
-    out["FRAIS_DOSSIER_M_1"] = 0
-    out["ECART_FRAIS"] = 0
-    out["VARIATION_FRAIS"] = 0
+    frais_m = float(out.get("FRAIS_DOSSIER_M") or 0)
+    frais_m1 = float(out.get("FRAIS_DOSSIER_M_1") or 0)
+    out["FRAIS_DOSSIER_M"] = frais_m
+    out["FRAIS_DOSSIER_M_1"] = frais_m1
+    out["ECART_FRAIS"] = frais_m - frais_m1
+    out["VARIATION_FRAIS"] = frais_m - frais_m1
     return out
 
 
@@ -530,6 +538,149 @@ def normalize_encours_row_from_dash(row: dict) -> dict:
     if not out.get("AGENCE"):
         out["AGENCE"] = ""
     return out
+
+
+def _load_production_query() -> str:
+    if not _PRODUCTION_SQL_PATH.is_file():
+        raise FileNotFoundError(f"Requête introuvable : {_PRODUCTION_SQL_PATH}")
+    return _PRODUCTION_SQL_PATH.read_text(encoding="utf-8").strip().rstrip(";").strip()
+
+
+def _pick_col(row: dict, *names: str) -> Any:
+    index = {str(key).strip().upper(): value for key, value in row.items()}
+    for name in names:
+        value = index.get(str(name).strip().upper())
+        if value is not None:
+            return value
+    return None
+
+
+def _as_date(value: Any) -> Optional[dt_date]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, dt_date):
+        return value
+    text = str(value).strip()
+    if len(text) >= 10 and text[4] == "-" and text[7] == "-":
+        try:
+            return dt_date.fromisoformat(text[:10])
+        except ValueError:
+            return None
+    if len(text) >= 10 and text[2] == "/" and text[5] == "/":
+        try:
+            return datetime.strptime(text[:10], "%d/%m/%Y").date()
+        except ValueError:
+            return None
+    return None
+
+
+def _in_range(value: Optional[dt_date], start: dt_date, end: dt_date) -> bool:
+    return value is not None and start <= value <= end
+
+
+def fetch_flexcube_production_detail(
+    range_start: dt_date,
+    range_end: dt_date,
+) -> list[dict]:
+    """Exécute production.sql sur Flexcube. Dates inclusives, format YYYY-MM-DD."""
+    m_start = range_start.isoformat()
+    m_end = range_end.isoformat()
+    cache_key = f"prod-flexcube:{m_start}:{m_end}"
+    cached = get_cache(cache_key)
+    if cached is not None:
+        logger.info("⚡ production Flexcube cache hit %s → %s (%s)", m_start, m_end, len(cached))
+        return cached
+
+    pool = get_pool_flexcube()
+    with pool.get_connection_context() as conn:
+        cursor = conn.cursor()
+        try:
+            if hasattr(cursor, "callTimeout"):
+                cursor.callTimeout = _PRODUCTION_CALL_TIMEOUT_MS
+            cursor.execute(
+                _load_production_query(),
+                {"m_start": m_start, "m_end": m_end},
+            )
+            columns = [str(col[0]) for col in cursor.description]
+            rows = [dict(zip(columns, raw)) for raw in cursor.fetchall()]
+        finally:
+            cursor.close()
+
+    logger.info("📊 production Flexcube %s → %s : %s lignes", m_start, m_end, len(rows))
+    set_cache(cache_key, rows, TTL_DASHBOARD)
+    return rows
+
+
+def _bucket_production_rows(
+    rows: list[dict],
+    m_debut: dt_date,
+    m_fin: dt_date,
+    m1_debut: dt_date,
+    m1_fin: dt_date,
+) -> dict[tuple[str, str], dict]:
+    buckets: dict[tuple[str, str], dict] = {}
+    for row in rows:
+        trn_dt = _as_date(_pick_col(row, "DATE_DEBLOCAGE"))
+        in_m = _in_range(trn_dt, m_debut, m_fin)
+        in_m1 = _in_range(trn_dt, m1_debut, m1_fin)
+        if not in_m and not in_m1:
+            continue
+        code = str(_pick_col(row, "CODE AGENCE") or "").strip()
+        if not code:
+            continue
+        caf_code = str(_pick_col(row, "CODE_GESTION_PRET") or "").strip() or "-"
+        key = (code, caf_code)
+        bucket = buckets.get(key)
+        if bucket is None:
+            charge = str(_pick_col(row, "CHARGE_D'AFFAIRE", "CHARGE_AFFAIRE") or "").strip() or "-"
+            bucket = {
+                "CODE_AGENCE": code,
+                "AGENCE": str(_pick_col(row, "NOM AGENCE") or "").strip(),
+                "CHARGE_AFFAIRE": charge,
+                "FIELD_CHAR_2": caf_code,
+                "CODE_GESTION_PRET": caf_code,
+                "NB_CRED_DECAISSES_M": 0.0,
+                "NB_CRED_DECAISSES_M_1": 0.0,
+                "VOLUME_DEBLOQUE_M": 0.0,
+                "VOLUME_DEBLOQUE_M_1": 0.0,
+                "FRAIS_DOSSIER_M": 0.0,
+                "FRAIS_DOSSIER_M_1": 0.0,
+                "OBJECTIF_PRODUCTION": 0.0,
+            }
+            buckets[key] = bucket
+        amount = float(_pick_col(row, "MONTANT CAPITAL ACCORDE") or 0)
+        frais = float(_pick_col(row, "FRAIS_DOSSIER") or 0)
+        if in_m:
+            bucket["NB_CRED_DECAISSES_M"] += 1
+            bucket["VOLUME_DEBLOQUE_M"] += amount
+            bucket["FRAIS_DOSSIER_M"] += frais
+        if in_m1:
+            bucket["NB_CRED_DECAISSES_M_1"] += 1
+            bucket["VOLUME_DEBLOQUE_M_1"] += amount
+            bucket["FRAIS_DOSSIER_M_1"] += frais
+    return buckets
+
+
+def fetch_flexcube_production_nombre_rows(
+    m_debut: dt_date,
+    m_fin: dt_date,
+    m1_debut: dt_date,
+    m1_fin: dt_date,
+) -> list[dict]:
+    rows = fetch_flexcube_production_detail(m1_debut, m_fin)
+    return list(_bucket_production_rows(rows, m_debut, m_fin, m1_debut, m1_fin).values())
+
+
+def fetch_flexcube_production_volume_rows(
+    m_debut: dt_date,
+    m_fin: dt_date,
+    m1_debut: dt_date,
+    m1_fin: dt_date,
+) -> list[dict]:
+    rows = fetch_flexcube_production_detail(m1_debut, m_fin)
+    return list(_bucket_production_rows(rows, m_debut, m_fin, m1_debut, m1_fin).values())
 
 
 def resolve_production_period(

@@ -1,8 +1,10 @@
 """
-Sauvegarde mensuelle des objectifs COLLECTE ÉPARGNE À VUE (OBJ_COL_EPV_VUE).
+Sauvegarde des objectifs collecte épargne à vue (OBJ_COL_EPV_VUE).
 
-Table SQLite locale : une photo par mois (month_key = YYYY-MM), typiquement
-prise le 1er du mois pour figer les objectifs pendant tout le mois.
+La photo est écrite dans la base de l'application (database/database.sqlite),
+table objectif_collecte, un jeu de lignes par mois (month_key = YYYY-MM).
+La requête Flexcube n'a pas de date : c'est l'encours et l'objectif à l'instant
+de l'exécution, figés pour le mois.
 """
 from __future__ import annotations
 
@@ -16,15 +18,16 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from database.oracle_pool import get_pool_flexcube
 from services.objectif_epv_vue_query import OBJECTIF_EPV_VUE_SNAPSHOT_QUERY
+from services.suivi_production_backup_service import database_paths
 
 logger = logging.getLogger(__name__)
 
 _PY_ROOT = Path(__file__).resolve().parent.parent
-LOCAL_DB_PATH = _PY_ROOT / "data" / "objectif_epv_vue_local.db"
+_LEGACY_DB_PATH = _PY_ROOT / "data" / "objectif_epv_vue_local.db"
 _CALL_TIMEOUT_MS = 300_000
 
 _SQLITE_DDL = """
-CREATE TABLE IF NOT EXISTS objectif_epv_vue_rows (
+CREATE TABLE IF NOT EXISTS objectif_collecte (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     month_key TEXT NOT NULL,
     code_agence TEXT,
@@ -39,13 +42,13 @@ CREATE TABLE IF NOT EXISTS objectif_epv_vue_rows (
     obj_col_epv_vue REAL
 );
 
-CREATE INDEX IF NOT EXISTS idx_obj_epv_month
-    ON objectif_epv_vue_rows(month_key);
+CREATE INDEX IF NOT EXISTS idx_objectif_collecte_month
+    ON objectif_collecte(month_key);
 
-CREATE INDEX IF NOT EXISTS idx_obj_epv_key
-    ON objectif_epv_vue_rows(month_key, code_agence, code_caf, matricule_client, numero_compte);
+CREATE INDEX IF NOT EXISTS idx_objectif_collecte_key
+    ON objectif_collecte(month_key, code_agence, code_caf, matricule_client, numero_compte);
 
-CREATE TABLE IF NOT EXISTS objectif_epv_vue_meta (
+CREATE TABLE IF NOT EXISTS objectif_collecte_meta (
     month_key TEXT PRIMARY KEY,
     refreshed_at TEXT,
     row_count INTEGER,
@@ -85,20 +88,73 @@ def _serialize_cell(value: Any) -> Any:
     return value
 
 
-def _connect_local() -> sqlite3.Connection:
-    LOCAL_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(LOCAL_DB_PATH), timeout=60)
+def _connect_local(path: Optional[Path] = None) -> sqlite3.Connection:
+    target = path or database_paths()[0]
+    target.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(target), timeout=120)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout = 120000")
     return conn
 
 
-def init_objectif_epv_vue_local_db() -> None:
-    conn = _connect_local()
+def _import_legacy(conn: sqlite3.Connection) -> None:
+    if not _LEGACY_DB_PATH.is_file():
+        return
+    existing = conn.execute("SELECT COUNT(*) FROM objectif_collecte").fetchone()[0]
+    if existing:
+        return
+    probe = sqlite3.connect(str(_LEGACY_DB_PATH))
     try:
-        conn.executescript(_SQLITE_DDL)
-        conn.commit()
+        count = probe.execute("SELECT COUNT(*) FROM objectif_epv_vue_rows").fetchone()[0]
+        meta = probe.execute("SELECT COUNT(*) FROM objectif_epv_vue_meta").fetchone()[0]
+    except sqlite3.Error:
+        return
     finally:
-        conn.close()
+        probe.close()
+    if not count and not meta:
+        return
+    conn.execute("ATTACH DATABASE ? AS legacy", (str(_LEGACY_DB_PATH),))
+    conn.execute(
+        """
+        INSERT INTO objectif_collecte (
+            month_key, code_agence, branch_name, code_caf, charge_affaire,
+            matricule_client, numero_compte, nom_client,
+            cum_montant_finance, cum_encours_credit, obj_col_epv_vue
+        )
+        SELECT
+            month_key, code_agence, branch_name, code_caf, charge_affaire,
+            matricule_client, numero_compte, nom_client,
+            cum_montant_finance, cum_encours_credit, obj_col_epv_vue
+        FROM legacy.objectif_epv_vue_rows
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO objectif_collecte_meta (
+            month_key, refreshed_at, row_count, status, error_message, elapsed_seconds
+        )
+        SELECT month_key, refreshed_at, row_count, status, error_message, elapsed_seconds
+        FROM legacy.objectif_epv_vue_meta
+        """
+    )
+    conn.commit()
+    conn.execute("DETACH DATABASE legacy")
+    logger.info(
+        "Objectif collecte : %s lignes reprises depuis %s",
+        count,
+        _LEGACY_DB_PATH,
+    )
+
+
+def init_objectif_epv_vue_local_db() -> None:
+    for path in database_paths():
+        conn = _connect_local(path)
+        try:
+            conn.executescript(_SQLITE_DDL)
+            _import_legacy(conn)
+            conn.commit()
+        finally:
+            conn.close()
 
 
 def has_objectif_snapshot(month: int, year: int) -> bool:
@@ -107,7 +163,7 @@ def has_objectif_snapshot(month: int, year: int) -> bool:
     conn = _connect_local()
     try:
         row = conn.execute(
-            "SELECT status, row_count FROM objectif_epv_vue_meta WHERE month_key = ?",
+            "SELECT status, row_count FROM objectif_collecte_meta WHERE month_key = ?",
             (key,),
         ).fetchone()
         return bool(row and row["status"] == "ok" and (row["row_count"] or 0) > 0)
@@ -123,7 +179,7 @@ def get_objectif_snapshot_meta(month: int, year: int) -> Optional[Dict[str, Any]
         row = conn.execute(
             """
             SELECT month_key, refreshed_at, row_count, status, error_message, elapsed_seconds
-            FROM objectif_epv_vue_meta
+            FROM objectif_collecte_meta
             WHERE month_key = ?
             """,
             (key,),
@@ -165,7 +221,7 @@ def _upsert_meta(
 ) -> None:
     conn.execute(
         """
-        INSERT INTO objectif_epv_vue_meta (
+        INSERT INTO objectif_collecte_meta (
             month_key, refreshed_at, row_count, status, error_message, elapsed_seconds
         ) VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(month_key) DO UPDATE SET
@@ -200,47 +256,50 @@ def refresh_objectif_epv_vue_snapshot(
 
     try:
         rows = _fetch_objectifs_from_flexcube()
-        local = _connect_local()
-        try:
-            local.execute("DELETE FROM objectif_epv_vue_rows WHERE month_key = ?", (key,))
-            local.executemany(
-                """
-                INSERT INTO objectif_epv_vue_rows (
-                    month_key, code_agence, branch_name, code_caf, charge_affaire,
-                    matricule_client, numero_compte, nom_client,
-                    cum_montant_finance, cum_encours_credit, obj_col_epv_vue
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    (
-                        key,
-                        str(r.get("code_agence") or ""),
-                        str(r.get("branch_name") or ""),
-                        str(r.get("code_caf") or ""),
-                        str(r.get("charge_affaire") or ""),
-                        str(r.get("matricule_client") or ""),
-                        str(r.get("numero_compte") or ""),
-                        str(r.get("nom_client") or ""),
-                        _f(r.get("cum_montant_finance")),
-                        _f(r.get("cum_encours_credit")),
-                        _f(r.get("obj_col_epv_vue")),
-                    )
-                    for r in rows
-                ],
-            )
-            elapsed = time.monotonic() - started
-            _upsert_meta(
-                local,
+        payload = [
+            (
                 key,
-                refreshed_at=datetime.now().isoformat(timespec="seconds"),
-                row_count=len(rows),
-                status="ok",
-                error_message=None,
-                elapsed_seconds=round(elapsed, 2),
+                str(r.get("code_agence") or ""),
+                str(r.get("branch_name") or ""),
+                str(r.get("code_caf") or ""),
+                str(r.get("charge_affaire") or ""),
+                str(r.get("matricule_client") or ""),
+                str(r.get("numero_compte") or ""),
+                str(r.get("nom_client") or ""),
+                _f(r.get("cum_montant_finance")),
+                _f(r.get("cum_encours_credit")),
+                _f(r.get("obj_col_epv_vue")),
             )
-            local.commit()
-        finally:
-            local.close()
+            for r in rows
+        ]
+        elapsed = time.monotonic() - started
+        refreshed_at = datetime.now().isoformat(timespec="seconds")
+        for path in database_paths():
+            local = _connect_local(path)
+            try:
+                local.execute("DELETE FROM objectif_collecte WHERE month_key = ?", (key,))
+                local.executemany(
+                    """
+                    INSERT INTO objectif_collecte (
+                        month_key, code_agence, branch_name, code_caf, charge_affaire,
+                        matricule_client, numero_compte, nom_client,
+                        cum_montant_finance, cum_encours_credit, obj_col_epv_vue
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    payload,
+                )
+                _upsert_meta(
+                    local,
+                    key,
+                    refreshed_at=refreshed_at,
+                    row_count=len(rows),
+                    status="ok",
+                    error_message=None,
+                    elapsed_seconds=round(elapsed, 2),
+                )
+                local.commit()
+            finally:
+                local.close()
 
         logger.info("✅ Snapshot objectifs EPV vue %s: %s lignes en %.1fs", key, len(rows), elapsed)
 
@@ -273,20 +332,21 @@ def refresh_objectif_epv_vue_snapshot(
     except Exception as exc:
         elapsed = time.monotonic() - started
         logger.error("❌ Snapshot objectifs EPV vue échoué (%s): %s", key, exc, exc_info=True)
-        local = _connect_local()
-        try:
-            _upsert_meta(
-                local,
-                key,
-                refreshed_at=datetime.now().isoformat(timespec="seconds"),
-                row_count=0,
-                status="error",
-                error_message=str(exc),
-                elapsed_seconds=round(elapsed, 2),
-            )
-            local.commit()
-        finally:
-            local.close()
+        for path in database_paths():
+            local = _connect_local(path)
+            try:
+                _upsert_meta(
+                    local,
+                    key,
+                    refreshed_at=datetime.now().isoformat(timespec="seconds"),
+                    row_count=0,
+                    status="error",
+                    error_message=str(exc),
+                    elapsed_seconds=round(elapsed, 2),
+                )
+                local.commit()
+            finally:
+                local.close()
         raise
 
 
@@ -304,7 +364,7 @@ def load_objectif_snapshot_map(month: int, year: int) -> Dict[Tuple[str, str, st
         rows = conn.execute(
             """
             SELECT code_agence, code_caf, matricule_client, numero_compte, obj_col_epv_vue
-            FROM objectif_epv_vue_rows
+            FROM objectif_collecte
             WHERE month_key = ?
             """,
             (key,),

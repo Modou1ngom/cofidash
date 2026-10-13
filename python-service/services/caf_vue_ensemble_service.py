@@ -500,14 +500,53 @@ def _production_totals_from_dash_rows(
     }
 
 
+def _production_loans_for_caf(month: int, year: int, caf_code: str) -> List[Dict[str, Any]]:
+    """Lignes de production.sql pour un CAF et un mois (date de déblocage)."""
+    import calendar
+    from datetime import date as dt_date
+
+    from services.production_dash_service import _as_date, _pick_col, fetch_flexcube_production_detail
+
+    last_day = calendar.monthrange(int(year), int(month))[1]
+    rows = fetch_flexcube_production_detail(
+        dt_date(int(year), int(month), 1),
+        dt_date(int(year), int(month), last_day),
+    )
+    code = str(caf_code or "").strip()
+    by_loan: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        if str(_pick_col(row, "CODE_GESTION_PRET") or "").strip() != code:
+            continue
+        loan_number = str(_pick_col(row, "NO PRET") or "").strip()
+        if not loan_number:
+            continue
+        disbursement = _as_date(_pick_col(row, "DATE_DEBLOCAGE"))
+        current = by_loan.get(loan_number)
+        if current is not None:
+            previous = _as_date(current.get("disbursement_date"))
+            if previous is not None and (disbursement is None or previous <= disbursement):
+                continue
+        by_loan[loan_number] = {
+            "loan_number": loan_number,
+            "client_name": _pick_col(row, "NOM CLIENT") or "",
+            "outstanding": _to_float(_pick_col(row, "MONTANT CAPITAL ACCORDE")),
+            "disbursement_date": disbursement.isoformat() if disbursement else "",
+            "exigible": 0.0,
+            "par_days": 0,
+        }
+    return sorted(
+        by_loan.values(),
+        key=lambda item: (str(item.get("disbursement_date") or ""), -_to_float(item.get("outstanding"))),
+        reverse=True,
+    )
+
+
 def _fetch_caf_production_live(
     month: int,
     year: int,
     caf_code: str,
 ) -> Dict[str, float]:
-    """Décaissements réels Flexcube du mois (et du mois précédent pour MoM)."""
-    import calendar
-
+    """Décaissements du mois via production.sql (date de déblocage)."""
     code = str(caf_code or "").strip()
     if not code:
         return {
@@ -517,61 +556,18 @@ def _fetch_caf_production_live(
             "monthly_volume_prev": 0.0,
         }
 
-    last_day = calendar.monthrange(int(year), int(month))[1]
-    month_start = f"{int(year):04d}-{int(month):02d}-01"
-    month_end = f"{int(year):04d}-{int(month):02d}-{last_day:02d}"
     prev_m, prev_y = _prev_month(int(month), int(year))
-    prev_last_day = calendar.monthrange(prev_y, prev_m)[1]
-    prev_start = f"{prev_y:04d}-{prev_m:02d}-01"
-    prev_end = f"{prev_y:04d}-{prev_m:02d}-{prev_last_day:02d}"
 
-    sql = """
-WITH DEBLOCAGE AS (
-    SELECT
-        account_number,
-        MAX(SCHEDULE_LINKAGE) AS SCHEDULE_LINKAGE
-    FROM (
-        SELECT
-            account_number,
-            COALESCE(DTYPE, 'VIDE') AS DTYPE,
-            MAX(SCHEDULE_LINKAGE) AS SCHEDULE_LINKAGE
-        FROM CFSFCUBS145.CLTB_DISBR_SCHEDULES
-        WHERE (DTYPE <> 'X') OR DTYPE IS NULL
-        GROUP BY account_number, COALESCE(DTYPE, 'VIDE')
-    )
-    GROUP BY account_number
-)
-SELECT
-    COUNT(DISTINCT c.ACCOUNT_NUMBER) AS LOAN_COUNT,
-    NVL(SUM(c.AMOUNT_FINANCED), 0) AS MONTHLY_VOLUME
-FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER c
-LEFT JOIN DEBLOCAGE d ON d.account_number = c.ACCOUNT_NUMBER
-WHERE c.FIELD_CHAR_2 = :caf_code
-  AND c.ACCOUNT_STATUS NOT IN ('L', 'V')
-  AND TRUNC(COALESCE(d.SCHEDULE_LINKAGE, c.BOOK_DATE)) >= TO_DATE(:month_start, 'YYYY-MM-DD')
-  AND TRUNC(COALESCE(d.SCHEDULE_LINKAGE, c.BOOK_DATE)) <= TO_DATE(:month_end, 'YYYY-MM-DD')
-"""
-
-    def _query_period(start: str, end: str) -> tuple[float, float]:
-        rows = _execute_flexcube(
-            sql,
-            {
-                "caf_code": code,
-                "month_start": start,
-                "month_end": end,
-            },
-        )
-        if not rows:
-            return 0.0, 0.0
-        row = rows[0]
+    def _totals(m: int, y: int) -> tuple[float, float]:
+        loans = _production_loans_for_caf(m, y, code)
         return (
-            _to_float(row.get("loan_count") or row.get("LOAN_COUNT")),
-            _to_float(row.get("monthly_volume") or row.get("MONTHLY_VOLUME")),
+            float(len(loans)),
+            sum(_to_float(loan.get("outstanding")) for loan in loans),
         )
 
     try:
-        loan_count, monthly_volume = _query_period(month_start, month_end)
-        loan_count_prev, monthly_volume_prev = _query_period(prev_start, prev_end)
+        loan_count, monthly_volume = _totals(int(month), int(year))
+        loan_count_prev, monthly_volume_prev = _totals(prev_m, prev_y)
         return {
             "loan_count": loan_count,
             "loan_count_prev": loan_count_prev,
@@ -588,73 +584,17 @@ WHERE c.FIELD_CHAR_2 = :caf_code
         }
 
 
-def _normalize_production_loan_row(row: Dict[str, Any]) -> Dict[str, Any]:
-    return {
-        "loan_number": row.get("no_dossier") or row.get("NO_DOSSIER"),
-        "client_name": row.get("nom_client") or row.get("NOM_CLIENT"),
-        "outstanding": _to_float(row.get("montant") or row.get("MONTANT")),
-        "disbursement_date": row.get("date_decaissement") or row.get("DATE_DECAISSEMENT"),
-        "exigible": 0.0,
-        "par_days": 0,
-    }
-
-
 def _fetch_caf_production_loans(
     month: int,
     year: int,
     caf_code: Optional[str],
 ) -> List[Dict[str, Any]]:
-    """Liste des décaissements du mois (Flexcube) pour le détail production."""
-    import calendar
-
+    """Liste des décaissements du mois via production.sql."""
     code = str(caf_code or "").strip()
     if not code:
         return []
-
-    last_day = calendar.monthrange(int(year), int(month))[1]
-    month_start = f"{int(year):04d}-{int(month):02d}-01"
-    month_end = f"{int(year):04d}-{int(month):02d}-{last_day:02d}"
-
-    sql = """
-WITH DEBLOCAGE AS (
-    SELECT
-        account_number,
-        MAX(SCHEDULE_LINKAGE) AS SCHEDULE_LINKAGE
-    FROM (
-        SELECT
-            account_number,
-            COALESCE(DTYPE, 'VIDE') AS DTYPE,
-            MAX(SCHEDULE_LINKAGE) AS SCHEDULE_LINKAGE
-        FROM CFSFCUBS145.CLTB_DISBR_SCHEDULES
-        WHERE (DTYPE <> 'X') OR DTYPE IS NULL
-        GROUP BY account_number, COALESCE(DTYPE, 'VIDE')
-    )
-    GROUP BY account_number
-)
-SELECT
-    c.ACCOUNT_NUMBER AS NO_DOSSIER,
-    c.PRIMARY_APPLICANT_NAME AS NOM_CLIENT,
-    c.AMOUNT_FINANCED AS MONTANT,
-    TO_CHAR(TRUNC(COALESCE(d.SCHEDULE_LINKAGE, c.BOOK_DATE)), 'YYYY-MM-DD') AS DATE_DECAISSEMENT
-FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER c
-LEFT JOIN DEBLOCAGE d ON d.account_number = c.ACCOUNT_NUMBER
-WHERE c.FIELD_CHAR_2 = :caf_code
-  AND c.ACCOUNT_STATUS NOT IN ('L', 'V')
-  AND TRUNC(COALESCE(d.SCHEDULE_LINKAGE, c.BOOK_DATE)) >= TO_DATE(:month_start, 'YYYY-MM-DD')
-  AND TRUNC(COALESCE(d.SCHEDULE_LINKAGE, c.BOOK_DATE)) <= TO_DATE(:month_end, 'YYYY-MM-DD')
-ORDER BY TRUNC(COALESCE(d.SCHEDULE_LINKAGE, c.BOOK_DATE)) DESC, c.AMOUNT_FINANCED DESC
-"""
-
     try:
-        rows = _execute_flexcube(
-            sql,
-            {
-                "caf_code": code,
-                "month_start": month_start,
-                "month_end": month_end,
-            },
-        )
-        return [_normalize_production_loan_row(r) for r in rows]
+        return _production_loans_for_caf(int(month), int(year), code)
     except Exception as exc:
         logger.warning("Liste production live CAF indisponible: %s", exc)
         return []

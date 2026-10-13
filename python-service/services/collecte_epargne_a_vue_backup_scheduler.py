@@ -72,8 +72,39 @@ def _run_backup_safe() -> None:
             _running_job = False
 
 
+def _snapshot_is_from_today() -> bool:
+    from services.collecte_epargne_a_vue_backup_service import get_collecte_snapshot_meta
+
+    today = datetime.now()
+    meta = get_collecte_snapshot_meta(today.month, today.year) or {}
+    refreshed = str(meta.get("refreshed_at") or "")
+    return meta.get("status") == "ok" and refreshed[:10] == today.strftime("%Y-%m-%d")
+
+
+def _run_if_stale() -> None:
+    """Rattrape la photo du jour si le service a démarré après 06:00."""
+    try:
+        if _snapshot_is_from_today():
+            today = datetime.now()
+            logger.info(
+                "Snapshot collecte EPV vue %04d-%02d déjà à jour",
+                today.year,
+                today.month,
+            )
+            return
+        logger.info("Snapshot collecte EPV vue absent ou ancien — sauvegarde de rattrapage")
+        _run_backup_safe()
+    except Exception as exc:
+        logger.error("Rattrapage snapshot collecte EPV vue échoué: %s", exc, exc_info=True)
+
+
 def _loop() -> None:
     logger.info("Planificateur collecte EPV vue démarré (tous les jours à %02d:00)", RUN_HOUR)
+    threading.Thread(
+        target=_run_if_stale,
+        name="collecte-epv-vue-backup-catchup",
+        daemon=True,
+    ).start()
     while not _stop_event.is_set():
         nxt = next_run_at()
         wait_s = max(1.0, (nxt - datetime.now()).total_seconds())

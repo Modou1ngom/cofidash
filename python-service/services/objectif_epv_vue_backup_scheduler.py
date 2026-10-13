@@ -47,8 +47,37 @@ def _run_backup_safe() -> None:
             _running_job = False
 
 
+def _run_current_if_missing() -> None:
+    """Prend la photo du mois en cours si elle n'existe pas encore."""
+    try:
+        from services.objectif_epv_vue_backup_service import (
+            has_objectif_snapshot,
+            refresh_objectif_epv_vue_snapshot,
+        )
+
+        today = datetime.now()
+        if has_objectif_snapshot(today.month, today.year):
+            logger.info(
+                "Objectif collecte %04d-%02d déjà en base",
+                today.year,
+                today.month,
+            )
+            return
+        result = refresh_objectif_epv_vue_snapshot(month=today.month, year=today.year)
+        logger.info("Objectif collecte du mois enregistré: %s", result)
+    except Exception as exc:
+        logger.error("Sauvegarde objectif collecte échouée: %s", exc, exc_info=True)
+
+
 def _loop() -> None:
-    logger.info("Planificateur objectifs EPV vue démarré (1er du mois à 06:00)")
+    logger.info(
+        "Robot objectif collecte démarré (photo du mois, puis chaque 1er à 06:00)"
+    )
+    threading.Thread(
+        target=_run_current_if_missing,
+        name="objectif-collecte-backup-job",
+        daemon=True,
+    ).start()
     while not _stop_event.is_set():
         nxt = next_run_at()
         wait_s = max(1.0, (nxt - datetime.now()).total_seconds())

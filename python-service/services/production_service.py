@@ -98,17 +98,20 @@ def get_production_nombre_data(
         date_m1_debut_str = date_m1_debut_obj.strftime("%d/%m/%Y")
         date_m1_fin_str = date_m1_fin_obj.strftime("%d/%m/%Y")
     
-    # Données pré-agrégées DASH (snapshot MIGRATION_DATE_MINUS1 aligné Volume DAT)
+    # Détail Flexcube (requete mobile/production/production.sql), agrégé par agence / CAF.
     from services.production_dash_service import (
         aggregate_nombre_dash_rows_by_agency,
         build_production_nombre_charge_details_by_agency,
-        fetch_dash_production_nombre_rows,
+        fetch_flexcube_production_nombre_rows,
         normalize_nombre_row_from_dash,
-        resolve_production_period,
     )
 
-    period_eff = resolve_production_period(period, month, year, date_m_debut, date_m_fin)
-    raw_rows = fetch_dash_production_nombre_rows(period_eff, month, year, ref_date)
+    raw_rows = fetch_flexcube_production_nombre_rows(
+        date_m_debut_obj,
+        date_m_fin_obj,
+        date_m1_debut_obj,
+        date_m1_fin_obj,
+    )
     charge_affaire_by_agency = build_production_nombre_charge_details_by_agency(raw_rows)
     raw_rows = aggregate_nombre_dash_rows_by_agency(raw_rows)
     results = []
@@ -465,17 +468,20 @@ def get_production_volume_data(
         date_m1_debut_str = date_m1_debut_obj.strftime("%d/%m/%Y")
         date_m1_fin_str = date_m1_fin_obj.strftime("%d/%m/%Y")
     
-    # Données DASH_PRODUCTION_VOLUME (snapshot MIGRATION_DATE_MINUS1)
+    # Détail Flexcube (requete mobile/production/production.sql), agrégé par agence / CAF.
     from services.production_dash_service import (
         aggregate_volume_dash_rows_by_agency,
         build_production_volume_charge_details_by_agency,
-        fetch_dash_production_volume_rows,
+        fetch_flexcube_production_volume_rows,
         normalize_volume_row_from_dash,
-        resolve_production_period,
     )
 
-    period_eff = resolve_production_period(period, month, year, date_m_debut, date_m_fin)
-    raw_vol = fetch_dash_production_volume_rows(period_eff, month, year, ref_date)
+    raw_vol = fetch_flexcube_production_volume_rows(
+        date_m_debut_obj,
+        date_m_fin_obj,
+        date_m1_debut_obj,
+        date_m1_fin_obj,
+    )
     charge_affaire_by_agency = build_production_volume_charge_details_by_agency(raw_vol)
     raw_vol = aggregate_volume_dash_rows_by_agency(raw_vol)
     results = []

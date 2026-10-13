@@ -8,6 +8,13 @@ from datetime import datetime
 from database.oracle_pool import get_pool_flexcube
 from services.clients_service import get_clients_data
 from services.production_service import get_production_nombre_data, get_production_volume_data, get_encours_credit_data
+from services.suivi_production_service import get_suivi_production_data
+from services.suivi_production_backup_service import (
+    get_suivi_snapshot_meta,
+    history_years,
+    refresh_suivi_production_history,
+    refresh_suivi_production_year,
+)
 from services.collection_service import get_collection_data
 from services.transfer_service import get_transfer_data
 from services.transfers_backup_service import (
@@ -339,6 +346,63 @@ async def get_production_volume_data_endpoint(
             status_code=500, 
             detail=f"Erreur lors de la récupération des données de production en volume: {str(e)}\n{error_detail}"
         )
+
+
+@router.get("/data/suivi-production")
+async def get_suivi_production_endpoint(
+    scope: Optional[str] = None,
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+    agences: Optional[str] = None,
+    secteurs: Optional[str] = None,
+    types: Optional[str] = None,
+    lignes: Optional[bool] = False,
+):
+    """Volume débloqué : mois ou cumul YTD, par agence, secteur et type."""
+    try:
+        return get_suivi_production_data(
+            scope, year, month, agences, secteurs, types, include_lines=bool(lignes)
+        )
+    except HTTPException as e:
+        logger.error("Erreur suivi production: %s", e.detail)
+        raise HTTPException(
+            status_code=503,
+            detail=e.detail or "Le serveur Flexcube est inaccessible.",
+        ) from e
+    except Exception as e:
+        logger.error("Erreur suivi production: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors de la récupération du suivi de production: {e!s}",
+        ) from e
+
+
+@router.get("/data/suivi-production/snapshot")
+async def get_suivi_production_snapshot_meta(year: Optional[int] = None):
+    """Métadonnées des sauvegardes suivi production (une ligne par année)."""
+    try:
+        meta = get_suivi_snapshot_meta(year)
+        return {"years": history_years(), "snapshot": meta}
+    except Exception as e:
+        logger.error("Erreur meta suivi production: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/backup/suivi-production")
+async def refresh_suivi_production_backup(year: Optional[int] = None):
+    """
+    Sauvegarde suivi_production.sql dans la base locale.
+    Sans année : les trois dernières années. Avec année : cette année seulement.
+    """
+    try:
+        if year is None:
+            return refresh_suivi_production_history()
+        return refresh_suivi_production_year(year)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        logger.error("Erreur sauvegarde suivi production: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/data/encours-credit")
