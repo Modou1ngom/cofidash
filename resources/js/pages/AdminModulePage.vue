@@ -74,6 +74,29 @@
           </span>
         </button>
       </section>
+
+      <section class="maintenance">
+        <h2>Collecte d’épargne à vue</h2>
+        <p>Ces actions sont réservées à l’administration. Elles ne sont plus sur l’écran de consultation.</p>
+        <div class="maintenance-row">
+          <select v-model.number="selectedMonth">
+            <option v-for="(month, index) in months" :key="month" :value="index + 1">{{ month }}</option>
+          </select>
+          <select v-model.number="selectedYear">
+            <option v-for="year in years" :key="year" :value="year">{{ year }}</option>
+          </select>
+          <button type="button" class="btn btn-refresh" :disabled="!!busy" @click="saveCollecte">
+            {{ busy === 'save' ? 'Sauvegarde…' : 'Sauvegarder' }}
+          </button>
+          <button type="button" class="btn btn-recalc" :disabled="!!busy" @click="recalcCollecte">
+            {{ busy === 'recalc' ? 'Recalcul…' : 'Recalculer Flexcube' }}
+          </button>
+          <button type="button" class="btn btn-freeze" :disabled="!!busy" @click="freezeObjectifs">
+            {{ busy === 'freeze' ? 'Figement…' : 'Figer objectifs' }}
+          </button>
+        </div>
+        <p v-if="actionMessage" class="action-message" :class="{ error: actionError }">{{ actionMessage }}</p>
+      </section>
     </template>
   </div>
 </template>
@@ -84,6 +107,8 @@ import axios from 'axios';
 export default {
   name: 'AdminModulePage',
   data() {
+    const now = new Date();
+    const currentYear = now.getFullYear();
     return {
       loading: true,
       error: '',
@@ -91,6 +116,13 @@ export default {
       profiles: [],
       territories: [],
       agencies: [],
+      months: ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'],
+      years: [currentYear - 1, currentYear, currentYear + 1],
+      selectedMonth: now.getMonth() + 1,
+      selectedYear: currentYear,
+      busy: '',
+      actionMessage: '',
+      actionError: false,
     };
   },
   computed: {
@@ -125,6 +157,63 @@ export default {
         this.error = error.response?.data?.message || 'Impossible de charger l’administration.';
       } finally {
         this.loading = false;
+      }
+    },
+    periodLabel() {
+      return `${this.months[this.selectedMonth - 1]} ${this.selectedYear}`;
+    },
+    async saveCollecte() {
+      this.busy = 'save';
+      this.actionMessage = `Sauvegarde ${this.periodLabel()} en cours…`;
+      this.actionError = false;
+      try {
+        const { data } = await axios.post('/api/oracle/backup/collecte-epargne-a-vue', null, {
+          params: { month: this.selectedMonth, year: this.selectedYear },
+          timeout: 300000,
+        });
+        const rows = data?.row_count;
+        this.actionMessage = rows != null
+          ? `Sauvegarde ${this.periodLabel()} enregistrée (${Number(rows).toLocaleString('fr-FR')} lignes).`
+          : `Sauvegarde ${this.periodLabel()} enregistrée.`;
+      } catch (error) {
+        this.actionError = true;
+        this.actionMessage = error.response?.data?.message || 'Échec de la sauvegarde.';
+      } finally {
+        this.busy = '';
+      }
+    },
+    async recalcCollecte() {
+      this.busy = 'recalc';
+      this.actionMessage = `Recalcul ${this.periodLabel()} en cours…`;
+      this.actionError = false;
+      try {
+        await axios.get('/api/oracle/data/collecte-epargne-a-vue', {
+          params: { month: this.selectedMonth, year: this.selectedYear, lite: 1, refresh: 1 },
+          timeout: 300000,
+        });
+        this.actionMessage = `Recalcul Flexcube terminé pour ${this.periodLabel()}.`;
+      } catch (error) {
+        this.actionError = true;
+        this.actionMessage = error.response?.data?.message || 'Échec du recalcul Flexcube.';
+      } finally {
+        this.busy = '';
+      }
+    },
+    async freezeObjectifs() {
+      this.busy = 'freeze';
+      this.actionMessage = `Figement des objectifs ${this.periodLabel()} en cours…`;
+      this.actionError = false;
+      try {
+        await axios.post('/api/oracle/backup/objectif-epv-vue', null, {
+          params: { month: this.selectedMonth, year: this.selectedYear },
+          timeout: 300000,
+        });
+        this.actionMessage = `Objectifs figés pour ${this.periodLabel()}.`;
+      } catch (error) {
+        this.actionError = true;
+        this.actionMessage = error.response?.data?.message || 'Échec du figement des objectifs.';
+      } finally {
+        this.busy = '';
       }
     },
   },
@@ -251,6 +340,90 @@ export default {
 .card:hover {
   border-color: #b7d0c4;
   box-shadow: 0 8px 18px rgba(26, 77, 58, 0.08);
+}
+
+.maintenance {
+  margin-top: 16px;
+  padding: 18px;
+  background: #fff;
+  border: 1px solid #e4ebe7;
+  border-radius: 14px;
+}
+
+.maintenance h2 {
+  margin: 0;
+  font-size: 16px;
+  color: #14261e;
+}
+
+.maintenance p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.maintenance-row {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  pointer-events: auto;
+}
+
+.maintenance-row select,
+.btn {
+  min-height: 38px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.maintenance-row select {
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+}
+
+.btn {
+  position: relative;
+  z-index: 2;
+  padding: 0 14px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-refresh {
+  border: 1px solid #1a4d3a;
+  background: #1a4d3a;
+  color: #fff;
+}
+
+.btn-recalc {
+  border: 1px solid #1d4ed8;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.btn-freeze {
+  border: 1px solid #92400e;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.action-message {
+  margin-top: 10px;
+  color: #1a4d3a;
+}
+
+.action-message.error {
+  color: #b91c1c;
 }
 
 .card-mark {

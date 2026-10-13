@@ -44,7 +44,10 @@
       </aside>
 
       <main class="admin-main">
-        <router-view />
+        <div class="admin-scroll">
+          <router-view />
+        </div>
+        <AppFooter />
       </main>
     </div>
   </div>
@@ -52,10 +55,12 @@
 
 <script>
 import axios from 'axios';
+import AppFooter from '../components/AppFooter.vue';
 import { PROFILE_LABELS, ProfileManager } from '../utils/profiles.js';
 
 export default {
   name: 'AdminLayout',
+  components: { AppFooter },
   computed: {
     currentUser() {
       return ProfileManager.getCurrentUser();
@@ -105,7 +110,8 @@ export default {
 
 <style scoped>
 .admin-app {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background: #f3f6f4;
@@ -285,6 +291,18 @@ export default {
 .admin-main {
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.admin-scroll {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: 28px 36px 40px;
 }

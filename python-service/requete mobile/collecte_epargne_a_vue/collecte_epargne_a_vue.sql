@@ -1,3 +1,6 @@
+-- Collecte d'épargne à vue — Flexcube CFSFCUBS145.
+-- Objectif : 10 % si montant financé <= 10 000 000, sinon 5 %.
+-- Binds :date_debut / :date_fin (YYYY-MM-DD, bornes inclusives).
 WITH ENCOURS  AS (
     SELECT 
         w.BRANCH_CODE,

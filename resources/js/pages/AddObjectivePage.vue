@@ -173,15 +173,18 @@
         </form>
       </div>
     </div>
+    <AppFooter />
   </div>
 </template>
 
 <script>
 import { useRouter } from 'vue-router';
 import axios from 'axios';
+import AppFooter from '../components/AppFooter.vue';
 
 export default {
   name: 'AddObjectivePage',
+  components: { AppFooter },
   setup() {
     const router = useRouter();
     return { router };
@@ -338,16 +341,21 @@ export default {
 <style scoped>
 .add-objective-page {
   width: 100%;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   background: #f5f5f5;
-  padding: 16px;
   box-sizing: border-box;
 }
 
 .page-container {
   width: 100%;
   max-width: 800px;
-  margin: 0 auto;
+  margin: 16px auto;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);

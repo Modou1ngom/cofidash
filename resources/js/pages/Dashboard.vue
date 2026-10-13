@@ -14,6 +14,7 @@
         @section-selected="handleSectionSelected"
         @sub-section-selected="handleSubSectionSelected"
       />
+      <div class="content-column">
       <div class="main-content">
         <ClientSection v-if="canAccessSection('client') && activeSection === 'client'" :selectedZoneProp="selectedZone" />
         <CompteOuvertSection v-if="canAccessSection('comptes-ouverts') && activeSection === 'comptes-ouverts'" />
@@ -71,8 +72,8 @@
           <h2>Recouvrement</h2>
           <p>Section Recouvrement en cours de développement</p>
         </div>
-        <PortefeuilleRisqueSection v-if="canAccessSection('portefeuille-risque') && activeSection === 'portefeuille-risque' && activeSubSection === 'simple'" />
-        <PortefeuilleRisqueGlobalSection v-if="canAccessSection('portefeuille-risque') && activeSection === 'portefeuille-risque' && activeSubSection === 'global'" />
+        <SuiviProductionSection v-if="activeSection === 'suivi-production'" />
+        <PortefeuilleRisqueGlobalSection v-if="canAccessSection('portefeuille-risque') && activeSection === 'portefeuille-risque'" />
         
         <!-- Sections DEPOT -->
         <div v-if="activeSection === 'domiciliation-flux'" class="section-placeholder">
@@ -107,6 +108,8 @@
           <p>Sélectionnez un sous-menu dans la barre latérale.</p>
         </div>
       </div>
+      <AppFooter />
+      </div>
     </div>
   </div>
 </template>
@@ -115,6 +118,7 @@
 import { defineAsyncComponent } from 'vue';
 import DashboardHeader from '../components/DashboardHeader.vue';
 import Sidebar from '../components/Sidebar.vue';
+import AppFooter from '../components/AppFooter.vue';
 import SectionAsyncLoading from '../components/SectionAsyncLoading.vue';
 import { ProfileManager } from '../utils/profiles.js';
 
@@ -143,8 +147,8 @@ const DepotGarantieSection = lazySection(() => import('../components/DepotGarant
 const CollecteEpargneAVueSection = lazySection(() => import('../components/CollecteEpargneAVueSection.vue'));
 const VolumeDatSection = lazySection(() => import('../components/VolumeDatSection.vue'));
 const EncoursSection = lazySection(() => import('../components/EncoursSection.vue'));
-const PortefeuilleRisqueSection = lazySection(() => import('../components/PortefeuilleRisqueSection.vue'));
 const PortefeuilleRisqueGlobalSection = lazySection(() => import('../components/PortefeuilleRisqueGlobalSection.vue'));
+const SuiviProductionSection = lazySection(() => import('../components/SuiviProductionSection.vue'));
 const NewDealSection = lazySection(() => import('../components/NewDealSection.vue'));
 const CRParAgenceSection = lazySection(() => import('../components/CRParAgenceSection.vue'));
 const ReferenceCompteSection = lazySection(() => import('../components/ReferenceCompteSection.vue'));
@@ -154,6 +158,7 @@ export default {
   components: {
     DashboardHeader,
     Sidebar,
+    AppFooter,
     ClientSection,
     CompteOuvertSection,
     CollectionSection,
@@ -170,8 +175,8 @@ export default {
     CollecteEpargneAVueSection,
     VolumeDatSection,
     EncoursSection,
-    PortefeuilleRisqueSection,
     PortefeuilleRisqueGlobalSection,
+    SuiviProductionSection,
     NewDealSection,
     CRParAgenceSection,
     ReferenceCompteSection
@@ -187,13 +192,16 @@ export default {
   computed: {
     isAdmin() {
       return ProfileManager.isAdmin();
-    }
+    },
   },
   async mounted() {
     await ProfileManager.refreshCurrentUser();
     this.menuAccessVersion += 1;
     if (!ProfileManager.canAccessSection(this.activeSection)) {
       this.activeSection = ProfileManager.firstAllowedDashboardSection();
+      if (this.activeSection === 'portefeuille-risque') {
+        this.activeSubSection = 'global';
+      }
     }
     if (this.activeSection === 'pi') {
       this.$router.push('/pi');
@@ -246,6 +254,14 @@ export default {
         this.$router.push('/admin/environnements');
         return;
       }
+      if (section === 'suivi-production') {
+        if (!ProfileManager.canAccessCredit()) {
+          return;
+        }
+        this.activeSection = 'suivi-production';
+        this.activeSubSection = null;
+        return;
+      }
       if (!ProfileManager.canAccessSection(section)) {
         return;
       }
@@ -256,9 +272,7 @@ export default {
       } else if (section === 'renouvellement' || section === 'new-deal' || section === 'restructuration' || section === 'commission-credit' || section === 'recouvrement') {
         this.activeSubSection = null;
       } else if (section === 'portefeuille-risque') {
-        if (!this.activeSubSection || (this.activeSubSection !== 'simple' && this.activeSubSection !== 'global')) {
-          this.activeSubSection = 'simple';
-        }
+        this.activeSubSection = 'global';
       } else if (section === 'objectives') {
         if (this.activeSubSection !== 'add' && this.activeSubSection !== 'validation' && this.activeSubSection !== 'mine') {
           if (ProfileManager.canAccessSection('objectives', 'add')) {
@@ -325,8 +339,17 @@ export default {
   display: flex;
 }
 
+.content-column {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .main-content {
   flex: 1;
+  min-height: 0;
   min-width: 0;
   width: 100%;
   background: #FFFFFF;

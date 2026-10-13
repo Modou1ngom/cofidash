@@ -74,8 +74,11 @@
       </aside>
 
       <main class="pi-main">
-        <div v-if="errorMessage" class="state-banner">{{ errorMessage }}</div>
-        <router-view />
+        <div class="pi-scroll">
+          <div v-if="errorMessage" class="state-banner">{{ errorMessage }}</div>
+          <router-view />
+        </div>
+        <AppFooter />
       </main>
     </div>
   </div>
@@ -83,6 +86,7 @@
 
 <script>
 import axios from 'axios';
+import AppFooter from '../components/AppFooter.vue';
 import { PROFILE_LABELS, ProfileManager } from '../utils/profiles.js';
 
 const MONTHS = [
@@ -92,6 +96,7 @@ const MONTHS = [
 
 export default {
   name: 'PiLayout',
+  components: { AppFooter },
   provide() {
     return {
       piState: this.piState,
@@ -195,7 +200,8 @@ export default {
 
 <style scoped>
 .pi-app {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background: #eef2ef;
@@ -454,6 +460,16 @@ export default {
 .pi-main {
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.pi-scroll {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: 28px 32px 40px;
 }

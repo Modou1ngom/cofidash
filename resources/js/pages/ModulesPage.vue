@@ -49,11 +49,13 @@
         Aucun module n’est disponible pour votre profil.
       </p>
     </main>
+    <AppFooter />
   </div>
 </template>
 
 <script>
 import axios from 'axios';
+import AppFooter from '../components/AppFooter.vue';
 import { PERMISSIONS, PROFILE_LABELS, ProfileManager } from '../utils/profiles.js';
 
 const ICONS = {
@@ -64,6 +66,7 @@ const ICONS = {
 
 export default {
   name: 'ModulesPage',
+  components: { AppFooter },
   computed: {
     currentUser() {
       return ProfileManager.getCurrentUser();
@@ -172,7 +175,8 @@ export default {
 
 <style scoped>
 .hub {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background: #eef2ef;
@@ -274,6 +278,8 @@ export default {
 
 .hub-main {
   flex: 1;
+  min-height: 0;
+  overflow: auto;
   width: min(1120px, calc(100% - 64px));
   margin: 0 auto;
   padding: 48px 0 56px;

@@ -40,35 +40,6 @@
             {{ year }}
           </option>
         </select>
-        <button
-          type="button"
-          class="btn-refresh"
-          :disabled="loading"
-          title="Recharge le snapshot du matin (rapide)"
-          @click="loadData(false)"
-        >
-          Actualiser
-        </button>
-        <button
-          v-if="isAdmin"
-          type="button"
-          class="btn-recalc"
-          :disabled="loading || recalculating"
-          title="Recalcule depuis Flexcube et met à jour le snapshot (lent)"
-          @click="forceRecalc"
-        >
-          {{ recalculating ? 'Recalcul…' : 'Recalculer Flexcube' }}
-        </button>
-        <button
-          v-if="isAdmin"
-          type="button"
-          class="btn-freeze"
-          :disabled="loading || freezing"
-          title="Figer les objectifs du mois sélectionné (normalement au 1er du mois)"
-          @click="freezeObjectifs"
-        >
-          {{ freezing ? 'Figement…' : 'Figer objectifs' }}
-        </button>
       </div>
     </div>
 
@@ -758,7 +729,6 @@
 <script>
 import { markRaw } from 'vue';
 import PythonChart from './charts/PythonChart.vue';
-import { ProfileManager } from '../utils/profiles.js';
 
 export default {
   name: 'CollecteEpargneAVueSection',
@@ -768,8 +738,6 @@ export default {
     const currentYear = now.getFullYear();
     return {
       loading: false,
-      freezing: false,
-      recalculating: false,
       errorMessage: '',
       dataSource: '',
       dataSnapshotAt: '',
@@ -812,13 +780,7 @@ export default {
     };
   },
   computed: {
-    isAdmin() {
-      return ProfileManager.isAdmin();
-    },
     loadingHint() {
-      if (this.recalculating) {
-        return 'Recalcul Flexcube en cours… (peut prendre 1 à 3 min)';
-      }
       return `Chargement de ${this.months[this.selectedMonth - 1]} ${this.selectedYear}… (1er accès d'un mois : 1–3 min pour créer le snapshot)`;
     },
     hasTerritoires() {
@@ -1484,9 +1446,6 @@ export default {
       return '';
     },
     async loadData(forceRefresh = false, options = {}) {
-      if (forceRefresh && !this.isAdmin) {
-        forceRefresh = false;
-      }
       const wantFull = options.full ?? (this.viewMode === 'collecte');
       const cacheKey = this.periodCacheKey(wantFull);
 
@@ -1535,47 +1494,6 @@ export default {
         this.dataLoadedFull = false;
       } finally {
         this.loading = false;
-      }
-    },
-    async forceRecalc() {
-      if (!this.isAdmin) return;
-      if (!window.confirm(
-        `Recalculer depuis Flexcube pour ${this.months[this.selectedMonth - 1]} ${this.selectedYear} ?\n` +
-        'Cette opération est longue (1–3 min) et met à jour le snapshot du jour.'
-      )) {
-        return;
-      }
-      this.recalculating = true;
-      try {
-        await this.loadData(true);
-      } finally {
-        this.recalculating = false;
-      }
-    },
-    async freezeObjectifs() {
-      if (!this.isAdmin) return;
-      if (!window.confirm(
-        `Figer les objectifs OBJ_COL_EPV_VUE pour ${this.months[this.selectedMonth - 1]} ${this.selectedYear} ?\n` +
-        'Cette action remplace le snapshot du mois.'
-      )) {
-        return;
-      }
-      this.freezing = true;
-      this.errorMessage = '';
-      try {
-        await window.axios.post('/api/oracle/backup/objectif-epv-vue', null, {
-          params: { month: this.selectedMonth, year: this.selectedYear },
-          timeout: 300000,
-        });
-        await this.loadData();
-      } catch (err) {
-        this.errorMessage =
-          err?.response?.data?.message ||
-          err?.response?.data?.error ||
-          err?.message ||
-          'Échec du figement des objectifs';
-      } finally {
-        this.freezing = false;
       }
     },
     async exportChart(format) {
@@ -1740,49 +1658,6 @@ export default {
   color: var(--epv-ink);
   min-height: 38px;
   line-height: 1.2;
-}
-
-.btn-refresh {
-  min-height: 38px;
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--epv-green);
-  border-radius: 6px;
-  background: var(--epv-green);
-  color: #fff;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btn-recalc {
-  min-height: 38px;
-  padding: 0.5rem 1rem;
-  border: 1px solid #1d4ed8;
-  border-radius: 6px;
-  background: #eff6ff;
-  color: #1d4ed8;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.btn-refresh:disabled,
-.btn-recalc:disabled,
-.btn-freeze:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.btn-freeze {
-  min-height: 38px;
-  padding: 0.5rem 1rem;
-  border: 1px solid #92400e;
-  border-radius: 6px;
-  background: #fffbeb;
-  color: #92400e;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
 }
 
 .loading-message,

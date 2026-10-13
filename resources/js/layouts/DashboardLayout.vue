@@ -14,6 +14,7 @@
         @section-selected="handleSectionSelected"
         @sub-section-selected="handleSubSectionSelected"
       />
+      <div class="content-column">
       <div class="main-content">
         <router-view v-slot="{ Component, route }">
           <keep-alive include="CafVueEnsemblePage,Vue360Page">
@@ -30,6 +31,8 @@
           />
         </router-view>
       </div>
+      <AppFooter />
+      </div>
     </div>
   </div>
 </template>
@@ -37,11 +40,12 @@
 <script>
 import DashboardHeader from '../components/DashboardHeader.vue';
 import Sidebar from '../components/Sidebar.vue';
+import AppFooter from '../components/AppFooter.vue';
 import { ProfileManager } from '../utils/profiles.js';
 
 export default {
   name: 'DashboardLayout',
-  components: { DashboardHeader, Sidebar },
+  components: { DashboardHeader, Sidebar, AppFooter },
   data() {
     return {
       selectedZone: null,
@@ -130,14 +134,28 @@ export default {
         this.activeSubSection = 'mine';
         return;
       }
+      if (section === 'suivi-production') {
+        if (!ProfileManager.canAccessCredit()) {
+          return;
+        }
+        sessionStorage.setItem('dashboardSection', 'suivi-production');
+        this.$router.push('/dashboard');
+        return;
+      }
       if (!ProfileManager.canAccessSection(section)) {
         return;
       }
       sessionStorage.setItem('dashboardSection', section);
+      if (section === 'portefeuille-risque') {
+        sessionStorage.setItem('dashboardSubSection', 'global');
+      }
       this.$router.push('/dashboard');
     },
     handleSubSectionSelected(subSection) {
       this.activeSubSection = subSection;
+      if (subSection === 'global') {
+        sessionStorage.setItem('dashboardSubSection', 'global');
+      }
       if (subSection === 'mine' && ProfileManager.canAccessSection('objectives', 'mine')) {
         if (!this.$route.path.startsWith('/vue360/objectifs')) {
           this.$router.push('/vue360/objectifs');
@@ -178,8 +196,17 @@ export default {
   display: flex;
 }
 
+.content-column {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .main-content {
   flex: 1;
+  min-height: 0;
   min-width: 0;
   background: #eef1f4;
   overflow-y: auto;

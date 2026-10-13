@@ -63,7 +63,7 @@
             </div>
           </div>
         </div>-->
-        <div v-if="canAccessCredit" class="nav-section-header" @click.stop="toggleCredit" :class="{ active: activeSection === 'production' || activeSection === 'renouvellement' || activeSection === 'new-deal' || activeSection === 'restructuration' || activeSection === 'commission-credit' || activeSection === 'recouvrement' || activeSection === 'portefeuille-risque' || activeSection === 'performance-credit' }">
+        <div v-if="canAccessCredit" class="nav-section-header" @click.stop="toggleCredit" :class="{ active: activeSection === 'suivi-production' || activeSection === 'production' || activeSection === 'renouvellement' || activeSection === 'new-deal' || activeSection === 'restructuration' || activeSection === 'commission-credit' || activeSection === 'recouvrement' || activeSection === 'portefeuille-risque' || activeSection === 'performance-credit' }">
           <span class="nav-title">
             <span class="nav-icon">💳</span>
             <span class="nav-label">CREDIT</span>
@@ -71,17 +71,26 @@
           <span class="toggle-icon">{{ creditExpanded ? '▼' : '▶' }}</span>
         </div>
         <!----><div v-if="canAccessCredit && creditExpanded" class="nav-section-items">
+          <a
+            href="#"
+            @click.stop.prevent="selectSection('suivi-production')"
+            class="nav-link indent"
+            :class="{ active: activeSection === 'suivi-production' }"
+          >
+            Suivi production
+          </a>
          <!-- <a href="#" @click.stop.prevent="selectSection('production')" class="nav-link indent" :class="{ active: activeSection === 'production' }">
             Production
           </a>-->
-         
-          <!--<div v-if="portefeuilleRisqueExpanded" class="nav-section-items">
-           <a href="#" @click.stop.prevent="handlePortefeuilleRisqueSection('simple')" class="nav-link double-indent" :class="{ active: activeSection === 'portefeuille-risque' && activeSubSection === 'simple' }">
-              PAR SIMPLE
-            </a>-->
 
-            <a v-if="canAccessSection('portefeuille-risque')" href="#" @click.stop.prevent="handlePortefeuilleRisqueSection('global')" class="nav-link indent":class="{ active: activeSection === 'global'}">
-          Portefeuille à risque
+            <a
+              v-if="canAccessSection('portefeuille-risque')"
+              href="#"
+              @click.stop.prevent="handlePortefeuilleRisqueSection('global')"
+              class="nav-link indent"
+              :class="{ active: activeSection === 'portefeuille-risque' }"
+            >
+              Portefeuille à risque
             </a>
           
         
@@ -225,9 +234,6 @@
 
       </div>
     </nav>
-    <div class="sidebar-footer">
-      <div> <img src="/téléchargement.jpeg" alt="COFINA Logo" class="building-image"></div>
-    </div>
   </aside>
 </template>
 
@@ -265,7 +271,8 @@ export default {
       diversExpanded: false,
       portefeuilleRisqueExpanded: false,
       reportingFinancierExpanded: false,
-      modulesExpanded: false
+      modulesExpanded: false,
+      suppressNavClick: false
     }
   },
   watch: {
@@ -285,7 +292,7 @@ export default {
         this.clientExpanded = false;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
-      } else if (newVal === 'production' || newVal === 'renouvellement' || newVal === 'new-deal' || newVal === 'restructuration' || newVal === 'commission-credit' || newVal === 'recouvrement' || newVal === 'portefeuille-risque' || newVal === 'performance-credit') {
+      } else if (newVal === 'suivi-production' || newVal === 'production' || newVal === 'renouvellement' || newVal === 'new-deal' || newVal === 'restructuration' || newVal === 'commission-credit' || newVal === 'recouvrement' || newVal === 'portefeuille-risque' || newVal === 'performance-credit') {
         this.creditExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;
@@ -371,7 +378,7 @@ export default {
       this.clientExpanded = false;
       this.objectivesExpanded = false;
       this.managementExpanded = false;
-      } else if (this.activeSection === 'production' || this.activeSection === 'renouvellement' || this.activeSection === 'new-deal' || this.activeSection === 'restructuration' || this.activeSection === 'commission-credit' || this.activeSection === 'recouvrement' || this.activeSection === 'portefeuille-risque' || this.activeSection === 'performance-credit') {
+      } else if (this.activeSection === 'suivi-production' || this.activeSection === 'production' || this.activeSection === 'renouvellement' || this.activeSection === 'new-deal' || this.activeSection === 'restructuration' || this.activeSection === 'commission-credit' || this.activeSection === 'recouvrement' || this.activeSection === 'portefeuille-risque' || this.activeSection === 'performance-credit') {
         this.creditExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;
@@ -530,6 +537,10 @@ export default {
       const next = !this.creditExpanded;
       if (next) {
         this.closeAllNavSectionsExcept('credit');
+        this.suppressNavClick = true;
+        setTimeout(() => {
+          this.suppressNavClick = false;
+        }, 0);
       }
       this.creditExpanded = next;
       if (!next) {
@@ -571,10 +582,11 @@ export default {
       if (!this.canAccessSection('portefeuille-risque')) {
         return;
       }
+      if (this.suppressNavClick) {
+        return;
+      }
       this.$emit('section-selected', 'portefeuille-risque');
-      this.$nextTick(() => {
-        this.$emit('sub-section-selected', subSection);
-      });
+      this.$emit('sub-section-selected', subSection || 'global');
     },
     toggleObjectives() {
       const next = !this.objectivesExpanded;
@@ -629,7 +641,9 @@ export default {
       });
     },
     selectSection(section) {
-      if (!this.canAccessSection(section) && section !== 'objectives') {
+      if (section === 'suivi-production') {
+        if (!this.canAccessCredit) return;
+      } else if (!this.canAccessSection(section) && section !== 'objectives') {
         return;
       }
       if (section === 'modules' || section === 'pi') {
@@ -647,7 +661,7 @@ export default {
         this.clientExpanded = false;
         this.objectivesExpanded = false;
         this.managementExpanded = false;
-      } else if (section === 'production' || section === 'renouvellement' || section === 'new-deal' || section === 'restructuration' || section === 'commission-credit' || section === 'recouvrement' || section === 'portefeuille-risque' || section === 'performance-credit') {
+      } else if (section === 'suivi-production' || section === 'production' || section === 'renouvellement' || section === 'new-deal' || section === 'restructuration' || section === 'commission-credit' || section === 'recouvrement' || section === 'portefeuille-risque' || section === 'performance-credit') {
         this.creditExpanded = true;
         this.clientExpanded = false;
         this.objectivesExpanded = false;
@@ -903,28 +917,6 @@ export default {
   font-weight: 600;
 }
 
-.sidebar-footer {
-  margin-top: auto;
-  flex-shrink: 0;
-  padding: 16px 20px 20px;
-  border-top: 1px solid #e5e7eb;
-  background: #f9fafb;
-}
-
-.sidebar-footer > div {
-  width: 100%;
-}
-
-.building-image {
-  width: 100%;
-  height: 140px;
-  max-height: 140px;
-  object-fit: cover;
-  border-radius: 10px;
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.15);
-  display: block;
-}
-
 /* Media Queries pour le responsive */
 
 /* Tablettes */
@@ -976,14 +968,6 @@ export default {
     padding-bottom: 0;
   }
   
-  .sidebar-footer {
-    padding: 12px 15px 15px;
-  }
-  
-  .building-image {
-    height: 120px;
-    max-height: 120px;
-  }
 }
 
 /* Petits mobiles */
@@ -1022,14 +1006,6 @@ export default {
     padding-bottom: 0;
   }
   
-  .sidebar-footer {
-    padding: 10px 12px 12px;
-  }
-  
-  .building-image {
-    height: 100px;
-    max-height: 100px;
-  }
 }
 </style>
 

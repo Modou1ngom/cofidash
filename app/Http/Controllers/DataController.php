@@ -1058,6 +1058,52 @@ class DataController extends Controller
     }
 
     /**
+     * Suivi de la production de crédits (mois ou cumul YTD) via l'API Python.
+     */
+    public function getSuiviProductionData(Request $request): JsonResponse
+    {
+        try {
+            $params = array_filter([
+                'scope' => $request->input('scope'),
+                'year' => $request->input('year'),
+                'month' => $request->input('month'),
+                'agences' => $request->input('agences'),
+                'secteurs' => $request->input('secteurs'),
+                'types' => $request->input('types'),
+            ], fn ($value) => $value !== null && $value !== '');
+
+            $result = $this->oracleService->getPythonGetCached(
+                'suivi-production-v8',
+                '/api/oracle/data/suivi-production',
+                $params,
+                'Suivi production'
+            );
+
+            if ($result['success']) {
+                return response()->json($result['data']);
+            }
+
+            Log::error('Erreur API Python Suivi production', [
+                'message' => $result['message'] ?? '',
+            ]);
+
+            return response()->json([
+                'error' => 'Erreur lors de la récupération des données',
+                'detail' => UserFacingError::from($result['message'] ?? ''),
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Exception lors de l\'appel API Python Suivi production', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'error' => 'Erreur de connexion au service Python',
+                'detail' => UserFacingError::from($e->getMessage()),
+            ], 500);
+        }
+    }
+
+    /**
      * Évolution de l'encours crédit (PTF et produit d'intérêt) via l'API Python
      */
     public function getEncoursCreditData(Request $request): JsonResponse
@@ -1602,6 +1648,7 @@ class DataController extends Controller
                 if ($denied) {
                     return $denied;
                 }
+                set_time_limit(0);
             }
 
             $result = $this->oracleService->getCollecteEpargneAVueData(
@@ -1648,6 +1695,8 @@ class DataController extends Controller
             return $denied;
         }
 
+        set_time_limit(0);
+
         try {
             $month = $request->input('month');
             $year = $request->input('year');
@@ -1684,6 +1733,8 @@ class DataController extends Controller
         if ($denied) {
             return $denied;
         }
+
+        set_time_limit(0);
 
         try {
             $month = $request->input('month');

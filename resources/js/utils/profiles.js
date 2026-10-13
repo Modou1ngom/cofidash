@@ -464,6 +464,13 @@ export const ProfileManager = {
     return permissions.some((permission) => this.hasPermission(permission));
   },
 
+  canAccessCredit() {
+    return this.canAccessAny([
+      PERMISSIONS.MENU_PORTEFEUILLE_RISQUE,
+      PERMISSIONS.MENU_NEW_DEAL,
+    ]);
+  },
+
   dashboardSectionOrder() {
     return [
       'client',
