@@ -106,7 +106,7 @@
           </div>
           <label v-if="detailTab === 'prets'" class="detail-search">
             <span>Recherche</span>
-            <input v-model="detailQuery" type="search" placeholder="N° de prêt, agence ou secteur" @input="detailPage = 1">
+            <input v-model="detailQuery" type="search" placeholder="N° de prêt, agence, CAF ou secteur" @input="detailPage = 1">
           </label>
           <div class="detail-table-wrap">
             <table v-if="detailTab === 'prets'">
@@ -115,23 +115,25 @@
                   <th>N° de prêt</th>
                   <th>Date</th>
                   <th>Agence</th>
+                  <th>CAF</th>
                   <th>Secteur</th>
                   <th class="num">Montant</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="linesLoading">
-                  <td colspan="5">Chargement des prêts…</td>
+                  <td colspan="6">Chargement des prêts…</td>
                 </tr>
                 <tr v-for="row in detailPageRows" :key="`${row.pret}-${row.date}`">
                   <td>{{ row.pret || '—' }}</td>
                   <td>{{ formatDate(row.date) }}</td>
                   <td>{{ row.agence }}</td>
+                  <td>{{ row.caf || '—' }}</td>
                   <td>{{ row.secteur }}</td>
                   <td class="num">{{ formatMoney(row.montant) }}</td>
                 </tr>
-                <tr v-if="!detailPageRows.length">
-                  <td colspan="5" class="detail-empty">Aucun prêt sur cette sélection.</td>
+                <tr v-if="!linesLoading && !detailPageRows.length">
+                  <td colspan="6" class="detail-empty">Aucun prêt sur cette sélection.</td>
                 </tr>
               </tbody>
             </table>
@@ -240,7 +242,7 @@
                         <td class="level-3 col-label col-agence">
                           <span class="cell-line">
                             <button type="button" class="expand-btn" @click.stop="toggleExpand(row.key)">{{ expanded[row.key] ? '−' : '+' }}</button>
-                            <span>{{ row.label }}</span>
+                            <span class="agency-name" :title="row.label">{{ agencyShort(row.label) }}</span>
                           </span>
                         </td>
                         <td class="col-label col-gest">—</td>
@@ -253,7 +255,7 @@
                       <template v-if="expanded[row.key]">
                         <tr v-for="caf in row.cafs" :key="caf.key" class="level-4-row">
                           <td class="level-4 col-label col-agence"><span class="agency-code">{{ row.key }}</span></td>
-                          <td class="col-label col-gest">{{ caf.label }}</td>
+                          <td class="col-label col-gest">{{ cafDisplayName(caf) }}</td>
                           <td>{{ formatAmount(caf.objectif) }}</td>
                           <td v-for="type in creditTypes" :key="`${caf.key}-${type.key}`">{{ formatAmount(caf[type.key]) }}</td>
                           <td><strong>{{ formatAmount(caf.total) }}</strong></td>
@@ -536,10 +538,10 @@ function resolveTerritory(label) {
 }
 
 const TYPES = [
-  { key: 'restructure', label: 'Restructure', stackLabel: 'Crédit Restructuré', color: '#22c55e', icon: ICON_DOC },
-  { key: 'protocole', label: 'Protocole', stackLabel: 'Crédit Protocole', color: '#7c3aed', icon: ICON_DOC },
+  { key: 'restructure', label: 'Restructure', stackLabel: 'Restructure', color: '#22c55e', icon: ICON_DOC },
+  { key: 'protocole', label: 'Protocole', stackLabel: 'Protocole', color: '#7c3aed', icon: ICON_DOC },
   { key: 'rebooker', label: 'Reboocker', stackLabel: 'Reboocker', color: '#f97316', icon: ICON_REFRESH },
-  { key: 'simple', label: 'Net', stackLabel: 'Crédit Simple', color: '#14b8a6', icon: ICON_USER },
+  { key: 'simple', label: 'Net', stackLabel: 'Net', color: '#14b8a6', icon: ICON_USER },
 ];
 
 const SLICE_COLORS = ['#2563eb', '#22c55e', '#f97316', '#7c3aed', '#14b8a6', '#94a3b8', '#1A4D3A', '#c6a15b'];
@@ -751,6 +753,7 @@ export default {
       return this.detailRows.filter((row) => (
         String(row.pret || '').toLowerCase().includes(query)
         || String(row.agence || '').toLowerCase().includes(query)
+        || String(row.caf || '').toLowerCase().includes(query)
         || String(row.secteur || '').toLowerCase().includes(query)
       ));
     },
@@ -2310,7 +2313,17 @@ export default {
   font-weight: 600;
 }
 
-.agencies-table tbody tr:hover td { background: #f5f5f5; }
+.agencies-table tbody tr.level-1-row:hover td { background: #3a3a3a; color: #fff; }
+.agencies-table tbody tr.level-2-row:hover td { background: #5c5c5c; color: #fff; }
+.agencies-table tbody tr.level-3-row:hover td { background: #f3f6f4; color: #1c2b24; }
+.agencies-table tbody tr.level-4-row:hover td { background: #eef3f0; color: #1c2b24; }
+
+.agency-name {
+  min-width: 0;
+  color: inherit;
+  overflow-wrap: normal;
+  word-break: normal;
+}
 
 .total-row { background: #dc2626; font-weight: 600; color: #fff; }
 .total-row td {

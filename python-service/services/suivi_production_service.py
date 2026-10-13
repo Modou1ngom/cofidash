@@ -357,18 +357,24 @@ def _famille_months(rows: list[dict], end: dt_date, limit: int = 6) -> dict:
 
 
 def _lines(rows: list[dict]) -> list[dict]:
+    names = _caf_names()
     ordered = sorted(rows, key=lambda row: row["montant"], reverse=True)
-    return [
-        {
+    lines = []
+    for row in ordered:
+        code = str(row.get("caf_code") or "").strip()
+        name = row.get("caf_name") or names.get(code) or ""
+        if not name and code and code != "-":
+            name = code
+        lines.append({
             "pret": row.get("no_pret", ""),
             "date": row["date"].isoformat(),
             "agence": row["agence"],
+            "caf": name or "—",
             "secteur": row["secteur"],
             "type": row["type"],
             "montant": round(row["montant"], 2),
-        }
-        for row in ordered
-    ]
+        })
+    return lines
 
 
 def _options(rows: list[dict]) -> dict:
@@ -423,8 +429,25 @@ def _round_amounts(item: dict) -> None:
         item[key] = round(item[key], 2)
 
 
+def _caf_names() -> dict[str, str]:
+    """Nom du CAF par CODE_GESTION_PRET. La sauvegarde ne conserve souvent que le code."""
+    try:
+        from services.caf_manager_service import list_gestion_pret_managers
+
+        rows = list_gestion_pret_managers()
+    except Exception:
+        logger.warning("Noms CAF indisponibles, les codes seront affichés", exc_info=True)
+        return {}
+    return {
+        str(row.get("code_gestion_pret") or "").strip(): _pretty_name(str(row.get("charge_affaire") or ""))
+        for row in rows
+        if str(row.get("code_gestion_pret") or "").strip() and str(row.get("charge_affaire") or "").strip()
+    }
+
+
 def _agency_matrix(current: list[dict], previous: list[dict]) -> list[dict]:
     buckets: dict[str, dict] = {}
+    caf_names = _caf_names()
 
     def bucket_for(row: dict) -> dict:
         key = row["agence_code"]
@@ -447,7 +470,9 @@ def _agency_matrix(current: list[dict], previous: list[dict]) -> list[dict]:
         bucket = bucket_for(row)
         _add_amount(bucket, row)
         caf_code = row.get("caf_code") or "-"
-        caf_name = row.get("caf_name") or ""
+        caf_name = row.get("caf_name") or caf_names.get(caf_code) or ""
+        if not caf_name and caf_code != "-":
+            caf_name = caf_code
         caf = bucket["cafs"].get(caf_code)
         if caf is None:
             caf = {

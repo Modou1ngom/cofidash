@@ -1070,10 +1070,11 @@ class DataController extends Controller
                 'agences' => $request->input('agences'),
                 'secteurs' => $request->input('secteurs'),
                 'types' => $request->input('types'),
+                'lignes' => $request->boolean('lignes') ? 1 : null,
             ], fn ($value) => $value !== null && $value !== '');
 
             $result = $this->oracleService->getPythonGetCached(
-                'suivi-production-v8',
+                'suivi-production-v10',
                 '/api/oracle/data/suivi-production',
                 $params,
                 'Suivi production'
