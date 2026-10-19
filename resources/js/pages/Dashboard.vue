@@ -73,7 +73,9 @@
           <p>Section Recouvrement en cours de développement</p>
         </div>
         <SuiviProductionSection v-if="activeSection === 'suivi-production'" />
-        <SuiviEcheanceSection v-if="activeSection === 'suivi-echeance'" />
+        <keep-alive>
+          <SuiviEcheanceSection v-if="activeSection === 'suivi-echeance'" />
+        </keep-alive>
         <PortefeuilleRisqueGlobalSection v-if="canAccessSection('portefeuille-risque') && activeSection === 'portefeuille-risque'" />
         
         <!-- Sections DEPOT -->

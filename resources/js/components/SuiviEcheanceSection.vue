@@ -19,7 +19,7 @@
             <option v-for="item in monthOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
           </select>
         </label>
-        <button type="button" class="refresh" :disabled="loading" title="Actualiser" @click="load">
+        <button type="button" class="refresh" :disabled="loading" title="Actualiser" @click="reload">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path d="M20 12a8 8 0 1 1-2.2-5.5" stroke-linecap="round" />
             <path d="M20 4v5h-5" stroke-linecap="round" stroke-linejoin="round" />
@@ -477,6 +477,11 @@ const barLabels = {
 };
 
 const PAGE_SIZE = 40;
+const suiviEcheanceCache = new Map();
+
+function periodKey(year, month) {
+  return `${year}-${String(month).padStart(2, '0')}`;
+}
 const MONTHS = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
@@ -909,6 +914,12 @@ export default {
   mounted() {
     this.load();
   },
+  activated() {
+    this.$nextTick(() => {
+      this.donutChart?.resize();
+      this.barChart?.resize();
+    });
+  },
   updated() {
     const canvas = this.$refs.barCanvas;
     if (!canvas || this.view !== 'dashboard' || !this.agencyBars.length) return;
@@ -1115,8 +1126,30 @@ export default {
         return total + (Number(row[key]) || 0);
       }, 0);
     },
-    async load() {
-      this.loading = true;
+    applyCachedPeriod(cached) {
+      this.rows = cached.rows;
+      this.periodLabel = cached.periodLabel;
+      this.warning = cached.warning;
+      this.snapshotLabel = cached.snapshotLabel;
+      this.objectifRows = cached.objectifRows;
+      this.objectifWarning = cached.objectifWarning;
+      this.error = cached.error || '';
+    },
+    reload() {
+      return this.load(true);
+    },
+    async load(force = false) {
+      if (force && typeof force !== 'boolean') {
+        force = false;
+      }
+      const key = periodKey(this.year, this.month);
+      const cached = suiviEcheanceCache.get(key);
+      if (!force && cached) {
+        this.applyCachedPeriod(cached);
+        this.loading = false;
+        return;
+      }
+      this.loading = !cached;
       this.error = '';
       this.warning = '';
       this.objectifWarning = '';
@@ -1153,6 +1186,17 @@ export default {
             objectifResult.reason,
             'L\'objectif de recouvrement n\'a pas pu être chargé.',
           );
+        }
+        if (!this.error) {
+          suiviEcheanceCache.set(key, {
+            rows: this.rows,
+            periodLabel: this.periodLabel,
+            warning: this.warning,
+            snapshotLabel: this.snapshotLabel,
+            objectifRows: this.objectifRows,
+            objectifWarning: this.objectifWarning,
+            error: '',
+          });
         }
       } finally {
         this.loading = false;
