@@ -14,10 +14,12 @@ return new class extends Migration
         if (! Schema::hasTable('suivi_echeance')) {
             Schema::create('suivi_echeance', function (Blueprint $table) {
                 $table->id();
-                $table->text('jour')->index();
+                $table->string('jour', 10)->index();
                 $table->unsignedSmallInteger('annee');
                 $table->unsignedTinyInteger('mois');
-                foreach ($this->columns() as $column) {
+                $table->string('code_agence', 16)->nullable();
+                $table->string('no_pret', 64)->nullable();
+                foreach ($this->payloadColumns() as $column) {
                     $table->text($column)->nullable();
                 }
                 $table->index(['annee', 'mois', 'jour']);
@@ -28,12 +30,12 @@ return new class extends Migration
 
         if (! Schema::hasTable('suivi_echeance_meta')) {
             Schema::create('suivi_echeance_meta', function (Blueprint $table) {
-                $table->text('jour')->primary();
+                $table->string('jour', 10)->primary();
                 $table->unsignedSmallInteger('annee')->nullable();
                 $table->unsignedTinyInteger('mois')->nullable();
-                $table->text('date_debut')->nullable();
-                $table->text('date_fin')->nullable();
-                $table->text('refreshed_at')->nullable();
+                $table->string('date_debut', 32)->nullable();
+                $table->string('date_fin', 32)->nullable();
+                $table->string('refreshed_at', 32)->nullable();
                 $table->integer('row_count')->nullable();
                 $table->string('status')->nullable();
                 $table->text('error_message')->nullable();
@@ -49,14 +51,14 @@ return new class extends Migration
     }
 
     /**
+     * Colonnes métier non indexées (évite TEXT dans les index MySQL).
+     *
      * @return list<string>
      */
-    private function columns(): array
+    private function payloadColumns(): array
     {
         return [
-            'code_agence',
             'nom_agence',
-            'no_pret',
             'matricule_client',
             'nom_client',
             'compte',
