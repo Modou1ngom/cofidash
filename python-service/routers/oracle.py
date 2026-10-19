@@ -9,6 +9,12 @@ from database.oracle_pool import get_pool_flexcube
 from services.clients_service import get_clients_data
 from services.production_service import get_production_nombre_data, get_production_volume_data, get_encours_credit_data
 from services.suivi_production_service import get_suivi_production_data
+from services.suivi_echeance_service import get_suivi_echeance_data
+from services.suivi_echeance_backup_service import (
+    get_suivi_echeance_snapshot_meta,
+    refresh_suivi_echeance_day,
+)
+from services.objectif_recouvrement_backup_service import get_objectif_recouvrement_data
 from services.suivi_production_backup_service import (
     get_suivi_snapshot_meta,
     history_years,
@@ -374,6 +380,69 @@ async def get_suivi_production_endpoint(
         raise HTTPException(
             status_code=500,
             detail=f"Erreur lors de la récupération du suivi de production: {e!s}",
+        ) from e
+
+
+@router.get("/data/suivi-echeance")
+async def get_suivi_echeance_endpoint(
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+):
+    """Échéances du mois, exigibles antérieurs et charges du compte de prêt."""
+    try:
+        return get_suivi_echeance_data(year, month)
+    except HTTPException as e:
+        logger.error("Erreur suivi échéance: %s", e.detail)
+        raise HTTPException(
+            status_code=503,
+            detail=e.detail or "Le serveur Flexcube est inaccessible.",
+        ) from e
+    except Exception as e:
+        logger.error("Erreur suivi échéance: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors de la récupération du suivi échéance: {e!s}",
+        ) from e
+
+
+@router.get("/data/suivi-echeance/snapshot")
+async def get_suivi_echeance_snapshot_meta_endpoint(jour: Optional[str] = None):
+    """Métadonnées des photos journalières du suivi échéance."""
+    try:
+        return {"snapshot": get_suivi_echeance_snapshot_meta(jour)}
+    except Exception as e:
+        logger.error("Erreur meta suivi échéance: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/backup/suivi-echeance")
+async def refresh_suivi_echeance_backup(
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+):
+    """Sauvegarde suivi_echeance.sql pour le mois demandé. Relancée toutes les 30 minutes."""
+    try:
+        return refresh_suivi_echeance_day(year=year, month=month)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        logger.error("Erreur sauvegarde suivi échéance: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get("/data/objectif-recouvrement")
+async def get_objectif_recouvrement_endpoint(
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+):
+    """Objectif de recouvrement figé le 1er du mois demandé."""
+    try:
+        return get_objectif_recouvrement_data(year, month)
+    except Exception as e:
+        logger.error("Erreur objectif recouvrement: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors de la récupération de l'objectif de recouvrement: {e!s}",
         ) from e
 
 

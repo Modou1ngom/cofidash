@@ -264,6 +264,209 @@ class Vue360ApiService
     }
 
     /**
+     * Tombées d'échéances du mois (photo suivi_echeance).
+     *
+     * @return array{success: bool, data?: mixed, message?: string, status?: int}
+     */
+    public function echeances(
+        User $user,
+        ?int $year = null,
+        ?int $month = null,
+        ?string $cafCode = null,
+        ?string $agency = null,
+        ?string $search = null,
+    ): array {
+        $params = array_filter([
+            'year' => $year,
+            'month' => $month,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $result = $this->get('/api/oracle/data/suivi-echeance', $params, self::HTTP_TIMEOUT_LONG);
+        if (!$result['success']) {
+            return $result;
+        }
+
+        $payload = is_array($result['data'] ?? null) ? $result['data'] : [];
+        $rows = is_array($payload['rows'] ?? null) ? $payload['rows'] : [];
+        $items = $this->filterMappedEcheances(
+            $user,
+            $rows,
+            $cafCode,
+            is_string($agency) ? $agency : null,
+            is_string($search) ? $search : null,
+        );
+
+        return [
+            'success' => true,
+            'data' => [
+                'data' => $items,
+                'period' => $payload['period'] ?? null,
+                'count' => count($items),
+                'source' => $payload['source'] ?? null,
+                'warning' => $payload['warning'] ?? null,
+                'generated_at' => $payload['generated_at'] ?? null,
+            ],
+        ];
+    }
+
+    /**
+     * @return array{success: bool, data?: mixed, message?: string, status?: int}
+     */
+    public function echeance(
+        User $user,
+        string $id,
+        ?int $year = null,
+        ?int $month = null,
+    ): array {
+        if (($year === null || $month === null) && preg_match('/__(\d{4})-(\d{2})-\d{2}__/', $id, $matches)) {
+            $year = (int) $matches[1];
+            $month = (int) $matches[2];
+        }
+
+        $result = $this->echeances($user, $year, $month);
+        if (!$result['success']) {
+            return $result;
+        }
+
+        $items = $result['data']['data'] ?? [];
+        foreach (is_array($items) ? $items : [] as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+            if (($item['id'] ?? '') === $id || ($item['loan_number'] ?? '') === $id) {
+                return ['success' => true, 'data' => $item];
+            }
+        }
+
+        return [
+            'success' => false,
+            'status' => 404,
+            'message' => 'Échéance introuvable',
+        ];
+    }
+
+    /**
+     * @param  array<int, mixed>  $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function filterMappedEcheances(
+        User $user,
+        array $rows,
+        ?string $cafCode,
+        ?string $agency,
+        ?string $search,
+    ): array {
+        $branches = $this->scope->branchCodesForUser($user);
+        $role = $this->scope->mapRole($user->profile?->code);
+        $resolvedCaf = trim((string) ($cafCode ?: ''));
+        if ($resolvedCaf === '' && $role === 'caf') {
+            $resolvedCaf = trim((string) ($this->cafCodeForUser($user) ?: ''));
+        }
+        $agencyNeedle = mb_strtolower(trim((string) $agency));
+        $searchNeedle = mb_strtolower(trim((string) $search));
+
+        $items = [];
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $codeAgence = trim((string) ($row['code_agence'] ?? ''));
+            if ($resolvedCaf !== '' && trim((string) ($row['code_gestion_pret'] ?? '')) !== $resolvedCaf) {
+                continue;
+            }
+            if ($resolvedCaf === '' && is_array($branches) && ! $this->matchesBranchCode($codeAgence, $branches)) {
+                continue;
+            }
+            $nomAgence = trim((string) ($row['nom_agence'] ?? ''));
+            if ($agencyNeedle !== ''
+                && ! str_contains(mb_strtolower($nomAgence), $agencyNeedle)
+                && mb_strtolower($codeAgence) !== $agencyNeedle) {
+                continue;
+            }
+            if ($searchNeedle !== '') {
+                $haystack = mb_strtolower(implode(' ', [
+                    $row['nom_client'] ?? '',
+                    $row['matricule_client'] ?? '',
+                    $row['no_pret'] ?? '',
+                    $row['charge_affaire'] ?? '',
+                ]));
+                if (! str_contains($haystack, $searchNeedle)) {
+                    continue;
+                }
+            }
+            $items[] = $this->mapEcheanceRow($row);
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param  array<int, string>  $branches
+     */
+    private function matchesBranchCode(string $codeAgence, array $branches): bool
+    {
+        $code = trim($codeAgence);
+        foreach ($branches as $branch) {
+            $candidate = trim((string) $branch);
+            if ($candidate === $code) {
+                return true;
+            }
+            if ($code !== '' && $candidate !== '' && ltrim($candidate, '0') === ltrim($code, '0')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private function mapEcheanceRow(array $row): array
+    {
+        $pret = trim((string) ($row['no_pret'] ?? ''));
+        $due = trim((string) ($row['schedule_due_date'] ?? ''));
+        $numero = $row['numero_echeance'] ?? '';
+        $status = strtoupper(trim((string) ($row['status_ech'] ?? '')));
+        $montantM = (float) ($row['montant_echeance_m'] ?? 0);
+        $paye = (float) ($row['montant_echeance_paye'] ?? 0);
+        $exigible = (float) ($row['exigible_ech'] ?? 0);
+        $amount = $montantM + $paye;
+        if ($amount <= 0) {
+            $amount = $exigible;
+        }
+        $matricule = trim((string) ($row['matricule_client'] ?? ''));
+
+        return [
+            'id' => $pret.'__'.$due.'__'.$numero,
+            'client_id' => $matricule !== '' ? 'CLT-'.$matricule : '',
+            'client_name' => trim((string) ($row['nom_client'] ?? '')),
+            'matricule' => $matricule,
+            'phone' => '',
+            'agency' => $row['nom_agence'] ?? $row['code_agence'] ?? '',
+            'agency_code' => $row['code_agence'] ?? '',
+            'zone' => '',
+            'manager' => trim((string) ($row['charge_affaire'] ?? '')),
+            'manager_code' => trim((string) ($row['code_gestion_pret'] ?? '')),
+            'due_date' => $due,
+            'amount' => $amount,
+            'status' => match ($status) {
+                'R' => 'a_jour',
+                'I' => 'en_retard',
+                default => 'en_attente',
+            },
+            'credit_id' => $pret,
+            'loan_number' => $pret,
+            'financed_amount' => (float) ($row['montant_capital_accorde'] ?? 0),
+            'outstanding' => (float) ($row['encours_total'] ?? 0),
+            'duration_months' => 0,
+            'recovery_account' => trim((string) ($row['compte'] ?? '')),
+            'account_balance' => (float) ($row['solde_cpte'] ?? 0),
+        ];
+    }
+
+    /**
      * POST vers Python sans cache Laravel.
      *
      * @param  array<string, mixed>  $body

@@ -41,6 +41,16 @@ from services.suivi_production_backup_scheduler import (
     start_suivi_production_scheduler,
     stop_suivi_production_scheduler,
 )
+from services.suivi_echeance_backup_service import init_suivi_echeance_local_db
+from services.suivi_echeance_backup_scheduler import (
+    start_suivi_echeance_scheduler,
+    stop_suivi_echeance_scheduler,
+)
+from services.objectif_recouvrement_backup_service import init_objectif_recouvrement_local_db
+from services.objectif_recouvrement_backup_scheduler import (
+    start_objectif_recouvrement_scheduler,
+    stop_objectif_recouvrement_scheduler,
+)
 
 
 # Configuration du logging
@@ -64,18 +74,23 @@ async def startup_event():
         init_transfers_local_db()
         init_par_local_db()
         init_suivi_production_local_db()
+        init_suivi_echeance_local_db()
+        init_objectif_recouvrement_local_db()
         start_backup_scheduler()
         start_objectif_epv_vue_scheduler()
         start_collecte_epv_vue_scheduler()
         start_transfers_scheduler()
         start_par_scheduler()
         start_suivi_production_scheduler()
+        start_suivi_echeance_scheduler()
+        start_objectif_recouvrement_scheduler()
         logger.info(
             "✅ Pool Oracle statique Flexcube=8 (DASH désactivé), cache, "
-            "bases locales (C360/New Deal/objectifs EPV/collecte EPV/transferts/PAR/suivi production) et "
+            "bases locales (C360/New Deal/objectifs EPV/collecte EPV/transferts/PAR/suivi production/suivi échéance) et "
             "planificateurs initialisés "
             "(New Deal 06h/12h, objectifs 1er du mois, collecte EPV 06h, "
-            "transferts et PAR toutes les 30 min, suivi production 06h sur 3 ans)"
+            "transferts, PAR et suivi échéance toutes les 30 min, "
+            "suivi production 06h sur 3 ans, objectif recouvrement le 1er)"
         )
     except Exception as e:
         logger.error(f"❌ Erreur lors de l'initialisation: {e}", exc_info=True)
@@ -90,6 +105,8 @@ async def shutdown_event():
         stop_transfers_scheduler()
         stop_par_scheduler()
         stop_suivi_production_scheduler()
+        stop_suivi_echeance_scheduler()
+        stop_objectif_recouvrement_scheduler()
         close_pools()
         logger.info("✅ Pools de connexions Oracle fermés")
     except Exception as e:

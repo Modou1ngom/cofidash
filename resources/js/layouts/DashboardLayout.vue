@@ -134,11 +134,11 @@ export default {
         this.activeSubSection = 'mine';
         return;
       }
-      if (section === 'suivi-production') {
+      if (section === 'suivi-production' || section === 'suivi-echeance') {
         if (!ProfileManager.canAccessCredit()) {
           return;
         }
-        sessionStorage.setItem('dashboardSection', 'suivi-production');
+        sessionStorage.setItem('dashboardSection', section);
         this.$router.push('/dashboard');
         return;
       }

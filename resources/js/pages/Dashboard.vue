@@ -73,6 +73,7 @@
           <p>Section Recouvrement en cours de développement</p>
         </div>
         <SuiviProductionSection v-if="activeSection === 'suivi-production'" />
+        <SuiviEcheanceSection v-if="activeSection === 'suivi-echeance'" />
         <PortefeuilleRisqueGlobalSection v-if="canAccessSection('portefeuille-risque') && activeSection === 'portefeuille-risque'" />
         
         <!-- Sections DEPOT -->
@@ -149,6 +150,7 @@ const VolumeDatSection = lazySection(() => import('../components/VolumeDatSectio
 const EncoursSection = lazySection(() => import('../components/EncoursSection.vue'));
 const PortefeuilleRisqueGlobalSection = lazySection(() => import('../components/PortefeuilleRisqueGlobalSection.vue'));
 const SuiviProductionSection = lazySection(() => import('../components/SuiviProductionSection.vue'));
+const SuiviEcheanceSection = lazySection(() => import('../components/SuiviEcheanceSection.vue'));
 const NewDealSection = lazySection(() => import('../components/NewDealSection.vue'));
 const CRParAgenceSection = lazySection(() => import('../components/CRParAgenceSection.vue'));
 const ReferenceCompteSection = lazySection(() => import('../components/ReferenceCompteSection.vue'));
@@ -177,6 +179,7 @@ export default {
     EncoursSection,
     PortefeuilleRisqueGlobalSection,
     SuiviProductionSection,
+    SuiviEcheanceSection,
     NewDealSection,
     CRParAgenceSection,
     ReferenceCompteSection
@@ -254,11 +257,11 @@ export default {
         this.$router.push('/admin/environnements');
         return;
       }
-      if (section === 'suivi-production') {
+      if (section === 'suivi-production' || section === 'suivi-echeance') {
         if (!ProfileManager.canAccessCredit()) {
           return;
         }
-        this.activeSection = 'suivi-production';
+        this.activeSection = section;
         this.activeSubSection = null;
         return;
       }

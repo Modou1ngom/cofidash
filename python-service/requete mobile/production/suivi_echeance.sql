@@ -1,0 +1,390 @@
+WITH PENALITE AS (
+    SELECT
+        c.account_number AS NO_PRET,
+        z.SCHEDULE_NO,
+        SUM(NVL(z.AMOUNT_DUE, 0)) AS TOTAL_PENALITE,
+        SUM(NVL(z.AMOUNT_SETTLED, 0)) AS TOTAL_PENALITE_PAYE,
+        SUM(NVL(z.AMOUNT_DUE, 0) - NVL(z.AMOUNT_SETTLED, 0)) AS TOTAL_PENALITE_RESTANT
+    FROM CFSFCUBS145.cltb_account_master c
+    LEFT JOIN CFSFCUBS145.cltb_account_schedules z
+        ON z.account_number = c.account_number
+    WHERE c.ACCOUNT_STATUS NOT IN ('L', 'V')
+      AND z.COMPONENT_NAME IN ('ODIN_PNTY', 'ODIN_PNTYT', 'ODPR_PNTY', 'ODPR_PNTYT')
+    GROUP BY c.account_number, z.SCHEDULE_NO
+),
+BASE AS (
+    SELECT
+        ACCOUNT_NUMBER,
+        SCHEDULE_DUE_DATE,
+        SUM(NVL(AMOUNT_DUE, 0)) AS MONTANT_ECHEANCE,
+        SUM(NVL(AMOUNT_SETTLED, 0)) AS MONTANT_ECHEANCE_PAYE,
+        SUM(
+            CASE
+                WHEN SCHEDULE_DUE_DATE > TRUNC(SYSDATE) THEN 0
+                ELSE NVL(AMOUNT_DUE, 0) - NVL(AMOUNT_SETTLED, 0)
+            END
+        ) AS MONTANT_ECHEANCE_IMPY
+    FROM CFSFCUBS145.CLTB_ACCOUNT_SCHEDULES
+    WHERE COMPONENT_NAME IN ('MAIN_INT', 'PRINCIPAL')
+    GROUP BY ACCOUNT_NUMBER, SCHEDULE_DUE_DATE
+),
+BASE_NUM AS (
+    SELECT
+        e.*,
+        ROW_NUMBER() OVER (
+            PARTITION BY e.ACCOUNT_NUMBER
+            ORDER BY e.SCHEDULE_DUE_DATE
+        ) AS NUMERO_ECHEANCE
+    FROM BASE e
+),
+FINAL AS (
+    SELECT
+        e.ACCOUNT_NUMBER,
+        e.SCHEDULE_DUE_DATE,
+        e.NUMERO_ECHEANCE,
+        e.MONTANT_ECHEANCE,
+        e.MONTANT_ECHEANCE_PAYE,
+        e.MONTANT_ECHEANCE_IMPY,
+        NVL(pen.TOTAL_PENALITE_RESTANT, 0) AS PENALITE,
+        (NVL(e.MONTANT_ECHEANCE_IMPY, 0) + NVL(pen.TOTAL_PENALITE_RESTANT, 0)) AS EXIGIBLE,
+        CASE
+            WHEN (NVL(e.MONTANT_ECHEANCE_IMPY, 0) + NVL(pen.TOTAL_PENALITE_RESTANT, 0)) > 0
+                THEN 'I'
+            WHEN (NVL(e.MONTANT_ECHEANCE_IMPY, 0) + NVL(pen.TOTAL_PENALITE_RESTANT, 0)) = 0
+                 AND e.SCHEDULE_DUE_DATE < TRUNC(SYSDATE)
+                THEN 'R'
+            WHEN (NVL(e.MONTANT_ECHEANCE_IMPY, 0) + NVL(pen.TOTAL_PENALITE_RESTANT, 0)) = 0
+                 AND e.SCHEDULE_DUE_DATE >= TRUNC(SYSDATE)
+                THEN 'A'
+            ELSE NULL
+        END AS STATUS
+    FROM BASE_NUM e
+    LEFT JOIN PENALITE pen
+        ON pen.NO_PRET = e.ACCOUNT_NUMBER
+       AND pen.SCHEDULE_NO = e.NUMERO_ECHEANCE
+),
+TA_ECH_M AS (
+    SELECT
+        ACCOUNT_NUMBER,
+        SCHEDULE_DUE_DATE,
+        NUMERO_ECHEANCE,
+        (MONTANT_ECHEANCE - MONTANT_ECHEANCE_PAYE) AS MONTANT_ECHEANCE_M,
+        MONTANT_ECHEANCE_PAYE,
+        MONTANT_ECHEANCE_IMPY,
+        PENALITE,
+        EXIGIBLE,
+        STATUS
+    FROM FINAL
+    WHERE SCHEDULE_DUE_DATE BETWEEN :date_debut AND :date_fin
+),
+SUIVI_EXIGIBLE_M_1 AS (
+    SELECT
+        ACCOUNT_NUMBER,
+        SUM(EXIGIBLE) AS EXIGIBLE_M_1
+    FROM FINAL
+    WHERE SCHEDULE_DUE_DATE < :date_debut
+    GROUP BY ACCOUNT_NUMBER
+),
+ASC_DUE_OUV AS (
+    SELECT
+        ACCOUNT_NO,
+        ACCOUNT_BR,
+        (SUM(AMOUNT_DUE) - SUM(AMOUNT_PAID)) AS CHARGE_DUE
+    FROM CFSFCUBS145.CSTB_AUTO_SETTLE_BLOCK b
+    WHERE STATUS <> 'P'
+      AND COMPONENT = 'CHARGE'
+      AND PRODUCT = 'ASCP'
+    GROUP BY ACCOUNT_NO, ACCOUNT_BR
+),
+ACS_DUE_ANNUELLE AS (
+    SELECT
+        ACCOUNT_NO,
+        ACCOUNT_BR,
+        (SUM(AMOUNT_DUE) - SUM(AMOUNT_PAID)) AS CHARGE_DUE
+    FROM CFSFCUBS145.CSTB_AUTO_SETTLE_BLOCK b
+    WHERE STATUS <> 'P'
+      AND COMPONENT = 'CHARGE'
+      AND PRODUCT = 'ASSA'
+    GROUP BY ACCOUNT_NO, ACCOUNT_BR
+),
+FRAIS_OUV_DUE AS (
+    SELECT
+        ACCOUNT_NO,
+        ACCOUNT_BR,
+        (SUM(AMOUNT_DUE) - SUM(AMOUNT_PAID)) AS CHARGE_DUE
+    FROM CFSFCUBS145.CSTB_AUTO_SETTLE_BLOCK b
+    WHERE STATUS <> 'P'
+      AND COMPONENT = 'CHARGE'
+      AND PRODUCT = 'FOUV'
+    GROUP BY ACCOUNT_NO, ACCOUNT_BR
+),
+COFICARTE_DUE AS (
+    SELECT
+        ACCOUNT_NO,
+        ACCOUNT_BR,
+        (SUM(AMOUNT_DUE) - SUM(AMOUNT_PAID)) AS CHARGE_DUE
+    FROM CFSFCUBS145.CSTB_AUTO_SETTLE_BLOCK b
+    WHERE STATUS <> 'P'
+      AND COMPONENT = 'CHARGE'
+      AND PRODUCT = 'COFC'
+    GROUP BY ACCOUNT_NO, ACCOUNT_BR
+),
+FTC_DUE AS (
+    SELECT
+        ACCOUNT_NO,
+        ACCOUNT_BR,
+        (SUM(AMOUNT_DUE) - SUM(AMOUNT_PAID)) AS CHARGE_DUE
+    FROM CFSFCUBS145.CSTB_AUTO_SETTLE_BLOCK b
+    WHERE STATUS <> 'P'
+      AND COMPONENT = 'CHARGE'
+      AND PRODUCT = 'FTEC'
+    GROUP BY ACCOUNT_NO, ACCOUNT_BR
+),
+CHARGE AS (
+    SELECT
+        c.CUST_AC_NO AS NUMERO_COMPTE,
+        c.CUST_NO AS MATRICULE_CLIENT,
+        c.AC_DESC AS NOM_CLIENT,
+        NVL(acs.CHARGE_DUE, 0) AS CHARGE_DUE_ACS_OUV,
+        NVL(acsa.CHARGE_DUE, 0) AS CHARGE_DUE_ACS_AN,
+        NVL(fro.CHARGE_DUE, 0) AS CHARGE_DUE_FR_OUV,
+        NVL(crt.CHARGE_DUE, 0) AS CHARGE_DUE_CARTE,
+        NVL(ftc.CHARGE_DUE, 0) AS CHARGE_DUE_FTC,
+        (
+            NVL(acs.CHARGE_DUE, 0) + NVL(acsa.CHARGE_DUE, 0)
+            + NVL(fro.CHARGE_DUE, 0) + NVL(crt.CHARGE_DUE, 0) + NVL(ftc.CHARGE_DUE, 0)
+        ) AS TOTAL_CHARGE
+    FROM CFSFCUBS145.STTM_CUST_ACCOUNT c
+    LEFT JOIN ASC_DUE_OUV acs ON acs.ACCOUNT_NO = c.CUST_AC_NO
+    LEFT JOIN ACS_DUE_ANNUELLE acsa ON acsa.ACCOUNT_NO = c.CUST_AC_NO
+    LEFT JOIN FRAIS_OUV_DUE fro ON fro.ACCOUNT_NO = c.CUST_AC_NO
+    LEFT JOIN COFICARTE_DUE crt ON crt.ACCOUNT_NO = c.CUST_AC_NO
+    LEFT JOIN FTC_DUE ftc ON ftc.ACCOUNT_NO = c.CUST_AC_NO
+),
+DEBLOCAGE AS (
+    SELECT
+        account_number,
+        COALESCE(DTYPE, 'VIDE') AS DTYPE,
+        MAX(SCHEDULE_LINKAGE) AS SCHEDULE_LINKAGE
+    FROM CFSFCUBS145.CLTB_DISBR_SCHEDULES
+    WHERE (DTYPE <> 'X') OR DTYPE IS NULL
+    GROUP BY account_number, COALESCE(DTYPE, 'VIDE')
+),
+ECRITURE_DEBLOCAGE AS (
+    SELECT
+        e.RELATED_ACCOUNT,
+        e.AC_NO,
+        e.AMOUNT_TAG,
+        e.EVENT,
+        e.TRN_CODE,
+        e.TRN_DT
+    FROM CFSFCUBS145.acvw_all_ac_entries e
+    WHERE e.TRN_CODE = '040'
+      AND e.MODULE = 'CL'
+      AND e.EVENT = 'DSBR'
+      AND e.ac_no LIKE '251%'
+),
+ENCOURS_COFINA AS (
+    SELECT
+        ACCOUNT_NUMBER,
+        SUM(AMOUNT_DUE) AS MONTANT_DU,
+        SUM(AMOUNT_DUE - AMOUNT_SETTLED) AS ENCOURS_TOTAL,
+        SUM(
+            CASE
+                WHEN SCHEDULE_DUE_DATE >= TRUNC(SYSDATE) THEN AMOUNT_DUE
+                ELSE 0
+            END
+        ) AS ENCOURS_SAIN,
+        SUM(
+            CASE
+                WHEN SCHEDULE_DUE_DATE < TRUNC(SYSDATE) THEN AMOUNT_DUE - AMOUNT_SETTLED
+                ELSE 0
+            END
+        ) AS ENCOURS_IMPAYE,
+        ROUND(
+            CASE
+                WHEN SUM(AMOUNT_DUE) = 0 THEN 0
+                ELSE (SUM(AMOUNT_SETTLED) / SUM(AMOUNT_DUE)) * 100
+            END,
+            2
+        ) AS POURCENTAGE_REMBOURSEMENT
+    FROM CFSFCUBS145.CLTB_ACCOUNT_SCHEDULES
+    WHERE COMPONENT_NAME = 'PRINCIPAL'
+    GROUP BY ACCOUNT_NUMBER
+),
+PRODUCTION AS (
+    SELECT
+        c.BRANCH_CODE AS CODE_AGENCE,
+        b.branch_name AS NOM_AGENCE,
+        c.ACCOUNT_NUMBER AS NO_PRET,
+        c.CUSTOMER_ID AS MATRICULE_CLIENT,
+        c.PRIMARY_APPLICANT_NAME AS NOM_CLIENT,
+        c.DR_PROD_AC AS COMPTE,
+        (
+            SELECT g.GL_DESC_E
+            FROM CFSFCUBS145.cltm_product_rth pr
+            JOIN CFSFCUBS145.GLVW_GLMASTER_E g
+                ON pr.ACCOUNT_HEAD = g.GL_CODE_E
+            WHERE pr.PRODUCT_CODE = c.PRODUCT_CODE
+              AND pr.ACCOUNTING_ROLE = 'LOAN_ACCOUNT'
+              AND ROWNUM = 1
+        ) AS TYPE_PRET,
+        c.BOOK_DATE AS DATE_MISE_EN_PLACE,
+        d.SCHEDULE_LINKAGE AS DATE_VAL_MISE_EN_PLACE,
+        ec.TRN_DT AS DATE_DEBLOCAGE,
+        c.MATURITY_DATE AS DATE_MATURITE,
+        (
+            SELECT MIN(sc.schedule_due_date)
+            FROM CFSFCUBS145.CLTB_ACCOUNT_SCHEDULES sc
+            WHERE sc.ACCOUNT_NUMBER = c.ACCOUNT_NUMBER
+              AND sc.COMPONENT_NAME = 'MAIN_INT'
+        ) AS DATE_PREMIERE_ECHEANCE,
+        (
+            SELECT MAX(sc.schedule_due_date)
+            FROM CFSFCUBS145.CLTB_ACCOUNT_SCHEDULES sc
+            WHERE sc.ACCOUNT_NUMBER = c.ACCOUNT_NUMBER
+              AND sc.COMPONENT_NAME = 'MAIN_INT'
+        ) AS DATE_DERNIERE_ECHEANCE,
+        c.amount_financed AS MONTANT_CAPITAL_ACCORDE,
+        DECODE(
+            c.ACCOUNT_STATUS,
+            'A', 'FINANCER',
+            'L', 'SOLDER',
+            'V', 'Annuler',
+            'Y', 'Futur Deblocage',
+            'H', 'EN ATTENTE',
+            c.ACCOUNT_STATUS
+        ) AS STATUT_PRET,
+        (
+            SELECT DECODE(
+                MAX(sch.unit),
+                'M', 'Mensuel',
+                'B', 'infin?',
+                'H', 'semi annuel',
+                'Y', 'Annuel',
+                'Q', 'Trimestrielle',
+                'D', 'Journalier',
+                MAX(sch.unit)
+            )
+            FROM CFSFCUBS145.cltbs_account_comp_sch sch
+            WHERE sch.ACCOUNT_NUMBER = c.ACCOUNT_NUMBER
+        ) AS PERIODICITE,
+        c.FIELD_NUMBER_2 AS CPT_DEPOT_GARANTIE,
+        (
+            SELECT NVL(SUM(DECODE(t.drcr_ind, 'C', t.lcy_amount, 0)), 0)
+            FROM CFSFCUBS145.ACVW_ALL_AC_ENTRIES t
+            WHERE t.RELATED_ACCOUNT = c.ACCOUNT_NUMBER
+              AND t.AMOUNT_TAG IN ('GUAR_DEPO_LIQD')
+        ) AS MONTANT_DEPOT_GARANTIE_INITIAL,
+        (
+            SELECT SUM(DECODE(g.drcr_ind, 'C', g.lcy_amount, 0))
+                 - SUM(DECODE(g.drcr_ind, 'D', g.lcy_amount, 0))
+            FROM CFSFCUBS145.acvw_all_ac_entries g
+            WHERE g.AC_NO LIKE '254%'
+              AND g.ac_no = c.FIELD_NUMBER_2
+            GROUP BY g.ac_no
+        ) AS SOLDE_DEPOT_GARANTIE,
+        (
+            SELECT NVL(SUM(DECODE(t.drcr_ind, 'C', t.lcy_amount, 0)), 0)
+            FROM CFSFCUBS145.ACVW_ALL_AC_ENTRIES t
+            WHERE t.RELATED_ACCOUNT = c.ACCOUNT_NUMBER
+              AND t.AMOUNT_TAG IN ('PROC_FEES_LIQD')
+        ) AS FRAIS_DOSSIER,
+        (
+            SELECT NVL(SUM(DECODE(t.drcr_ind, 'C', t.lcy_amount, 0)), 0)
+            FROM CFSFCUBS145.ACVW_ALL_AC_ENTRIES t
+            WHERE t.RELATED_ACCOUNT = c.ACCOUNT_NUMBER
+              AND t.AMOUNT_TAG IN ('INSUR_LIQD')
+        ) AS FRAIS_ASSURANCE,
+        (
+            SELECT MAX(v.ude_value)
+            FROM CFSFCUBS145.cltbs_account_ude_values v
+            WHERE v.ACCOUNT_NUMBER = c.ACCOUNT_NUMBER
+              AND v.ude_id = 'INTEREST_RATE'
+              AND v.ude_value IS NOT NULL
+        ) AS TAUX_DE_CREDIT,
+        c.FIELD_CHAR_2 AS CODE_GESTION_PRET,
+        (
+            SELECT MAX(u.LOV_DESC)
+            FROM CFSFCUBS145.UDTM_LOV u
+            WHERE u.FIELD_NAME = 'GESTION_PRET'
+              AND u.LOV = c.FIELD_CHAR_2
+        ) AS CHARGE_AFFAIRE,
+        c.USER_DEFINED_STATUS AS STATUT_DECLASSEMENT,
+        ES.ENCOURS_TOTAL,
+        ES.ENCOURS_SAIN,
+        ES.ENCOURS_IMPAYE,
+        ES.POURCENTAGE_REMBOURSEMENT
+    FROM CFSFCUBS145.CLTB_ACCOUNT_MASTER c
+    LEFT JOIN CFSFCUBS145.STTM_BRANCH b
+        ON b.branch_code = c.branch_code
+    LEFT JOIN ECRITURE_DEBLOCAGE ec
+        ON ec.RELATED_ACCOUNT = c.ACCOUNT_NUMBER
+    LEFT JOIN DEBLOCAGE d
+        ON d.account_number = c.ACCOUNT_NUMBER
+    LEFT JOIN ENCOURS_COFINA ES
+        ON ES.ACCOUNT_NUMBER = c.ACCOUNT_NUMBER
+),
+PRODUCTION_SUI AS (
+    SELECT
+        x.*,
+        y.ACY_CURR_BALANCE
+    FROM PRODUCTION x
+    LEFT JOIN CFSFCUBS145.STTM_CUST_ACCOUNT y
+        ON y.CUST_AC_NO = x.COMPTE
+    WHERE x.DATE_DEBLOCAGE IS NOT NULL
+),
+TOMBE_MOIS AS (
+    SELECT
+        s.CODE_AGENCE,
+        s.NOM_AGENCE,
+        s.NO_PRET,
+        s.MATRICULE_CLIENT,
+        s.NOM_CLIENT,
+        s.COMPTE,
+        s.TYPE_PRET,
+        s.DATE_DEBLOCAGE,
+        s.MONTANT_CAPITAL_ACCORDE,
+        s.ENCOURS_TOTAL,
+        s.ENCOURS_SAIN,
+        s.ENCOURS_IMPAYE,
+        s.POURCENTAGE_REMBOURSEMENT,
+        s.STATUT_PRET,
+        s.STATUT_DECLASSEMENT,
+        s.CODE_GESTION_PRET,
+        s.CHARGE_AFFAIRE,
+        s.MONTANT_DEPOT_GARANTIE_INITIAL,
+        NVL(s.SOLDE_DEPOT_GARANTIE, 0) AS SOLDE_DEPOT_GARANTIE,
+        t.SCHEDULE_DUE_DATE,
+        t.NUMERO_ECHEANCE,
+        s.ACY_CURR_BALANCE AS SOLDE_CPTE,
+        (
+            NVL(ex.EXIGIBLE_M_1, 0)
+            + NVL(t.MONTANT_ECHEANCE_M, 0)
+            + NVL(c.TOTAL_CHARGE, 0)
+        ) AS MT_GLOBAL_DUE_A_DATE,
+        NVL(ex.EXIGIBLE_M_1, 0) AS ETAT_EXIGIBLE_M_1,
+        c.TOTAL_CHARGE,
+        t.MONTANT_ECHEANCE_M,
+        t.MONTANT_ECHEANCE_PAYE,
+        t.MONTANT_ECHEANCE_IMPY,
+        t.PENALITE,
+        t.EXIGIBLE AS EXIGIBLE_ECH,
+        t.STATUS AS STATUS_ECH
+    FROM PRODUCTION_SUI s
+    LEFT JOIN TA_ECH_M t
+        ON t.ACCOUNT_NUMBER = s.NO_PRET
+    LEFT JOIN SUIVI_EXIGIBLE_M_1 ex
+        ON ex.ACCOUNT_NUMBER = s.NO_PRET
+    LEFT JOIN CHARGE c
+        ON c.NUMERO_COMPTE = s.COMPTE
+    WHERE s.STATUT_PRET != 'Annuler'
+)
+SELECT *
+FROM TOMBE_MOIS
+WHERE NO_PRET NOT IN (
+    SELECT NO_PRET
+    FROM TOMBE_MOIS
+    WHERE SCHEDULE_DUE_DATE IS NULL
+      AND STATUT_DECLASSEMENT = 'NORM'
+)

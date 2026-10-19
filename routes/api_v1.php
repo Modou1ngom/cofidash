@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\ClientController;
 use App\Http\Controllers\Api\V1\CreditController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DatDepositController;
+use App\Http\Controllers\Api\V1\EcheanceController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OpportunityController;
 use App\Http\Controllers\Api\V1\RiskController;
@@ -61,4 +62,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/opportunities', [OpportunityController::class, 'index']);
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::get('/dat-deposits', [DatDepositController::class, 'index']);
+
+    Route::get('/echeances', [EcheanceController::class, 'index']);
+    Route::get('/echeances/{id}', [EcheanceController::class, 'show'])->where('id', '.*');
 });

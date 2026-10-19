@@ -38,6 +38,8 @@ Route::prefix('oracle')->group(function () {
     Route::get('/data/production', [DataController::class, 'getProductionData']);
     Route::get('/data/production-volume', [DataController::class, 'getProductionVolumeData']);
     Route::get('/data/suivi-production', [DataController::class, 'getSuiviProductionData']);
+    Route::get('/data/suivi-echeance', [DataController::class, 'getSuiviEcheanceData']);
+    Route::get('/data/objectif-recouvrement', [DataController::class, 'getObjectifRecouvrementData']);
     Route::get('/data/encours-credit', [DataController::class, 'getEncoursCreditData']);
     Route::get('/data/encours', [DataController::class, 'getEncoursData']);
     Route::get('/data/collection', [DataController::class, 'getCollectionData']);

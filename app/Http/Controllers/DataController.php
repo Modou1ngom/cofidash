@@ -1105,6 +1105,90 @@ class DataController extends Controller
     }
 
     /**
+     * Suivi des échéances de crédit pour un mois (exigible, pénalités, charges).
+     */
+    public function getSuiviEcheanceData(Request $request): JsonResponse
+    {
+        try {
+            $params = array_filter([
+                'year' => $request->input('year'),
+                'month' => $request->input('month'),
+            ], fn ($value) => $value !== null && $value !== '');
+
+            $result = $this->oracleService->getPythonGetCached(
+                'suivi-echeance-v1',
+                '/api/oracle/data/suivi-echeance',
+                $params,
+                'Suivi échéance'
+            );
+
+            if ($result['success']) {
+                return response()->json($result['data']);
+            }
+
+            Log::error('Erreur API Python Suivi échéance', [
+                'message' => $result['message'] ?? '',
+            ]);
+
+            return response()->json([
+                'error' => 'Erreur lors de la récupération des données',
+                'detail' => UserFacingError::from($result['message'] ?? ''),
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Exception lors de l\'appel API Python Suivi échéance', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'error' => 'Erreur de connexion au service Python',
+                'detail' => UserFacingError::from($e->getMessage()),
+            ], 500);
+        }
+    }
+
+    /**
+     * Objectif de recouvrement figé le 1er du mois.
+     */
+    public function getObjectifRecouvrementData(Request $request): JsonResponse
+    {
+        try {
+            $params = array_filter([
+                'year' => $request->input('year'),
+                'month' => $request->input('month'),
+            ], fn ($value) => $value !== null && $value !== '');
+
+            $result = $this->oracleService->getPythonGetCached(
+                'objectif-recouvrement-v1',
+                '/api/oracle/data/objectif-recouvrement',
+                $params,
+                'Objectif recouvrement'
+            );
+
+            if ($result['success']) {
+                return response()->json($result['data']);
+            }
+
+            Log::error('Erreur API Python Objectif recouvrement', [
+                'message' => $result['message'] ?? '',
+            ]);
+
+            return response()->json([
+                'error' => 'Erreur lors de la récupération des données',
+                'detail' => UserFacingError::from($result['message'] ?? ''),
+            ], 500);
+        } catch (\Exception $e) {
+            Log::error('Exception lors de l\'appel API Python Objectif recouvrement', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'error' => 'Erreur de connexion au service Python',
+                'detail' => UserFacingError::from($e->getMessage()),
+            ], 500);
+        }
+    }
+
+    /**
      * Évolution de l'encours crédit (PTF et produit d'intérêt) via l'API Python
      */
     public function getEncoursCreditData(Request $request): JsonResponse
