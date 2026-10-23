@@ -1116,7 +1116,7 @@ class DataController extends Controller
             ], fn ($value) => $value !== null && $value !== '');
 
             $result = $this->oracleService->getPythonGetCached(
-                'suivi-echeance-v1',
+                'suivi-echeance-v2',
                 '/api/oracle/data/suivi-echeance',
                 $params,
                 'Suivi échéance'

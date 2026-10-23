@@ -2,10 +2,12 @@
   <section class="echeance">
     <header class="head">
       <div class="head-top">
-        <h2>Suivi échéance</h2>
+     
         <div class="segment" role="tablist" aria-label="Affichage">
           <button type="button" :class="{ on: view === 'dashboard' }" @click="view = 'dashboard'">Dashboard</button>
           <button type="button" :class="{ on: view === 'detail' }" @click="view = 'detail'">Détail</button>
+          <button type="button" :class="{ on: view === 'performance' }" @click="view = 'performance'">Performance</button>
+         <!-- <button type="button" :class="{ on: view === 'promesses' }" @click="view = 'promesses'">Promesses</button>-->
         </div>
         <label class="chip chip-year">
           <span>Année</span>
@@ -26,7 +28,7 @@
           </svg>
         </button>
       </div>
-      <div v-if="view !== 'objectif'" class="filters">
+      <div v-if="view !== 'objectif' && view !== 'promesses'" class="filters">
         <label class="chip">
           <span>Agence</span>
           <select v-model="agence" @change="page = 1">
@@ -86,7 +88,10 @@
           <span>{{ card.label }}</span>
         </span>
         <strong>{{ formatKpi(card) }}</strong>
-        <small>{{ card.unit }}</small>
+        <small>
+          {{ card.unit }}
+          <em v-if="card.share != null">{{ formatPercent(card.share) }}</em>
+        </small>
       </article>
       <article
         v-for="card in formulaCards"
@@ -131,8 +136,8 @@
                 <th>Client</th>
                 <th>Compte</th>
                 <th class="num">Objectif</th>
-                <th class="num">Global dû</th>
                 <th class="num">Réalisé du mois</th>
+                <th class="num">Global dû</th>
                 <th>Déblocage</th>
                 <th class="num">Capital accordé</th>
                 <th class="num">Encours total</th>
@@ -146,7 +151,6 @@
                 <th class="num">N° échéance</th>
                 <th class="num">Solde compte</th>
                 <th class="num">Montant échéance</th>
-                <th>Statut échéance</th>
               </tr>
             </thead>
             <tbody>
@@ -156,8 +160,8 @@
                 <td>{{ lineOf(row).nom_client || '—' }}</td>
                 <td>{{ lineOf(row).compte || '—' }}</td>
                 <td class="num">{{ formatMoney(objectifOf(row)) }}</td>
-                <td class="num">{{ formatMoney(lineOf(row).mt_global_due_a_date) }}</td>
-                <td class="num">{{ formatMoney(lineOf(row).montant_echeance_paye) }}</td>
+                <td class="num">{{ formatMoney(realiseCell(row)) }}</td>
+                <td class="num">{{ formatMoney(globalDuCell(row)) }}</td>
                 <td>{{ formatDate(lineOf(row).date_deblocage) }}</td>
                 <td class="num">{{ formatMoney(lineOf(row).montant_capital_accorde) }}</td>
                 <td class="num">{{ formatMoney(lineOf(row).encours_total) }}</td>
@@ -171,10 +175,9 @@
                 <td class="num">{{ lineOf(row).numero_echeance ?? '—' }}</td>
                 <td class="num">{{ formatMoney(lineOf(row).solde_cpte) }}</td>
                 <td class="num">{{ formatMoney(lineOf(row).montant_echeance_m) }}</td>
-                <td><span class="badge" :class="statusClass(lineOf(row).status_ech)">{{ statusLabel(lineOf(row).status_ech) }}</span></td>
               </tr>
               <tr v-if="!kpiPageRows.length">
-                <td colspan="21" class="empty">Aucune ligne pour cet indicateur.</td>
+                <td colspan="20" class="empty">Aucune ligne pour cet indicateur.</td>
               </tr>
             </tbody>
           </table>
@@ -203,6 +206,10 @@
             <span class="swatch square" :style="{ background: item.color }"></span>
             {{ item.label }}
           </li>
+          <li>
+            <span class="swatch line"></span>
+            Objectif
+          </li>
         </ul>
       </article>
 
@@ -215,7 +222,7 @@
             <canvas ref="donutCanvas"></canvas>
             <div class="donut-center">
               <strong>{{ formatCount(statusTotal) }}</strong>
-              <span>lignes</span>
+              <span>dossiers</span>
             </div>
           </div>
           <ul class="legend">
@@ -230,43 +237,312 @@
       </article>
     </div>
 
-    <section v-if="view === 'detail' && agencyBars.length" class="panel rank-panel">
-      <header class="panel-head">
-        <h2>Classement des agences</h2>
-        <span>Tombé, réalisé et taux</span>
-      </header>
-      <div class="rank-table">
-        <table>
+    <section v-if="view === 'detail'" class="matrix-wrap">
+      <div v-if="detailTerritories.length" class="table-container">
+        <table class="agencies-table">
           <thead>
             <tr>
-              <th></th>
-              <th>Agence</th>
-              <th class="num">Tombé</th>
-              <th class="num">Réalisé</th>
-              <th class="num">Reste</th>
-              <th>Taux</th>
+              <th class="col-label col-agence">Agence</th>
+              <th class="col-label col-gest">CAF</th>
+              <th><span class="th-title">Objectif</span><span class="th-unit">(FCFA)</span></th>
+              <th><span class="th-title">Réalisé</span><span class="th-unit">(FCFA)</span></th>
+              <th><span class="th-title">Global dû</span><span class="th-unit">(FCFA)</span></th>
+              <th><span class="th-title">En attente</span><span class="th-unit">(FCFA)</span></th>
+              <th><span class="th-title">En retard</span><span class="th-unit">(FCFA)</span></th>
+              <th><span class="th-title">TRO</span><span class="th-unit">(%)</span></th>
             </tr>
           </thead>
           <tbody>
-            <tr
-              v-for="(row, index) in agencyBars"
-              :key="row.key"
-              class="rank-row"
-              :class="{ on: selectedAgency === row.key }"
-              @click="openAgency(row)"
-            >
-              <td class="rank-index" :class="'pos-' + (index + 1)">{{ index + 1 }}</td>
-              <td>{{ row.label }}</td>
-              <td class="num">{{ formatCompact(row.tombe) }}</td>
-              <td class="num">{{ formatCompact(row.realise) }}</td>
-              <td class="num" :class="{ 'is-gap': row.reste > 0 }">{{ formatCompact(row.reste) }}</td>
-              <td class="rate-cell">
-                <span class="rate-track"><span :style="{ width: agencyRate(row) + '%' }"></span></span>
-                <strong :class="{ 'is-gap': agencyRate(row) < 100 }">{{ formatPercent(agencyRate(row)) }}</strong>
+            <tr class="level-1-row" @click="toggleExpand('TERRITOIRE')">
+              <td class="level-1 col-label col-agence">
+                <span class="cell-line">
+                  <button type="button" class="expand-btn" @click.stop="toggleExpand('TERRITOIRE')">{{ expanded.TERRITOIRE ? '−' : '+' }}</button>
+                  <strong>TERRITOIRE</strong>
+                </span>
               </td>
+              <td class="col-label col-gest">—</td>
+              <td><strong>{{ formatMoney(detailTotals.objectif) }}</strong></td>
+              <td><strong>{{ formatMoney(detailTotals.realise) }}</strong></td>
+              <td><strong>{{ formatMoney(detailTotals.global) }}</strong></td>
+              <td><strong>{{ formatMoney(detailTotals.attente) }}</strong></td>
+              <td><strong>{{ formatMoney(detailTotals.retard) }}</strong></td>
+              <td><strong>{{ formatTro(detailTotals) }}</strong></td>
+            </tr>
+            <template v-if="expanded.TERRITOIRE">
+              <template v-for="territory in detailTerritories" :key="territory.key">
+                <tr class="level-2-row" @click="toggleExpand(territory.key)">
+                  <td class="level-2 col-label col-agence">
+                    <span class="cell-line">
+                      <button type="button" class="expand-btn" @click.stop="toggleExpand(territory.key)">{{ expanded[territory.key] ? '−' : '+' }}</button>
+                      <span>{{ territory.name }}</span>
+                    </span>
+                  </td>
+                  <td class="col-label col-gest">—</td>
+                  <td><strong>{{ formatMoney(territory.objectif) }}</strong></td>
+                  <td><strong>{{ formatMoney(territory.realise) }}</strong></td>
+                  <td><strong>{{ formatMoney(territory.global) }}</strong></td>
+                  <td><strong>{{ formatMoney(territory.attente) }}</strong></td>
+                  <td><strong>{{ formatMoney(territory.retard) }}</strong></td>
+                  <td><strong>{{ formatTro(territory) }}</strong></td>
+                </tr>
+                <template v-if="expanded[territory.key]">
+                  <template v-for="agency in territory.agencies" :key="agency.key">
+                    <tr class="level-3-row" @click="toggleExpand(agency.key)">
+                      <td class="level-3 col-label col-agence">
+                        <span class="cell-line">
+                          <button type="button" class="expand-btn" @click.stop="toggleExpand(agency.key)">{{ expanded[agency.key] ? '−' : '+' }}</button>
+                          <span class="agency-name" :title="agency.label">{{ agency.label }}</span>
+                        </span>
+                      </td>
+                      <td class="col-label col-gest">—</td>
+                      <td>{{ formatMoney(agency.objectif) }}</td>
+                      <td>{{ formatMoney(agency.realise) }}</td>
+                      <td>{{ formatMoney(agency.global) }}</td>
+                      <td>{{ formatMoney(agency.attente) }}</td>
+                      <td>{{ formatMoney(agency.retard) }}</td>
+                      <td>{{ formatTro(agency) }}</td>
+                    </tr>
+                    <template v-if="expanded[agency.key]">
+                      <template v-for="caf in agency.cafs" :key="caf.key">
+                        <tr class="level-4-row" @click="toggleExpand(caf.key)">
+                          <td class="level-4 col-label col-agence">
+                            <span class="cell-line">
+                              <button type="button" class="expand-btn" @click.stop="toggleExpand(caf.key)">{{ expanded[caf.key] ? '−' : '+' }}</button>
+                              <span class="agency-code">{{ agency.code }}</span>
+                            </span>
+                          </td>
+                          <td class="col-label col-gest">{{ caf.label }}</td>
+                          <td>{{ formatMoney(caf.objectif) }}</td>
+                          <td>{{ formatMoney(caf.realise) }}</td>
+                          <td>{{ formatMoney(caf.global) }}</td>
+                          <td>{{ formatMoney(caf.attente) }}</td>
+                          <td>{{ formatMoney(caf.retard) }}</td>
+                          <td>{{ formatTro(caf) }}</td>
+                        </tr>
+                        <template v-if="expanded[caf.key]">
+                          <tr v-for="loan in caf.loans" :key="loan.key" class="level-5-row">
+                            <td class="level-5 col-label col-agence">
+                              <span class="loan-no">{{ loan.pret }}</span>
+                            </td>
+                            <td class="col-label col-gest">{{ loan.client }}</td>
+                            <td>{{ formatMoney(loan.objectif) }}</td>
+                            <td>{{ formatMoney(loan.realise) }}</td>
+                            <td>{{ formatMoney(loan.global) }}</td>
+                            <td>{{ formatMoney(loan.attente) }}</td>
+                            <td>{{ formatMoney(loan.retard) }}</td>
+                            <td>{{ formatTro(loan) }}</td>
+                          </tr>
+                        </template>
+                      </template>
+                    </template>
+                  </template>
+                </template>
+              </template>
+            </template>
+            <tr class="total-row">
+              <td class="col-label col-agence">Total</td>
+              <td class="col-label col-gest">—</td>
+              <td>{{ formatMoney(detailTotals.objectif) }}</td>
+              <td>{{ formatMoney(detailTotals.realise) }}</td>
+              <td>{{ formatMoney(detailTotals.global) }}</td>
+              <td>{{ formatMoney(detailTotals.attente) }}</td>
+              <td>{{ formatMoney(detailTotals.retard) }}</td>
+              <td>{{ formatTro(detailTotals) }}</td>
             </tr>
           </tbody>
         </table>
+      </div>
+      <p v-else class="empty">Aucun dossier pour cette sélection.</p>
+    </section>
+
+    <section v-if="view === 'promesses'" class="promesses">
+      <div class="promise-toolbar">
+        <input v-model.trim="promiseQuery" type="search" placeholder="Client, matricule ou n° de prêt">
+        <button type="button" class="promise-add" @click="openPromiseForm">Nouvelle promesse</button>
+      </div>
+      <p v-if="promiseError && !promiseOpen" class="banner error">{{ promiseError }}</p>
+      <div class="kpis">
+        <article v-for="card in promiseCards" :key="card.key" :style="{ '--accent': card.accent }">
+          <span class="kpi-top"><span>{{ card.label }}</span></span>
+          <strong>{{ formatCount(card.value) }}</strong>
+          <small>{{ card.unit }}</small>
+        </article>
+      </div>
+      <div class="segment promise-tabs" role="tablist" aria-label="Statut des promesses">
+        <button type="button" :class="{ on: promiseStatus === 'all' }" @click="promiseStatus = 'all'">Toutes</button>
+        <button type="button" :class="{ on: promiseStatus === 'attente' }" @click="promiseStatus = 'attente'">En attente</button>
+        <button type="button" :class="{ on: promiseStatus === 'retard' }" @click="promiseStatus = 'retard'">En retard</button>
+        <button type="button" :class="{ on: promiseStatus === 'partiel' }" @click="promiseStatus = 'partiel'">Partiellement réalisées</button>
+        <button type="button" :class="{ on: promiseStatus === 'realise' }" @click="promiseStatus = 'realise'">Réalisées</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Client</th>
+              <th class="num">Montant promis</th>
+              <th class="num">Réglé</th>
+              <th>Date promise</th>
+              <th>Statut</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in promiseRows" :key="row.id">
+              <td>
+                <strong>{{ row.nom_client || '—' }}</strong>
+                <span class="promise-sub">Mat. {{ row.matricule_client || '—' }} · {{ row.no_pret }}</span>
+              </td>
+              <td class="num">{{ formatMoney(row.montant_promis) }}</td>
+              <td class="num">{{ formatMoney(row.montant_regle) }}</td>
+              <td>{{ formatDate(row.date_paiement) }}</td>
+              <td><span class="promise-badge" :class="row.statut_calcule">{{ promiseLabel(row.statut_calcule) }}</span></td>
+              <td class="promise-actions">
+                <button type="button" @click="openHistorique(row)">Historique</button>
+                <button v-if="row.statut_calcule !== 'annulee' && row.statut_calcule !== 'reportee'" type="button" @click="openReporter(row)">Reporter</button>
+                <button v-if="row.statut_calcule !== 'annulee' && row.statut_calcule !== 'reportee'" type="button" @click="openAnnuler(row)">Annuler</button>
+              </td>
+            </tr>
+            <tr v-if="!promiseLoading && !promiseRows.length">
+              <td colspan="6" class="empty">Aucune promesse pour cette sélection.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-if="promiseOpen" class="kpi-overlay" @click.self="closePromiseForm">
+        <section class="kpi-panel promise-panel" role="dialog" aria-modal="true" aria-label="Promesse de paiement">
+          <header class="kpi-panel-head">
+            <div>
+              <p>{{ promiseMode === 'historique' ? 'Historique' : 'Promesse de paiement' }}</p>
+              <h3>{{ promiseHeading }}</h3>
+            </div>
+            <button type="button" class="kpi-close" aria-label="Fermer" @click="closePromiseForm">×</button>
+          </header>
+          <p v-if="promiseError" class="banner error">{{ promiseError }}</p>
+
+          <form v-if="promiseMode === 'create' || promiseMode === 'reporter'" class="promise-form" @submit.prevent="promiseMode === 'reporter' ? submitReporter() : submitPromise()">
+            <label v-if="promiseMode === 'create'" class="promise-field">
+              <span>Dossier</span>
+              <input v-model.trim="dossierQuery" type="search" placeholder="Matricule, client ou n° de prêt" :disabled="!!promiseDossier">
+            </label>
+            <ul v-if="dossierHits.length" class="dossier-hits">
+              <li v-for="row in dossierHits" :key="row.no_pret">
+                <button type="button" @click="pickDossier(row)">
+                  <strong>{{ row.nom_client || '—' }}</strong>
+                  <span>Mat. {{ row.matricule_client || '—' }} · {{ row.no_pret }}</span>
+                </button>
+              </li>
+            </ul>
+            <p v-if="promiseDossier" class="dossier-picked">
+              {{ promiseDossier.nom_client }} · {{ promiseDossier.no_pret }}
+              <button type="button" @click="clearDossier">Changer</button>
+            </p>
+            <label class="promise-field">
+              <span>Type d'échange</span>
+              <select v-model="promiseForm.type_echange">
+                <option value="appel">Appel téléphonique</option>
+                <option value="visite">Visite client</option>
+                <option value="sms">SMS / WhatsApp</option>
+                <option value="autre">Autre</option>
+              </select>
+            </label>
+            <label class="promise-field">
+              <span>Date de l'échange</span>
+              <input v-model="promiseForm.date_echange" type="date" required>
+            </label>
+            <label class="promise-field">
+              <span>Montant exigible (FCFA)</span>
+              <input :value="formatMoney(promiseForm.montant_exigible)" type="text" readonly>
+            </label>
+            <label class="promise-field">
+              <span>Montant promis (FCFA)</span>
+              <input v-model.number="promiseForm.montant_promis" type="number" min="1" step="1" required>
+            </label>
+            <p class="promise-hint">Reste à promettre : {{ formatMoney(promiseReste) }} FCFA</p>
+            <label class="promise-field">
+              <span>Date prévue de paiement</span>
+              <input v-model="promiseForm.date_paiement" type="date" required>
+            </label>
+            <label class="promise-field">
+              <span>Prochaine relance</span>
+              <input v-model="promiseForm.date_relance" type="date">
+            </label>
+            <label class="promise-field">
+              <span>Commentaire</span>
+              <textarea v-model.trim="promiseForm.commentaire" rows="3" placeholder="Ce que le client a confirmé"></textarea>
+            </label>
+            <button type="submit" class="promise-add" :disabled="promiseSaving">{{ promiseSaving ? 'Enregistrement…' : 'Enregistrer la promesse' }}</button>
+          </form>
+
+          <form v-else-if="promiseMode === 'annuler'" class="promise-form" @submit.prevent="submitAnnuler">
+            <label class="promise-field">
+              <span>Motif d'annulation</span>
+              <textarea v-model.trim="promiseForm.motif" rows="3" required placeholder="Pourquoi cette promesse est annulée"></textarea>
+            </label>
+            <button type="submit" class="promise-add" :disabled="promiseSaving">Annuler la promesse</button>
+          </form>
+
+          <div v-else class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Échange</th>
+                  <th>Résultat</th>
+                  <th>Prochaine action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in echanges" :key="item.id">
+                  <td>{{ formatDate(item.date_echange) }}</td>
+                  <td>{{ exchangeLabel(item.type_echange) }}</td>
+                  <td>{{ item.resultat || '—' }}</td>
+                  <td>{{ item.prochaine_action || '—' }}</td>
+                </tr>
+                <tr v-if="!echanges.length">
+                  <td colspan="4" class="empty">Aucun échange pour ce dossier.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section v-if="view === 'performance'" class="perf-page">
+      <div v-if="bestMarks.length" class="podium">
+        <article v-for="mark in bestMarks" :key="mark.key" :class="'is-' + mark.key">
+          <span class="podium-ico" v-html="mark.icon"></span>
+          <div class="podium-copy">
+            <p class="kicker">{{ mark.kicker }}</p>
+            <strong class="podium-name">{{ displayName(mark.label) }}</strong>
+          </div>
+          <span class="podium-tro">{{ mark.rateText }}</span>
+        </article>
+      </div>
+      <div class="perf-grid">
+        <article v-for="card in perfCards" :key="card.key" class="perf-card" :class="[card.tone, card.key]">
+          <header class="perf-head">
+            <span class="perf-ico" v-html="card.icon"></span>
+            <h2>{{ card.title }}</h2>
+          </header>
+          <ol v-if="card.rows.length" class="rank-list">
+            <li v-for="(row, index) in card.rows" :key="row.key">
+              <span class="rank-index" :class="'pos-' + (index + 1)">{{ index + 1 }}</span>
+              <div class="rank-id">
+                <div class="rank-line">
+                  <span class="rank-name">{{ displayName(row.label) }}</span>
+                  <span v-if="row.hint" class="rank-hint">{{ displayName(row.hint) }}</span>
+                </div>
+                <span class="rank-meta">{{ formatCompact(row.realise) }} réalisé · obj. {{ formatCompact(row.objectif) }}</span>
+                <i class="track"><em :style="{ width: troBar(row.tro) + '%' }"></em></i>
+              </div>
+              <b class="rate">{{ formatPercent(row.tro) }}</b>
+            </li>
+          </ol>
+          <p v-else class="empty">{{ card.empty }}</p>
+        </article>
       </div>
     </section>
 
@@ -297,8 +573,8 @@
                 <th>Client</th>
                 <th>Compte</th>
                 <th class="num">Objectif</th>
-                <th class="num">Global dû</th>
                 <th class="num">Réalisé du mois</th>
+                <th class="num">Global dû</th>
                 <th>Déblocage</th>
                 <th class="num">Capital accordé</th>
                 <th class="num">Encours total</th>
@@ -312,7 +588,6 @@
                 <th class="num">N° échéance</th>
                 <th class="num">Solde compte</th>
                 <th class="num">Montant échéance</th>
-                <th>Statut échéance</th>
               </tr>
             </thead>
             <tbody>
@@ -322,8 +597,8 @@
                 <td>{{ row.nom_client || '—' }}</td>
                 <td>{{ row.compte || '—' }}</td>
                 <td class="num">{{ formatMoney(objectifOf(row)) }}</td>
-                <td class="num">{{ formatMoney(row.mt_global_due_a_date) }}</td>
                 <td class="num">{{ formatMoney(row.montant_echeance_paye) }}</td>
+                <td class="num">{{ formatMoney(row.mt_global_due_a_date) }}</td>
                 <td>{{ formatDate(row.date_deblocage) }}</td>
                 <td class="num">{{ formatMoney(row.montant_capital_accorde) }}</td>
                 <td class="num">{{ formatMoney(row.encours_total) }}</td>
@@ -337,10 +612,9 @@
                 <td class="num">{{ row.numero_echeance ?? '—' }}</td>
                 <td class="num">{{ formatMoney(row.solde_cpte) }}</td>
                 <td class="num">{{ formatMoney(row.montant_echeance_m) }}</td>
-                <td><span class="badge" :class="statusClass(row.status_ech)">{{ statusLabel(row.status_ech) }}</span></td>
               </tr>
               <tr v-if="!agencyPageRows.length">
-                <td colspan="21" class="empty">Aucun dossier pour cette agence.</td>
+                <td colspan="20" class="empty">Aucun dossier pour cette agence.</td>
               </tr>
             </tbody>
           </table>
@@ -404,6 +678,9 @@ import {
   Chart,
   BarController,
   BarElement,
+  LineController,
+  LineElement,
+  PointElement,
   CategoryScale,
   LinearScale,
   Tooltip,
@@ -415,6 +692,9 @@ import { userFacingError } from '../utils/userFacingError.js';
 Chart.register(
   BarController,
   BarElement,
+  LineController,
+  LineElement,
+  PointElement,
   CategoryScale,
   LinearScale,
   Tooltip,
@@ -444,6 +724,65 @@ function agencyLabel(name) {
     .replace(/(^|[\s-])([a-zàâäéèêëïîôùûüç])/g, (_match, sep, letter) => sep + letter.toUpperCase());
 }
 
+const TERRITORY_ORDER = [
+  { key: 'territoire_dakar_ville', name: 'TERRITOIRE DAKAR VILLE' },
+  { key: 'territoire_dakar_banlieue', name: 'TERRITOIRE DAKAR BANLIEUE' },
+  { key: 'territoire_province_centre_sud', name: 'TERRITOIRE PROVINCE CENTRE-SUD' },
+  { key: 'territoire_province_nord', name: 'TERRITOIRE PROVINCE NORD' },
+];
+const TERRITORY_TOKENS = [
+  ['TAMBACOUNDA', 'territoire_province_centre_sud', 'TERRITOIRE PROVINCE CENTRE-SUD'],
+  ['PRINCIPALE POINT E', 'territoire_dakar_ville', 'TERRITOIRE DAKAR VILLE'],
+  ['LAMINE GUEYE', 'territoire_dakar_ville', 'TERRITOIRE DAKAR VILLE'],
+  ['SAINT LOUIS', 'territoire_province_nord', 'TERRITOIRE PROVINCE NORD'],
+  ['GRAND COMPTE', 'territoire_dakar_ville', 'TERRITOIRE DAKAR VILLE'],
+  ['ZINGUINCHOR', 'territoire_province_centre_sud', 'TERRITOIRE PROVINCE CENTRE-SUD'],
+  ['ZIGUINCHOR', 'territoire_province_centre_sud', 'TERRITOIRE PROVINCE CENTRE-SUD'],
+  ['NIARRY TALLI', 'territoire_dakar_ville', 'TERRITOIRE DAKAR VILLE'],
+  ['NIARRY TALLY', 'territoire_dakar_ville', 'TERRITOIRE DAKAR VILLE'],
+  ['NIARY TALLY', 'territoire_dakar_ville', 'TERRITOIRE DAKAR VILLE'],
+  ['KEUR MASSAR', 'territoire_dakar_banlieue', 'TERRITOIRE DAKAR BANLIEUE'],
+  ['OUROSSOGUI', 'territoire_province_nord', 'TERRITOIRE PROVINCE NORD'],
+  ['GUEDIAWAYE', 'territoire_dakar_banlieue', 'TERRITOIRE DAKAR BANLIEUE'],
+  ['PARCELLES', 'territoire_dakar_banlieue', 'TERRITOIRE DAKAR BANLIEUE'],
+  ['DIOURBEL', 'territoire_province_nord', 'TERRITOIRE PROVINCE NORD'],
+  ['RUFISQUE', 'territoire_dakar_banlieue', 'TERRITOIRE DAKAR BANLIEUE'],
+  ['SCAT URBAM', 'territoire_dakar_ville', 'TERRITOIRE DAKAR VILLE'],
+  ['NGUELAW', 'territoire_dakar_ville', 'TERRITOIRE DAKAR VILLE'],
+  ['LINGUERLA', 'territoire_dakar_banlieue', 'TERRITOIRE DAKAR BANLIEUE'],
+  ['LINGUERE', 'territoire_dakar_banlieue', 'TERRITOIRE DAKAR BANLIEUE'],
+  ['KAOLACK', 'territoire_province_centre_sud', 'TERRITOIRE PROVINCE CENTRE-SUD'],
+  ['MARISTES', 'territoire_dakar_ville', 'TERRITOIRE DAKAR VILLE'],
+  ['CASTORS', 'territoire_dakar_ville', 'TERRITOIRE DAKAR VILLE'],
+  ['PIKINE', 'territoire_dakar_banlieue', 'TERRITOIRE DAKAR BANLIEUE'],
+  ['MBOUR', 'territoire_province_centre_sud', 'TERRITOIRE PROVINCE CENTRE-SUD'],
+  ['THIES', 'territoire_province_centre_sud', 'TERRITOIRE PROVINCE CENTRE-SUD'],
+  ['TOUBA', 'territoire_province_nord', 'TERRITOIRE PROVINCE NORD'],
+  ['LOUGA', 'territoire_province_nord', 'TERRITOIRE PROVINCE NORD'],
+  ['POINT E', 'territoire_dakar_ville', 'TERRITOIRE DAKAR VILLE'],
+  ['GUEYE', 'territoire_dakar_ville', 'TERRITOIRE DAKAR VILLE'],
+  ['SIEGE', 'territoire_dakar_ville', 'TERRITOIRE DAKAR VILLE'],
+];
+
+function resolveTerritory(label) {
+  const text = String(label || '').toUpperCase().replace(/[-']/g, ' ').replace(/\s+/g, ' ').trim();
+  const hit = TERRITORY_TOKENS.find(([token]) => text.includes(token));
+  if (!hit) return { key: 'non_rattache', name: 'NON RATTACHÉ' };
+  return { key: hit[1], name: hit[2] };
+}
+
+function emptyMetrics() {
+  return { objectif: 0, realise: 0, global: 0, attente: 0, retard: 0 };
+}
+
+function addMetrics(target, source) {
+  target.objectif += source.objectif;
+  target.realise += source.realise;
+  target.global += source.global;
+  target.attente += source.attente;
+  target.retard += source.retard;
+}
+
 const barLabels = {
   id: 'echeanceBarLabels',
   afterDatasetsDraw(chart) {
@@ -456,11 +795,15 @@ const barLabels = {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
     for (let index = 0; index < count; index += 1) {
-      const total = datasets.reduce((sum, dataset) => sum + (Number(dataset.data[index]) || 0), 0);
+      const total = datasets.reduce((sum, dataset) => {
+        if (dataset.stack !== 'echeance') return sum;
+        return sum + (Number(dataset.data[index]) || 0);
+      }, 0);
       if (!total) continue;
       let top = null;
       let x = null;
       datasets.forEach((dataset, datasetIndex) => {
+        if (dataset.stack !== 'echeance') return;
         if (!(Number(dataset.data[index]) || 0)) return;
         const bar = chart.getDatasetMeta(datasetIndex).data[index];
         if (!bar) return;
@@ -519,6 +862,32 @@ export default {
       status: '',
       week: '',
       page: 1,
+      promiseStatus: 'all',
+      promesses: [],
+      promiseQuery: '',
+      promiseError: '',
+      promiseLoading: false,
+      promiseSaving: false,
+      promiseOpen: false,
+      promiseMode: 'create',
+      promiseTarget: null,
+      promiseDossier: null,
+      dossierQuery: '',
+      echanges: [],
+      promiseForm: {
+        type_echange: 'appel',
+        date_echange: '',
+        montant_exigible: '',
+        montant_promis: '',
+        date_paiement: '',
+        date_relance: '',
+        commentaire: '',
+        motif: '',
+      },
+      expanded: { TERRITOIRE: true },
+      iconUser: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="3.2"/><path d="M5.4 19.2c.6-3.2 3-4.8 6.6-4.8s6 1.6 6.6 4.8a.7.7 0 0 1-.7.8H6.1a.7.7 0 0 1-.7-.8Z"/></svg>',
+      iconAgency: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 20V9.5L12 4l8 5.5V20h-5.2v-5.2H9.2V20H4Z"/></svg>',
+      iconZone: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.2 14.2 8l5.3.8-3.8 3.7.9 5.3L12 15.3 7.4 17.8l.9-5.3L4.5 8.8 9.8 8 12 3.2Z"/></svg>',
     };
   },
   created() {
@@ -526,6 +895,9 @@ export default {
     this.barChart = null;
   },
   watch: {
+    view(value) {
+      if (value === 'promesses') this.loadPromesses();
+    },
     chartSignature: {
       handler() {
         this.destroyCharts();
@@ -573,18 +945,7 @@ export default {
       return map;
     },
     objectifByLoan() {
-      const map = new Map();
-      this.objectifRows.forEach((row) => {
-        const id = this.loanKey(row.account_number);
-        if (!id) return;
-        const current = map.get(id) || { exigible: null, echeance: 0 };
-        if (current.exigible === null) current.exigible = Number(row.exigible_m_1) || 0;
-        current.echeance += Number(row.montant_echeance) || 0;
-        map.set(id, current);
-      });
-      const totals = new Map();
-      map.forEach((item, id) => totals.set(id, item.exigible + item.echeance));
-      return totals;
+      return this.objectifMap(this.objectifRows);
     },
     agencyOptions() {
       const map = new Map();
@@ -640,20 +1001,322 @@ export default {
       return `${this.view}|${this.filteredRows.length}|${total}|${this.agence}|${this.caf}|${this.status}|${this.week}|${this.search}`;
     },
     statusSlices() {
-      const counts = { I: 0, R: 0, A: 0, none: 0 };
-      this.filteredRows.forEach((row) => {
-        const key = row.status_ech || 'none';
-        counts[key] = (counts[key] || 0) + 1;
+      let realise = 0;
+      let attente = 0;
+      let retard = 0;
+      this.dossiersByLoan.forEach((items) => {
+        if (this.dossierRetard(items)) {
+          retard += 1;
+          return;
+        }
+        if (this.dossierAttente(items)) {
+          attente += 1;
+          return;
+        }
+        if (items.some((row) => this.realiseMatchesObjectif(row))) realise += 1;
       });
       return [
-        { key: 'I', label: 'Impayé', color: '#dc2626', value: counts.I },
-        { key: 'R', label: 'Remboursé', color: '#15803d', value: counts.R },
-        { key: 'A', label: 'En attente', color: '#d97706', value: counts.A },
-        { key: 'none', label: 'Sans échéance', color: '#94a3b8', value: counts.none },
+        { key: 'realise', label: 'Réalisé', color: '#15803d', value: realise },
+        { key: 'attente', label: 'En attente', color: '#d97706', value: attente },
+        { key: 'retard', label: 'En retard', color: '#dc2626', value: retard },
       ].filter((slice) => slice.value > 0);
     },
     statusTotal() {
       return this.statusSlices.reduce((sum, slice) => sum + slice.value, 0);
+    },
+    detailBreakdown() {
+      const agencies = new Map();
+      const seen = new Set();
+      const place = (loan) => {
+        const territory = resolveTerritory(loan.agenceLabel);
+        if (!agencies.has(territory.key)) {
+          agencies.set(territory.key, { key: territory.key, name: territory.name, agencies: new Map() });
+        }
+        const zone = agencies.get(territory.key);
+        const agencyKey = `${loan.agence || '—'}`;
+        if (!zone.agencies.has(agencyKey)) {
+          zone.agencies.set(agencyKey, {
+            key: `${territory.key}-${agencyKey}`,
+            code: loan.agence || '—',
+            label: agencyLabel(String(loan.agenceLabel || agencyKey).replace(/^AGENCE\s+/i, '')),
+            cafs: new Map(),
+            ...emptyMetrics(),
+          });
+        }
+        const agency = zone.agencies.get(agencyKey);
+        const cafKey = loan.caf || '—';
+        if (!agency.cafs.has(cafKey)) {
+          agency.cafs.set(cafKey, {
+            key: `${agency.key}-${cafKey}`,
+            label: cafKey,
+            loans: [],
+            ...emptyMetrics(),
+          });
+        }
+        const caf = agency.cafs.get(cafKey);
+        caf.loans.push(loan);
+        addMetrics(caf, loan);
+        addMetrics(agency, loan);
+      };
+
+      this.dossiersByLoan.forEach((items, pret) => {
+        const id = this.loanKey(pret);
+        seen.add(id);
+        const head = items[0] || {};
+        const objectif = Number(this.objectifByLoan.get(id)) || 0;
+        const global = items.reduce((sum, row) => sum + (Number(row.mt_global_due_a_date) || 0), 0);
+        place({
+          key: id || pret,
+          pret: head.no_pret || pret || '—',
+          client: head.nom_client || '—',
+          agence: head.code_agence || '—',
+          agenceLabel: head.nom_agence || head.code_agence || 'Non rattaché',
+          caf: head.charge_affaire || '—',
+          objectif,
+          realise: objectif - global,
+          global,
+          attente: this.dossierAttente(items) ? global : 0,
+          retard: this.dossierRetard(items) ? global : 0,
+        });
+      });
+
+      if (!this.hasSuiviFilter) {
+        this.objectifByLoan.forEach((value, id) => {
+          if (seen.has(id)) return;
+          const objectif = Number(value) || 0;
+          place({
+            key: id,
+            pret: id,
+            client: '—',
+            agence: '—',
+            agenceLabel: 'Non rattaché',
+            caf: '—',
+            objectif,
+            realise: objectif,
+            global: 0,
+            attente: 0,
+            retard: 0,
+          });
+        });
+      }
+
+      const totals = emptyMetrics();
+      const ordered = [
+        ...TERRITORY_ORDER.filter((item) => agencies.has(item.key)).map((item) => agencies.get(item.key)),
+        ...[...agencies.values()].filter((group) => !TERRITORY_ORDER.some((item) => item.key === group.key)),
+      ];
+      const territories = ordered.map((group) => {
+        const metrics = emptyMetrics();
+        const agencyList = [...group.agencies.values()]
+          .map((agency) => {
+            addMetrics(metrics, agency);
+            return {
+              key: agency.key,
+              code: agency.code,
+              label: agency.label,
+              objectif: agency.objectif,
+              realise: agency.realise,
+              global: agency.global,
+              attente: agency.attente,
+              retard: agency.retard,
+              cafs: [...agency.cafs.values()]
+                .map((caf) => ({
+                  ...caf,
+                  loans: [...caf.loans].sort((left, right) => right.objectif - left.objectif || String(left.pret).localeCompare(String(right.pret), 'fr')),
+                }))
+                .sort((left, right) => right.objectif - left.objectif || left.label.localeCompare(right.label, 'fr')),
+            };
+          })
+          .sort((left, right) => right.objectif - left.objectif || left.label.localeCompare(right.label, 'fr'));
+        addMetrics(totals, metrics);
+        return { key: group.key, name: group.name, ...metrics, agencies: agencyList };
+      });
+      return { territories, totals };
+    },
+    detailTerritories() {
+      return this.detailBreakdown.territories;
+    },
+    detailTotals() {
+      return this.detailBreakdown.totals;
+    },
+    zoneRanks() {
+      return this.detailTerritories
+        .filter((zone) => zone.key !== 'non_rattache' && Number(zone.objectif) > 0)
+        .map((zone) => ({
+          key: zone.key,
+          label: String(zone.name || '').replace(/^territoire\s+/i, '').trim() || zone.name,
+          realise: zone.realise,
+          objectif: zone.objectif,
+          tro: (zone.realise / zone.objectif) * 100,
+        }))
+        .sort((left, right) => right.tro - left.tro || right.realise - left.realise);
+    },
+    agencyRanks() {
+      const rows = this.detailTerritories.flatMap((zone) => (zone.agencies || [])
+        .filter((agency) => agency.code !== '—' && !/non rattach/i.test(agency.label) && Number(agency.objectif) > 0)
+        .map((agency) => ({
+          key: agency.key,
+          label: agency.label,
+          hint: String(zone.name || '').replace(/^territoire\s+/i, '').trim(),
+          realise: agency.realise,
+          objectif: agency.objectif,
+          tro: (agency.realise / agency.objectif) * 100,
+        })));
+      return this.rankByTro(rows);
+    },
+    cafRanks() {
+      const grouped = new Map();
+      this.detailTerritories.forEach((zone) => {
+        (zone.agencies || []).forEach((agency) => {
+          if (/non rattach/i.test(agency.label)) return;
+          (agency.cafs || []).forEach((caf) => {
+            if (!caf.label || caf.label === '—' || !(Number(caf.objectif) > 0)) return;
+            const label = this.displayName(caf.label);
+            const key = label.toLocaleLowerCase('fr-FR');
+            if (!grouped.has(key)) {
+              grouped.set(key, { key, label, agencies: new Set(), realise: 0, objectif: 0 });
+            }
+            const bucket = grouped.get(key);
+            bucket.agencies.add(agency.label);
+            bucket.realise += Number(caf.realise) || 0;
+            bucket.objectif += Number(caf.objectif) || 0;
+          });
+        });
+      });
+      const rows = [...grouped.values()].map((row) => ({
+        key: row.key,
+        label: row.label,
+        hint: row.agencies.size > 1 ? `${row.agencies.size} agences` : [...row.agencies][0],
+        realise: row.realise,
+        objectif: row.objectif,
+        tro: row.objectif ? (row.realise / row.objectif) * 100 : 0,
+      }));
+      return this.rankByTro(rows);
+    },
+    topAgencies() {
+      return this.agencyRanks.top;
+    },
+    flopAgencies() {
+      return this.agencyRanks.flop;
+    },
+    topCafs() {
+      return this.cafRanks.top;
+    },
+    flopCafs() {
+      return this.cafRanks.flop;
+    },
+    otherZones() {
+      return this.zoneRanks.slice(1).map((zone) => ({
+        ...zone,
+        short: String(zone.label || '').replace(/^province\s+/i, '').trim(),
+      }));
+    },
+    bestMarks() {
+      const shown = (row) => {
+        if (!row) return null;
+        return {
+          label: row.label,
+          hint: row.hint ? (/^\d/.test(row.hint) ? row.hint : this.displayName(row.hint)) : '',
+          amountText: this.formatCompact(row.realise),
+          targetText: row.objectif ? this.formatCompact(row.objectif) : '',
+          rateText: this.formatPercent(row.tro),
+          bar: this.troBar(row.tro),
+          tone: this.troClass(row.tro),
+        };
+      };
+      return [
+        ['caf', 'Meilleur CAF', this.topCafs[0], this.iconUser],
+        ['agency', 'Meilleure agence', this.topAgencies[0], this.iconAgency],
+        ['zone', 'Meilleur territoire', this.zoneRanks[0], this.iconZone],
+      ].flatMap(([key, kicker, row, icon]) => {
+        const view = shown(row);
+        return view ? [{ key, kicker, icon, ...view }] : [];
+      });
+    },
+    perfCards() {
+      return [
+        { key: 'top-caf', title: 'Top 5 des CAF', tone: 'is-top', icon: this.iconUser, rows: this.topCafs, empty: 'Aucun CAF sur cette sélection.' },
+        { key: 'flop-caf', title: 'Flop 5 des CAF', tone: 'is-flop', icon: this.iconUser, rows: this.flopCafs, empty: 'Pas assez de CAF pour un flop.' },
+        { key: 'top-agency', title: 'Top 5 des agences', tone: 'is-top', icon: this.iconAgency, rows: this.topAgencies, empty: 'Aucune agence sur cette sélection.' },
+        { key: 'flop-agency', title: 'Flop 5 des agences', tone: 'is-flop', icon: this.iconAgency, rows: this.flopAgencies, empty: 'Pas assez d’agences pour un flop.' },
+      ];
+    },
+    promiseCards() {
+      const rows = this.decoratedPromesses.filter((row) => row.statut_calcule !== 'annulee');
+      const sum = (list) => list.reduce((total, row) => total + (Number(row.montant_promis) || 0), 0);
+      const attente = rows.filter((row) => row.statut_calcule === 'attente');
+      const realise = rows.filter((row) => row.statut_calcule === 'realisee');
+      const retard = rows.filter((row) => row.statut_calcule === 'non_tenue');
+      return [
+        { key: 'all', label: 'Promesses enregistrées', value: rows.length, unit: this.formatCompact(sum(rows)), accent: '#1a4d3a' },
+        { key: 'attente', label: 'En attente', value: attente.length, unit: this.formatCompact(sum(attente)), accent: '#d97706' },
+        { key: 'realise', label: 'Réalisées', value: realise.length, unit: this.formatCompact(sum(realise)), accent: '#16a34a' },
+        { key: 'retard', label: 'En retard', value: retard.length, unit: this.formatCompact(sum(retard)), accent: '#dc2626' },
+      ];
+    },
+    paidByLoan() {
+      const map = new Map();
+      this.rowsInObjectif.forEach((row) => {
+        const id = this.loanKey(row.no_pret);
+        if (!id) return;
+        map.set(id, (map.get(id) || 0) + (Number(row.montant_echeance_paye) || 0));
+      });
+      return map;
+    },
+    decoratedPromesses() {
+      return this.promesses.map((row) => {
+        const paid = this.paidByLoan.get(this.loanKey(row.no_pret)) || 0;
+        const promis = Number(row.montant_promis) || 0;
+        return {
+          ...row,
+          montant_regle: paid,
+          reliquat: Math.max(0, promis - paid),
+          statut_calcule: this.promiseStatut(row, paid),
+        };
+      });
+    },
+    dossierHits() {
+      const query = this.dossierQuery.trim().toLowerCase();
+      if (query.length < 2 || this.promiseDossier) return [];
+      const seen = new Map();
+      this.rowsInObjectif.forEach((row) => {
+        if (!row.no_pret || seen.has(row.no_pret)) return;
+        seen.set(row.no_pret, row);
+      });
+      return [...seen.values()].filter((row) => [
+        row.no_pret,
+        row.nom_client,
+        row.matricule_client,
+        row.charge_affaire,
+      ].filter(Boolean).join(' ').toLowerCase().includes(query)).slice(0, 8);
+    },
+    promiseReste() {
+      const exigible = Number(this.promiseForm.montant_exigible) || 0;
+      const promis = Number(this.promiseForm.montant_promis) || 0;
+      return Math.max(0, exigible - promis);
+    },
+    promiseHeading() {
+      if (this.promiseMode === 'annuler') return 'Annuler la promesse';
+      if (this.promiseMode === 'reporter') return 'Reporter la promesse';
+      if (this.promiseMode === 'historique') return this.promiseTarget?.nom_client || 'Échanges';
+      return 'Nouvelle promesse';
+    },
+    promiseRows() {
+      const rows = this.decoratedPromesses.filter((row) => {
+        if (this.promiseStatus === 'all') return true;
+        if (this.promiseStatus === 'retard') return row.statut_calcule === 'non_tenue';
+        if (this.promiseStatus === 'partiel') return row.statut_calcule === 'partielle';
+        if (this.promiseStatus === 'realise') return row.statut_calcule === 'realisee';
+        return row.statut_calcule === this.promiseStatus;
+      });
+      const query = this.promiseQuery.toLowerCase();
+      if (!query) return rows;
+      return rows.filter((row) => [
+        row.nom_client,
+        row.matricule_client,
+        row.no_pret,
+        row.charge_affaire,
+      ].filter(Boolean).join(' ').toLowerCase().includes(query));
     },
     weekCards() {
       const buckets = [
@@ -688,15 +1351,37 @@ export default {
         if (!row.schedule_due_date) return;
         const code = row.code_agence || '—';
         const name = agencyLabel(String(row.nom_agence || code).replace(/^AGENCE\s+/i, ''));
-        if (!map.has(code)) map.set(code, { key: code, label: name, tombe: 0, realise: 0, reste: 0 });
+        if (!map.has(code)) {
+          map.set(code, {
+            key: code,
+            label: name,
+            tombe: 0,
+            realise: 0,
+            reste: 0,
+            objectif: 0,
+            loans: new Set(),
+          });
+        }
         const item = map.get(code);
         const paye = Number(row.montant_echeance_paye) || 0;
         const reste = Number(row.montant_echeance_m) || 0;
         item.tombe += paye + reste;
         if (this.realiseMatchesObjectif(row)) item.realise += paye;
+        const id = this.loanKey(row.no_pret);
+        if (id && !item.loans.has(id)) {
+          item.loans.add(id);
+          item.objectif += Number(this.objectifOf(row)) || 0;
+        }
       });
       return [...map.values()]
-        .map((item) => ({ ...item, reste: Math.max(0, item.tombe - item.realise) }))
+        .map((item) => ({
+          key: item.key,
+          label: item.label,
+          tombe: item.tombe,
+          realise: item.realise,
+          objectif: item.objectif,
+          reste: Math.max(0, item.tombe - item.realise),
+        }))
         .sort((left, right) => right.tombe - left.tombe || left.label.localeCompare(right.label, 'fr'));
     },
     agencyChartWidth() {
@@ -730,10 +1415,27 @@ export default {
       const start = (this.agencyPage - 1) * PAGE_SIZE;
       return this.agencyDetailRows.slice(start, start + PAGE_SIZE);
     },
+    suiviLoanIds() {
+      const ids = new Set();
+      this.filteredRows.forEach((row) => {
+        const id = this.loanKey(row.no_pret);
+        if (id) ids.add(id);
+      });
+      return ids;
+    },
+    hasSuiviFilter() {
+      return Boolean(this.agence || this.caf || this.week || this.status || this.search);
+    },
     filteredObjectifRows() {
+      const ids = this.hasSuiviFilter ? this.suiviLoanIds : null;
       const query = this.objectifQuery.toLowerCase();
-      if (!query) return this.objectifRows;
-      return this.objectifRows.filter((row) => (row.account_number || '').toLowerCase().includes(query));
+      return this.objectifRows.filter((row) => {
+        const id = this.loanKey(row.account_number);
+        if (!id) return false;
+        if (ids && !ids.has(id)) return false;
+        if (!query) return true;
+        return (row.account_number || '').toLowerCase().includes(query);
+      });
     },
     objectifPageCount() {
       return Math.max(1, Math.ceil(this.filteredObjectifRows.length / PAGE_SIZE));
@@ -753,11 +1455,15 @@ export default {
         seen.add(id);
         exigible += Number(row.exigible_m_1) || 0;
       });
+      let objectif = 0;
+      this.objectifMap(this.filteredObjectifRows).forEach((value) => {
+        objectif += Number(value) || 0;
+      });
       return [
         { label: 'Prêts financés', value: seen.size, money: false, accent: '#1a4d3a' },
         { label: 'Exigible M-1', value: exigible, money: true, accent: '#7c3aed' },
         { label: 'Montant échéance', value: echeance, money: true, accent: '#2563eb' },
-        { label: 'Objectif recouvrement', value: exigible + echeance, money: true, accent: '#143d2e' },
+        { label: 'Objectif recouvrement', value: objectif, money: true, accent: '#2563eb' },
       ];
     },
     activeKpiCard() {
@@ -773,39 +1479,54 @@ export default {
       });
       return map;
     },
+    globalDuByLoan() {
+      const map = new Map();
+      this.filteredRows.forEach((row) => {
+        const id = this.loanKey(row.no_pret);
+        if (!id) return;
+        map.set(id, (map.get(id) || 0) + (Number(row.mt_global_due_a_date) || 0));
+      });
+      return map;
+    },
     suiviMetrics() {
       const rows = this.filteredRows;
-      const withDue = rows.filter((row) => row.schedule_due_date);
       const sum = (list, key) => list.reduce((total, row) => total + (Number(row[key]) || 0), 0);
-      const seen = new Set();
       let objectif = 0;
-      this.objectifRows.forEach((row) => {
-        const id = this.loanKey(row.account_number);
-        if (!id || seen.has(id) || !this.hasObjectif(row)) return;
-        seen.add(id);
-        objectif += Number(this.objectifOf(row)) || 0;
-      });
-      const realise = sum(withDue.filter((row) => this.realiseMatchesObjectif(row)), 'montant_echeance_paye');
-      const taux = objectif ? (realise / objectif) * 100 : 0;
+      if (this.hasSuiviFilter) {
+        this.suiviLoanIds.forEach((id) => {
+          objectif += Number(this.objectifByLoan.get(id)) || 0;
+        });
+      } else {
+        this.objectifByLoan.forEach((value) => {
+          objectif += Number(value) || 0;
+        });
+      }
+      objectif = Math.round(objectif);
       let attente = 0;
-      const lateLoans = new Set();
+      let retard = 0;
+      const global = Math.round(sum(rows, 'mt_global_due_a_date'));
       this.dossiersByLoan.forEach((items) => {
-        if (items.some((row) => row.status_ech === 'A')) attente += 1;
+        const volume = sum(items, 'mt_global_due_a_date');
+        if (this.dossierRetard(items)) retard += volume;
+        else if (this.dossierAttente(items)) attente += volume;
       });
-      withDue.forEach((row) => {
-        if (!this.hasEcartObjectif(row)) return;
-        const id = this.loanKey(row.no_pret);
-        if (id) lateLoans.add(id);
+      rows.forEach((row) => {
+        if (row.no_pret) return;
+        const volume = Number(row.mt_global_due_a_date) || 0;
+        const echeance = String(row.status_ech || '').trim().toUpperCase();
+        if (!this.isNormOrImmo(row.statut_declassement)) retard += volume;
+        else if (echeance === 'A') attente += volume;
       });
-      const retard = lateLoans.size;
+      attente = Math.round(attente);
+      retard = Math.round(retard);
+      const realise = objectif - global;
+      const taux = objectif ? (realise / objectif) * 100 : 0;
       return {
         objectif,
         realise,
         attente,
         retard,
-        global: this.sumOncePerLoan(rows, 'etat_exigible_m_1')
-          + this.sumOncePerLoan(rows, 'total_charge')
-          + sum(withDue, 'montant_echeance_m'),
+        global,
         taux,
       };
     },
@@ -817,18 +1538,31 @@ export default {
       const query = this.kpiQuery.toLowerCase();
       let rows = [];
       if (this.activeKpi === 'objectif') {
-        rows = this.objectifRows.filter((row) => this.hasObjectif(row));
+        const ids = this.hasSuiviFilter ? this.suiviLoanIds : null;
+        rows = this.objectifRows.filter((row) => {
+          const id = this.loanKey(row.account_number);
+          return id && (!ids || ids.has(id));
+        });
       } else if (this.activeKpi === 'global') {
         rows = this.filteredRows.filter((row) => this.hasObjectif(row) && (Number(row.mt_global_due_a_date) || 0) !== 0);
       } else if (this.activeKpi === 'realise') {
-        rows = this.filteredRows.filter((row) => row.schedule_due_date && this.realiseMatchesObjectif(row));
+        const seen = new Set();
+        rows = this.filteredObjectifRows.filter((row) => {
+          const id = this.loanKey(row.account_number);
+          if (!id || seen.has(id)) return false;
+          seen.add(id);
+          return true;
+        });
       } else if (this.activeKpi === 'retard') {
-        rows = this.filteredRows.filter((row) => this.hasEcartObjectif(row));
+        const loans = [];
+        this.dossiersByLoan.forEach((items) => {
+          if (this.dossierRetard(items)) loans.push(...items);
+        });
+        rows = loans;
       } else if (this.activeKpi === 'attente') {
         const loans = [];
         this.dossiersByLoan.forEach((items) => {
-          const head = items.find((row) => row.status_ech === 'A');
-          if (head) loans.push(head);
+          if (this.dossierAttente(items)) loans.push(...items);
         });
         rows = loans;
       }
@@ -854,6 +1588,8 @@ export default {
     },
     kpiCards() {
       const metrics = this.suiviMetrics;
+      const objectif = Number(metrics.objectif) || 0;
+      const shareOf = (value) => (objectif ? (Number(value) / objectif) * 100 : 0);
       return [
         {
           key: 'objectif',
@@ -861,38 +1597,42 @@ export default {
           value: metrics.objectif,
           money: true,
           unit: 'FCFA',
-          accent: '#059669',
-        },
-        {
-          key: 'global',
-          label: 'Global dû à date',
-          value: metrics.global,
-          money: true,
-          unit: 'FCFA',
-          accent: '#0284c7',
+          accent: '#2563eb',
         },
         {
           key: 'realise',
           label: 'Réalisé du mois',
           value: metrics.realise,
+          share: shareOf(metrics.realise),
           money: true,
-          unit: 'MT recouvré',
+          unit: 'FCFA',
           accent: '#16a34a',
+        },
+        {
+          key: 'global',
+          label: 'Global dû à date',
+          value: metrics.global,
+          share: shareOf(metrics.global),
+          money: true,
+          unit: 'FCFA',
+          accent: '#db2777',
         },
         {
           key: 'attente',
           label: 'En attente',
           value: metrics.attente,
-          money: false,
-          unit: 'dossiers',
+          share: shareOf(metrics.attente),
+          money: true,
+          unit: 'FCFA',
           accent: '#f59e0b',
         },
         {
           key: 'retard',
           label: 'En retard',
           value: metrics.retard,
-          money: false,
-          unit: 'dossiers',
+          share: shareOf(metrics.retard),
+          money: true,
+          unit: 'FCFA',
           accent: '#ef4444',
         },
       ];
@@ -946,11 +1686,28 @@ export default {
       const status = String(row?.status_ech || '').trim().toUpperCase();
       return objectif > 0 && objectif === realise && status !== 'I';
     },
-    hasEcartObjectif(row) {
-      const objectif = Math.round(Number(this.objectifOf(row)) || 0);
-      if (objectif <= 0 || !row?.schedule_due_date) return false;
-      if (String(row?.status_ech || '').trim().toUpperCase() === 'I') return true;
-      return Math.round(Number(row.montant_echeance_paye) || 0) !== objectif;
+    globalDuCell(row) {
+      if (this.activeKpi !== 'realise') return this.lineOf(row).mt_global_due_a_date;
+      const id = this.loanKey(row?.no_pret || row?.account_number);
+      return Number(this.globalDuByLoan.get(id)) || 0;
+    },
+    realiseCell(row) {
+      if (this.activeKpi !== 'realise') return this.lineOf(row).montant_echeance_paye;
+      const id = this.loanKey(row?.no_pret || row?.account_number);
+      const objectif = Number(this.objectifByLoan.get(id)) || 0;
+      return objectif - (Number(this.globalDuByLoan.get(id)) || 0);
+    },
+    isNormOrImmo(status) {
+      const value = String(status || '').trim().toUpperCase();
+      return value === 'NORM' || value === 'IMMO';
+    },
+    dossierRetard(items) {
+      return !this.isNormOrImmo(items[0]?.statut_declassement);
+    },
+    dossierAttente(items) {
+      const sain = this.isNormOrImmo(items[0]?.statut_declassement);
+      const echeanceA = items.some((row) => String(row?.status_ech || '').trim().toUpperCase() === 'A');
+      return sain && echeanceA;
     },
     kpiIcon(key) {
       const paths = {
@@ -1058,14 +1815,34 @@ export default {
         plugins: [barLabels],
         data: {
           labels: rows.map((row) => row.label),
-          datasets: AGENCY_SERIES.map((serie) => ({
-            label: serie.label,
-            data: rows.map((row) => row[serie.key] || 0),
-            backgroundColor: serie.color,
-            stack: 'echeance',
-            maxBarThickness: 46,
-            borderWidth: 0,
-          })),
+          datasets: [
+            ...AGENCY_SERIES.map((serie) => ({
+              label: serie.label,
+              data: rows.map((row) => row[serie.key] || 0),
+              backgroundColor: serie.color,
+              stack: 'echeance',
+              maxBarThickness: 46,
+              borderWidth: 0,
+              order: 2,
+            })),
+            {
+              type: 'line',
+              label: 'Objectif',
+              data: rows.map((row) => row.objectif || 0),
+              borderColor: '#2563eb',
+              backgroundColor: '#2563eb',
+              pointBackgroundColor: '#fff',
+              pointBorderColor: '#2563eb',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+              pointHoverRadius: 5,
+              borderWidth: 2,
+              tension: 0.35,
+              fill: false,
+              stack: 'objectif',
+              order: 1,
+            },
+          ],
         },
         options: {
           responsive: false,
@@ -1082,7 +1859,10 @@ export default {
                   return ` ${context.dataset.label} : ${formatAxis(value)}`;
                 },
                 footer: (items) => {
-                  const total = items.reduce((sum, item) => sum + (Number(item.parsed.y) || 0), 0);
+                  const total = items.reduce((sum, item) => {
+                    if (item.dataset.stack !== 'echeance') return sum;
+                    return sum + (Number(item.parsed.y) || 0);
+                  }, 0);
                   return `Tombé : ${formatAxis(total)}`;
                 },
               },
@@ -1116,15 +1896,6 @@ export default {
           },
         },
       });
-    },
-    sumOncePerLoan(rows, key) {
-      const seen = new Set();
-      return rows.reduce((total, row) => {
-        const id = row.no_pret || row.compte;
-        if (!id || seen.has(id)) return total;
-        seen.add(id);
-        return total + (Number(row[key]) || 0);
-      }, 0);
     },
     applyCachedPeriod(cached) {
       this.rows = cached.rows;
@@ -1205,6 +1976,24 @@ export default {
     loanKey(value) {
       return String(value || '').trim().toUpperCase();
     },
+    objectifMap(rows) {
+      const map = new Map();
+      (rows || []).forEach((row) => {
+        const id = this.loanKey(row.account_number || row.no_pret);
+        if (!id) return;
+        const exigible = Number(row.exigible_m_1) || 0;
+        const stored = Number(row.objectif_recouvrement);
+        const line = Number.isFinite(stored)
+          ? stored
+          : exigible + (Number(row.montant_echeance) || 0);
+        if (!map.has(id)) {
+          map.set(id, line);
+          return;
+        }
+        map.set(id, map.get(id) + line - exigible);
+      });
+      return map;
+    },
     objectifOf(row) {
       const id = this.loanKey(row?.no_pret || row?.account_number);
       if (!id || !this.objectifByLoan.has(id)) return null;
@@ -1220,17 +2009,50 @@ export default {
     rowKey(row) {
       return `${row.no_pret}-${row.numero_echeance || 'x'}-${row.schedule_due_date || 'nodue'}-${row.date_deblocage || ''}`;
     },
-    statusLabel(status) {
-      if (status === 'I') return 'Impayé';
-      if (status === 'R') return 'Remboursé';
-      if (status === 'A') return 'Échéance A';
-      return 'Sans échéance';
+    toggleExpand(key) {
+      this.expanded = { ...this.expanded, [key]: !this.expanded[key] };
     },
-    statusClass(status) {
-      if (status === 'I') return 'is-late';
-      if (status === 'R') return 'is-paid';
-      if (status === 'A') return 'is-wait';
-      return 'is-empty';
+    formatTro(bucket) {
+      if (!bucket || !Number(bucket.objectif)) return '—';
+      return this.formatPercent((Number(bucket.realise) / Number(bucket.objectif)) * 100);
+    },
+    rankByTro(rows) {
+      const floors = [20000000, 5000000, 0];
+      let pool = rows;
+      floors.some((floor) => {
+        const next = rows.filter((row) => Number(row.objectif) >= floor);
+        if (next.length >= 8) {
+          pool = next;
+          return true;
+        }
+        if (next.length) pool = next;
+        return false;
+      });
+      const ordered = [...pool].sort((left, right) => right.tro - left.tro || right.realise - left.realise);
+      const top = ordered.slice(0, 5);
+      const topKeys = new Set(top.map((row) => row.key));
+      const flop = [...ordered]
+        .filter((row) => !topKeys.has(row.key))
+        .sort((left, right) => left.tro - right.tro || left.realise - right.realise)
+        .slice(0, 5);
+      return { top, flop };
+    },
+    troClass(value) {
+      const rate = Number(value);
+      if (!Number.isFinite(rate)) return '';
+      if (rate >= 80) return 'positive';
+      if (rate >= 50) return 'mid';
+      return 'negative';
+    },
+    troBar(value) {
+      const rate = Number(value);
+      if (!Number.isFinite(rate) || rate <= 0) return 0;
+      return Math.min(100, rate);
+    },
+    displayName(value) {
+      return String(value || '')
+        .toLocaleLowerCase('fr-FR')
+        .replace(/(^|[\s'’-])(\p{L})/gu, (_, sep, letter) => sep + letter.toLocaleUpperCase('fr-FR'));
     },
     openAgency(row) {
       if (this.selectedAgency === row.key) {
@@ -1247,7 +2069,17 @@ export default {
       this.agencyPage = 1;
     },
     formatCompact(value) {
-      return formatAxis(value);
+      const amount = Number(value) || 0;
+      const abs = Math.abs(amount);
+      const sign = amount < 0 ? '−' : '';
+      const text = (base, digits) => (abs / base).toLocaleString('fr-FR', {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits,
+      });
+      if (abs >= 1e9) return `${sign}${text(1e9, 1)} Md`;
+      if (abs >= 1e6) return `${sign}${text(1e6, 1)} M`;
+      if (abs >= 1e3) return `${sign}${text(1e3, 0)} k`;
+      return `${sign}${Math.round(abs).toLocaleString('fr-FR')}`;
     },
     agencyRate(row) {
       const tombe = Number(row?.tombe) || 0;
@@ -1278,21 +2110,220 @@ export default {
       }
       return text;
     },
+    authHeaders() {
+      const token = localStorage.getItem('token');
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    },
+    todayIso() {
+      const now = new Date();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      return `${now.getFullYear()}-${month}-${day}`;
+    },
+    promiseStatut(row, paid) {
+      if (row.statut === 'annulee' || row.statut === 'reportee') return row.statut;
+      const promis = Number(row.montant_promis) || 0;
+      const settled = Number(paid) || 0;
+      const due = String(row.date_paiement || '').slice(0, 10);
+      const late = due && due < this.todayIso();
+      if (promis > 0 && settled >= promis) return 'realisee';
+      if (settled > 0 && settled < promis) return 'partielle';
+      if (late) return 'non_tenue';
+      return 'attente';
+    },
+    promiseLabel(statut) {
+      return {
+        attente: 'En attente',
+        realisee: 'Réalisée',
+        partielle: 'Partiellement réalisée',
+        non_tenue: 'Non tenue',
+        reportee: 'Reportée',
+        annulee: 'Annulée',
+      }[statut] || statut;
+    },
+    exchangeLabel(type) {
+      return {
+        appel: 'Appel téléphonique',
+        visite: 'Visite client',
+        sms: 'SMS / WhatsApp',
+        autre: 'Autre',
+      }[type] || type || '—';
+    },
+    resetPromiseForm() {
+      this.promiseForm = {
+        type_echange: 'appel',
+        date_echange: this.todayIso(),
+        montant_exigible: '',
+        montant_promis: '',
+        date_paiement: '',
+        date_relance: '',
+        commentaire: '',
+        motif: '',
+      };
+      this.promiseDossier = null;
+      this.dossierQuery = '';
+      this.promiseError = '';
+    },
+    async loadPromesses() {
+      this.promiseLoading = true;
+      this.promiseError = '';
+      try {
+        const { data } = await window.axios.get('/api/promesses', { headers: this.authHeaders() });
+        this.promesses = data.promesses || [];
+      } catch (error) {
+        this.promiseError = 'Impossible de charger les promesses.';
+      } finally {
+        this.promiseLoading = false;
+      }
+    },
+    openPromiseForm() {
+      this.promiseMode = 'create';
+      this.promiseTarget = null;
+      this.resetPromiseForm();
+      this.promiseOpen = true;
+    },
+    closePromiseForm() {
+      this.promiseOpen = false;
+      this.promiseTarget = null;
+      this.echanges = [];
+    },
+    loanExigible(noPret) {
+      return this.rowsInObjectif
+        .filter((row) => row.no_pret === noPret)
+        .reduce((sum, row) => sum + (Number(row.mt_global_due_a_date) || 0), 0);
+    },
+    pickDossier(row) {
+      this.promiseDossier = row;
+      this.dossierQuery = '';
+      this.promiseForm.montant_exigible = Math.round(this.loanExigible(row.no_pret));
+    },
+    clearDossier() {
+      this.promiseDossier = null;
+      this.promiseForm.montant_exigible = '';
+    },
+    promisePayload(dossier) {
+      return {
+        no_pret: dossier.no_pret,
+        matricule_client: dossier.matricule_client || null,
+        nom_client: dossier.nom_client || null,
+        code_agence: dossier.code_agence || null,
+        nom_agence: dossier.nom_agence || null,
+        charge_affaire: dossier.charge_affaire || null,
+        compte: dossier.compte || null,
+        type_echange: this.promiseForm.type_echange,
+        date_echange: this.promiseForm.date_echange,
+        montant_exigible: Number(this.promiseForm.montant_exigible) || 0,
+        montant_promis: Number(this.promiseForm.montant_promis) || 0,
+        date_paiement: this.promiseForm.date_paiement,
+        date_relance: this.promiseForm.date_relance || null,
+        commentaire: this.promiseForm.commentaire || null,
+      };
+    },
+    async submitPromise() {
+      if (!this.promiseDossier) {
+        this.promiseError = 'Choisissez un dossier.';
+        return;
+      }
+      if (!(Number(this.promiseForm.montant_promis) > 0) || !this.promiseForm.date_paiement) {
+        this.promiseError = 'Le montant promis et la date de paiement sont obligatoires.';
+        return;
+      }
+      this.promiseSaving = true;
+      this.promiseError = '';
+      try {
+        await window.axios.post('/api/promesses', this.promisePayload(this.promiseDossier), { headers: this.authHeaders() });
+        this.closePromiseForm();
+        await this.loadPromesses();
+      } catch (error) {
+        this.promiseError = 'La promesse n’a pas pu être enregistrée.';
+      } finally {
+        this.promiseSaving = false;
+      }
+    },
+    openReporter(row) {
+      this.promiseMode = 'reporter';
+      this.promiseTarget = row;
+      this.resetPromiseForm();
+      this.promiseDossier = row;
+      this.promiseForm.montant_exigible = row.montant_exigible;
+      this.promiseForm.montant_promis = row.montant_promis;
+      this.promiseForm.date_paiement = String(row.date_paiement || '').slice(0, 10);
+      this.promiseOpen = true;
+    },
+    async submitReporter() {
+      if (!this.promiseTarget) return;
+      this.promiseSaving = true;
+      this.promiseError = '';
+      try {
+        await window.axios.post(`/api/promesses/${this.promiseTarget.id}/reporter`, {
+          type_echange: this.promiseForm.type_echange,
+          date_echange: this.promiseForm.date_echange,
+          montant_promis: Number(this.promiseForm.montant_promis) || 0,
+          date_paiement: this.promiseForm.date_paiement,
+          date_relance: this.promiseForm.date_relance || null,
+          commentaire: this.promiseForm.commentaire || null,
+        }, { headers: this.authHeaders() });
+        this.closePromiseForm();
+        await this.loadPromesses();
+      } catch (error) {
+        this.promiseError = 'Le report n’a pas pu être enregistré.';
+      } finally {
+        this.promiseSaving = false;
+      }
+    },
+    openAnnuler(row) {
+      this.promiseMode = 'annuler';
+      this.promiseTarget = row;
+      this.resetPromiseForm();
+      this.promiseOpen = true;
+    },
+    async submitAnnuler() {
+      if (!this.promiseTarget || !this.promiseForm.motif) {
+        this.promiseError = 'Le motif d’annulation est obligatoire.';
+        return;
+      }
+      this.promiseSaving = true;
+      this.promiseError = '';
+      try {
+        await window.axios.post(`/api/promesses/${this.promiseTarget.id}/annuler`, {
+          motif: this.promiseForm.motif,
+        }, { headers: this.authHeaders() });
+        this.closePromiseForm();
+        await this.loadPromesses();
+      } catch (error) {
+        this.promiseError = 'L’annulation n’a pas pu être enregistrée.';
+      } finally {
+        this.promiseSaving = false;
+      }
+    },
+    async openHistorique(row) {
+      this.promiseMode = 'historique';
+      this.promiseTarget = row;
+      this.promiseError = '';
+      this.echanges = [];
+      this.promiseOpen = true;
+      try {
+        const { data } = await window.axios.get(`/api/promesses/${row.id}/echanges`, { headers: this.authHeaders() });
+        this.echanges = data.echanges || [];
+      } catch (error) {
+        this.promiseError = 'Impossible de charger l’historique.';
+      }
+    },
     exportCsv() {
       const headers = [
-        'N° prêt', 'Matricule', 'Client', 'Compte', 'Objectif', 'Global dû', 'Réalisé du mois',
+        'N° prêt', 'Matricule', 'Client', 'Compte', 'Objectif', 'Réalisé du mois', 'Global dû',
         'Déblocage', 'Capital accordé', 'Encours total', '% remboursé', 'Statut prêt',
         'Statut déclassement', 'Code gestion', 'CAF', 'Solde dépôt garantie', 'Date échéance',
-        'N° échéance', 'Solde compte', 'Montant échéance', 'Statut échéance',
+        'N° échéance', 'Solde compte', 'Montant échéance',
       ];
       const lines = this.filteredRows.map((row) => [
         row.no_pret, row.matricule_client, row.nom_client, row.compte,
-        this.objectifOf(row), row.mt_global_due_a_date, row.montant_echeance_paye,
+        this.objectifOf(row), row.montant_echeance_paye, row.mt_global_due_a_date,
         row.date_deblocage, row.montant_capital_accorde, row.encours_total,
         row.pourcentage_remboursement, row.statut_pret, row.statut_declassement,
         row.code_gestion_pret, row.charge_affaire, row.solde_depot_garantie,
         row.schedule_due_date, row.numero_echeance, row.solde_cpte,
-        row.montant_echeance_m, this.statusLabel(row.status_ech),
+        row.montant_echeance_m,
       ]);
       const csv = [headers, ...lines]
         .map((line) => line.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(';'))
@@ -1631,12 +2662,22 @@ input[type="search"] {
 }
 
 .kpis small {
-  display: block;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   margin-top: 2px;
   color: #94a3b8;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.06em;
+}
+
+.kpis small em {
+  margin-left: auto;
+  font-style: normal;
+  letter-spacing: 0;
+  color: var(--accent, #1a4d3a);
 }
 
 .banner {
@@ -1977,6 +3018,13 @@ tbody tr:hover {
   border-radius: 2px;
 }
 
+.swatch.line {
+  width: 18px;
+  height: 3px;
+  border-radius: 2px;
+  background: #2563eb;
+}
+
 .empty {
   margin: 24px 0;
   color: #6b7c74;
@@ -1991,5 +3039,275 @@ tbody tr:hover {
   .filters { flex-wrap: wrap; }
   .chip-year { margin-left: 0; }
   .filters .chip { flex: 1 1 180px; }
+}
+
+.matrix-wrap { margin-top: 4px; }
+.table-container { overflow-x: auto; }
+.agencies-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 980px;
+}
+.agencies-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #dc2626;
+  color: #fff;
+  padding: 10px 8px;
+  text-align: right;
+  font-weight: 700;
+  white-space: nowrap;
+  border-bottom: none;
+}
+.agencies-table th.col-label { text-align: left; }
+.th-title { display: block; }
+.th-unit { display: block; font-size: 10px; font-weight: 600; opacity: 0.9; }
+.agencies-table td {
+  padding: 8px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid #ececec;
+}
+.agencies-table td.col-label { text-align: left; }
+.agencies-table tbody tr.level-1-row td { background: #1f2937; color: #fff; font-weight: 700; cursor: pointer; }
+.agencies-table tbody tr.level-2-row td { background: #1e3a5f; color: #fff; font-weight: 600; cursor: pointer; }
+.agencies-table tbody tr.level-3-row td { background: #dbeafe; color: #1e3a5f; cursor: pointer; }
+.agencies-table tbody tr.level-4-row td { background: #fef3c7; color: #78350f; cursor: pointer; }
+.agencies-table tbody tr.level-5-row td { background: #ffffff; color: #1c2b24; }
+.agencies-table tbody tr.level-5-row:nth-child(even) td { background: #f1f5f9; }
+.level-2 { padding-left: 16px; }
+.level-3 { padding-left: 28px; }
+.level-4 { padding-left: 40px; }
+.level-5 { padding-left: 56px; }
+.loan-no { font-variant-numeric: tabular-nums; font-weight: 600; }
+.agencies-table tbody tr.level-1-row:hover td { background: #111827; color: #fff; }
+.agencies-table tbody tr.level-2-row:hover td { background: #1e40af; color: #fff; }
+.agencies-table tbody tr.level-3-row:hover td { background: #bfdbfe; color: #1e3a5f; }
+.agencies-table tbody tr.level-4-row:hover td { background: #fde68a; color: #78350f; }
+.agencies-table tbody tr.level-5-row:hover td { background: #e2e8f0; color: #1c2b24; }
+.cell-line { display: flex; align-items: center; gap: 8px; }
+.expand-btn {
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+  border-radius: 3px;
+  cursor: pointer;
+  font-weight: 700;
+}
+.level-2 .expand-btn {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.12);
+}
+.level-3 .expand-btn {
+  color: #1e3a5f;
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+.level-4 .expand-btn {
+  color: #78350f;
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+.agency-name, .agency-code { font-weight: 600; }
+.total-row { background: #dc2626; color: #fff; font-weight: 700; }
+.total-row td { border-bottom: none; background: #dc2626; color: #fff; }
+.agencies-table tbody tr.total-row:hover td { background: #dc2626; color: #fff; }
+.col-agence { min-width: 220px; }
+.col-gest { min-width: 140px; }
+
+.promise-tabs { width: fit-content; margin: 4px 0 12px; }
+.promise-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+.promise-toolbar input {
+  flex: 1;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #e3eee8;
+  border-radius: 10px;
+  background: #fff;
+}
+.promise-add {
+  height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: #1a4d3a;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.promise-sub { display: block; margin-top: 2px; font-size: 12px; color: #64748b; }
+.promise-actions { display: flex; gap: 6px; white-space: nowrap; }
+.promise-actions button {
+  border: 0;
+  background: #f3f6f4;
+  color: #1a4d3a;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.promise-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #f3f4f6;
+  color: #374151;
+}
+.promise-badge.attente { background: #fff4e5; color: #b45309; }
+.promise-badge.realisee { background: #e7f6ec; color: #15803d; }
+.promise-badge.partielle { background: #e7f0fb; color: #1d4ed8; }
+.promise-badge.non_tenue { background: #fde8ea; color: #be123c; }
+.promise-badge.reportee { background: #f3f4f6; color: #4b5563; }
+.promise-badge.annulee { background: #f3f4f6; color: #6b7280; }
+.promesses .table-wrap { background: #fff; border: 1px solid #e7eeea; border-radius: 14px; overflow: auto; }
+.promesses table { width: 100%; }
+.promesses .empty { padding: 28px 16px; text-align: center; color: #64748b; }
+.promise-panel { max-width: 560px; }
+.promise-form { display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 8px; }
+.promise-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 700; color: #143d2e; }
+.promise-field input, .promise-field select, .promise-field textarea {
+  font-weight: 500;
+  border: 1px solid #e3eee8;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+}
+.promise-hint { margin: 0; font-size: 12px; color: #64748b; }
+.dossier-hits { list-style: none; margin: 0; padding: 0; border: 1px solid #e3eee8; border-radius: 10px; overflow: hidden; }
+.dossier-hits button { display: flex; flex-direction: column; width: 100%; text-align: left; padding: 8px 10px; border: 0; background: #fff; cursor: pointer; }
+.dossier-hits button:hover { background: #f3faf6; }
+.dossier-hits span { font-size: 12px; color: #64748b; }
+.dossier-picked { display: flex; justify-content: space-between; gap: 8px; margin: 0; padding: 8px 10px; border-radius: 10px; background: #f3faf6; }
+.dossier-picked button { border: 0; background: transparent; color: #1a4d3a; font-weight: 700; cursor: pointer; }
+.podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
+.podium article {
+  --pod: #d97706;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #e7eeea;
+  border-top: 3px solid var(--pod);
+  box-shadow: 0 1px 2px rgba(18, 38, 28, 0.04);
+  color: #12261c;
+}
+.podium article.is-agency { --pod: #15803d; }
+.podium article.is-zone { --pod: #2563eb; }
+.podium-ico {
+  display: grid;
+  place-items: center;
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: #fff4e5;
+  color: var(--pod);
+}
+.podium article.is-agency .podium-ico { background: #e8f6ee; }
+.podium article.is-zone .podium-ico { background: #e7f0fb; }
+.podium-ico :deep(svg) { width: 26px; height: 26px; }
+.podium-copy { min-width: 0; flex: 1; }
+.kicker {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pod);
+}
+.podium-name { display: block; margin-top: 2px; font-size: 17px; line-height: 1.2; color: #12261c; }
+.podium-tro {
+  margin-left: auto;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--pod);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.perf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+.perf-card {
+  background: #fff;
+  border: 1px solid #e7eeea;
+  border-radius: 16px;
+  box-shadow: 0 8px 18px rgba(20, 40, 30, 0.05);
+  overflow: hidden;
+}
+.perf-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+.perf-card.top-caf .perf-head { background: #e7f6ee; }
+.perf-card.flop-caf .perf-head { background: #fde8ec; }
+.perf-card.top-agency .perf-head { background: #e7f0fb; }
+.perf-card.flop-agency .perf-head { background: #fff1dc; }
+.perf-head h2 { margin: 0; font-size: 15px; color: #14563a; }
+.perf-card.flop-caf .perf-head h2 { color: #9f1239; }
+.perf-card.top-agency .perf-head h2 { color: #1d3f73; }
+.perf-card.flop-agency .perf-head h2 { color: #9a3412; }
+.perf-ico { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: #fff; color: #14563a; }
+.perf-card.flop-caf .perf-ico { color: #be123c; }
+.perf-card.top-agency .perf-ico { color: #1d3f73; }
+.perf-card.flop-agency .perf-ico { color: #c2410c; }
+.perf-ico :deep(svg) { width: 16px; height: 16px; }
+.rank-list { list-style: none; margin: 0; padding: 6px 12px 14px; }
+.rank-list li { display: flex; align-items: center; gap: 12px; padding: 10px 8px; border-radius: 12px; }
+.rank-list li + li { margin-top: 2px; }
+.rank-index {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #e8f6ee;
+  color: #14563a;
+  font-size: 13px;
+  font-weight: 800;
+}
+.perf-card.is-top .pos-1 { background: #14563a; color: #fff; }
+.perf-card.is-top .pos-2 { background: #3d8f68; color: #fff; }
+.perf-card.is-top .pos-3 { background: #b7d8c6; color: #143d2e; }
+.perf-card.is-flop .rank-index { background: #fde8ea; color: #be123c; }
+.rank-id { min-width: 0; flex: 1; }
+.rank-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.rank-name { font-weight: 700; color: #12261c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rank-hint { flex: 0 1 auto; font-size: 12px; color: #7b8b84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rank-meta { display: block; margin-top: 2px; font-size: 12px; color: #7b8b84; font-variant-numeric: tabular-nums; }
+.track { display: block; height: 6px; margin-top: 8px; border-radius: 999px; background: #eef3f0; overflow: hidden; }
+.track em { display: block; height: 100%; border-radius: inherit; background: #1f8a4c; }
+.perf-card.flop-caf .track em { background: #e11d48; }
+.perf-card.top-agency .track em { background: #2563eb; }
+.perf-card.flop-agency .track em { background: #ea580c; }
+.rank-list .rate {
+  flex: 0 0 auto;
+  min-width: 72px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: #e8f6ee;
+  color: #146c3a;
+  text-align: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.perf-card.flop-caf .rate { background: #fff; color: #be123c; }
+.perf-card.top-agency .rate { background: #fff; color: #1d4ed8; }
+.perf-card.flop-agency .rate { background: #fff; color: #c2410c; }
+.perf-card.top-agency .rank-index { background: #dbe7f8; color: #1d3f73; }
+.perf-card.top-agency .pos-1 { background: #1d3f73; color: #fff; }
+.perf-card.top-agency .pos-2 { background: #3b6cb5; color: #fff; }
+.perf-card.top-agency .pos-3 { background: #b9ccee; color: #1d3f73; }
+.perf-card.flop-agency .rank-index { background: #ffedd5; color: #c2410c; }
+.perf-card .empty { margin: 0; padding: 8px 18px 20px; }
+@media (max-width: 1100px) {
+  .podium, .perf-grid { grid-template-columns: 1fr; }
 }
 </style>

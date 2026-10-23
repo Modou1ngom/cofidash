@@ -11,6 +11,7 @@ use App\Http\Controllers\ReferenceCompteController;
 use App\Http\Controllers\TerritoryController;
 use App\Http\Controllers\AgencyController;
 use App\Http\Controllers\AppSettingController;
+use App\Http\Controllers\PromesseController;
 
 // Routes publiques
 Route::post('/login', [AuthController::class, 'login']);
@@ -85,6 +86,14 @@ Route::get('/reference-compte', [ReferenceCompteController::class, 'index']);
 Route::post('/reference-compte', [ReferenceCompteController::class, 'store']);
 
 // Routes pour les objectifs (protégées)
+Route::middleware('auth:sanctum')->prefix('promesses')->group(function () {
+    Route::get('/', [PromesseController::class, 'index']);
+    Route::post('/', [PromesseController::class, 'store']);
+    Route::post('/{id}/reporter', [PromesseController::class, 'reporter']);
+    Route::post('/{id}/annuler', [PromesseController::class, 'annuler']);
+    Route::get('/{id}/echanges', [PromesseController::class, 'echanges']);
+});
+
 Route::middleware('auth:sanctum')->prefix('objectives')->group(function () {
     Route::get('/', [ObjectiveController::class, 'index']);
     Route::get('/pending-validation', [ObjectiveController::class, 'pendingValidation']);

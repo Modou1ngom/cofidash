@@ -19,6 +19,9 @@ yarn-error.log
 # Database
 *.sqlite
 *.sqlite3
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
 *.db
 
 # Logs
