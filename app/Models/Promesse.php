@@ -20,6 +20,7 @@ class Promesse extends Model
         'date_echange',
         'montant_exigible',
         'montant_promis',
+        'montant_deja_paye',
         'date_paiement',
         'date_relance',
         'commentaire',
@@ -35,6 +36,7 @@ class Promesse extends Model
         'date_relance' => 'date',
         'montant_exigible' => 'float',
         'montant_promis' => 'float',
+        'montant_deja_paye' => 'float',
     ];
 
     public function user(): BelongsTo

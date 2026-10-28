@@ -362,6 +362,7 @@ TOMBE_MOIS AS (
             NVL(ex.EXIGIBLE_M_1, 0)
             + NVL(t.MONTANT_ECHEANCE_M, 0)
             + NVL(c.TOTAL_CHARGE, 0)
+            + NVL(t.PENALITE, 0)
         ) AS MT_GLOBAL_DUE_A_DATE,
         NVL(ex.EXIGIBLE_M_1, 0) AS ETAT_EXIGIBLE_M_1,
         c.TOTAL_CHARGE,
@@ -369,7 +370,7 @@ TOMBE_MOIS AS (
         t.MONTANT_ECHEANCE_PAYE,
         t.MONTANT_ECHEANCE_IMPY,
         t.PENALITE,
-        t.EXIGIBLE AS EXIGIBLE_ECH,
+        t.EXIGIBLE AS EXIGIBLE_ECH, 
         t.STATUS AS STATUS_ECH
     FROM PRODUCTION_SUI s
     LEFT JOIN TA_ECH_M t

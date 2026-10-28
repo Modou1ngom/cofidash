@@ -7,7 +7,7 @@
           <button type="button" :class="{ on: view === 'dashboard' }" @click="view = 'dashboard'">Dashboard</button>
           <button type="button" :class="{ on: view === 'detail' }" @click="view = 'detail'">Détail</button>
           <button type="button" :class="{ on: view === 'performance' }" @click="view = 'performance'">Performance</button>
-         <!-- <button type="button" :class="{ on: view === 'promesses' }" @click="view = 'promesses'">Promesses</button>-->
+         <button type="button" :class="{ on: view === 'promesses' }" @click="view = 'promesses'">Promesses</button>
         </div>
         <label class="chip chip-year">
           <span>Année</span>
@@ -419,60 +419,68 @@
             </div>
             <button type="button" class="kpi-close" aria-label="Fermer" @click="closePromiseForm">×</button>
           </header>
-          <p v-if="promiseError" class="banner error">{{ promiseError }}</p>
-
           <form v-if="promiseMode === 'create' || promiseMode === 'reporter'" class="promise-form" @submit.prevent="promiseMode === 'reporter' ? submitReporter() : submitPromise()">
-            <label v-if="promiseMode === 'create'" class="promise-field">
-              <span>Dossier</span>
-              <input v-model.trim="dossierQuery" type="search" placeholder="Matricule, client ou n° de prêt" :disabled="!!promiseDossier">
-            </label>
-            <ul v-if="dossierHits.length" class="dossier-hits">
-              <li v-for="row in dossierHits" :key="row.no_pret">
-                <button type="button" @click="pickDossier(row)">
-                  <strong>{{ row.nom_client || '—' }}</strong>
-                  <span>Mat. {{ row.matricule_client || '—' }} · {{ row.no_pret }}</span>
-                </button>
-              </li>
-            </ul>
-            <p v-if="promiseDossier" class="dossier-picked">
-              {{ promiseDossier.nom_client }} · {{ promiseDossier.no_pret }}
-              <button type="button" @click="clearDossier">Changer</button>
-            </p>
-            <label class="promise-field">
-              <span>Type d'échange</span>
-              <select v-model="promiseForm.type_echange">
-                <option value="appel">Appel téléphonique</option>
-                <option value="visite">Visite client</option>
-                <option value="sms">SMS / WhatsApp</option>
-                <option value="autre">Autre</option>
-              </select>
-            </label>
-            <label class="promise-field">
-              <span>Date de l'échange</span>
-              <input v-model="promiseForm.date_echange" type="date" required>
-            </label>
-            <label class="promise-field">
-              <span>Montant exigible (FCFA)</span>
-              <input :value="formatMoney(promiseForm.montant_exigible)" type="text" readonly>
-            </label>
-            <label class="promise-field">
-              <span>Montant promis (FCFA)</span>
-              <input v-model.number="promiseForm.montant_promis" type="number" min="1" step="1" required>
-            </label>
-            <p class="promise-hint">Reste à promettre : {{ formatMoney(promiseReste) }} FCFA</p>
-            <label class="promise-field">
-              <span>Date prévue de paiement</span>
-              <input v-model="promiseForm.date_paiement" type="date" required>
-            </label>
-            <label class="promise-field">
-              <span>Prochaine relance</span>
-              <input v-model="promiseForm.date_relance" type="date">
-            </label>
-            <label class="promise-field">
-              <span>Commentaire</span>
-              <textarea v-model.trim="promiseForm.commentaire" rows="3" placeholder="Ce que le client a confirmé"></textarea>
-            </label>
-            <button type="submit" class="promise-add" :disabled="promiseSaving">{{ promiseSaving ? 'Enregistrement…' : 'Enregistrer la promesse' }}</button>
+            <div v-if="promiseMode === 'create' && !promiseDossier" class="promise-pick">
+              <label class="promise-field">
+                <span>Client</span>
+                <input v-model.trim="dossierQuery" type="search" placeholder="Nom, matricule ou n° de prêt" @keydown.enter.prevent="chooseTypedDossier">
+              </label>
+              <p v-if="promiseError" class="promise-inline-error">{{ promiseError }}</p>
+              <ul v-if="dossierHits.length" class="dossier-hits">
+                <li v-for="row in dossierHits" :key="row.no_pret">
+                  <button type="button" @mousedown.prevent="pickDossier(row)">
+                    <strong>{{ row.nom_client || '—' }}</strong>
+                    <span>Mat. {{ row.matricule_client || '—' }} · {{ row.no_pret }}</span>
+                  </button>
+                </li>
+              </ul>
+              <p v-else-if="dossierQuery.length >= 2" class="promise-hint">Aucun dossier pour cette recherche.</p>
+            </div>
+
+            <template v-else>
+              <article v-if="promiseDossier" class="dossier-card">
+                <div>
+                  <strong>{{ promiseDossier.nom_client || '—' }}</strong>
+                  <span>Mat. {{ promiseDossier.matricule_client || '—' }} · {{ promiseDossier.no_pret }}</span>
+                  <span>Exigible {{ formatMoney(promiseForm.montant_exigible) }} FCFA</span>
+                </div>
+                <button v-if="promiseMode === 'create'" type="button" @click="clearDossier">Changer</button>
+              </article>
+              <p v-if="promiseError" class="promise-inline-error">{{ promiseError }}</p>
+              <div class="promise-grid">
+                <label class="promise-field">
+                  <span>Type d'échange</span>
+                  <select v-model="promiseForm.type_echange">
+                    <option value="appel">Appel téléphonique</option>
+                    <option value="visite">Visite client</option>
+                    <option value="sms">SMS / WhatsApp</option>
+                    <option value="autre">Autre</option>
+                  </select>
+                </label>
+                <label class="promise-field">
+                  <span>Date de l'échange</span>
+                  <input v-model="promiseForm.date_echange" type="date" required>
+                </label>
+                <label class="promise-field">
+                  <span>Montant promis (FCFA)</span>
+                  <input v-model.number="promiseForm.montant_promis" type="number" min="1" step="1" required>
+                </label>
+                <label class="promise-field">
+                  <span>Date de paiement</span>
+                  <input v-model="promiseForm.date_paiement" type="date" required>
+                </label>
+                <label class="promise-field">
+                  <span>Prochaine relance</span>
+                  <input v-model="promiseForm.date_relance" type="date">
+                </label>
+              </div>
+              <p class="promise-reste">Reste à couvrir <strong>{{ formatMoney(promiseReste) }} FCFA</strong></p>
+              <label class="promise-field">
+                <span>Commentaire</span>
+                <textarea v-model.trim="promiseForm.commentaire" rows="3" placeholder="Ce que le client a confirmé"></textarea>
+              </label>
+              <button type="submit" class="promise-add" :disabled="promiseSaving">{{ promiseSaving ? 'Enregistrement…' : 'Enregistrer la promesse' }}</button>
+            </template>
           </form>
 
           <form v-else-if="promiseMode === 'annuler'" class="promise-form" @submit.prevent="submitAnnuler">
@@ -898,6 +906,11 @@ export default {
     view(value) {
       if (value === 'promesses') this.loadPromesses();
     },
+    dossierQuery(value) {
+      if (this.promiseDossier || this.promiseMode !== 'create') return;
+      const found = this.findDossier(value, true);
+      if (found) this.pickDossier(found);
+    },
     chartSignature: {
       handler() {
         this.destroyCharts();
@@ -1265,13 +1278,15 @@ export default {
     },
     decoratedPromesses() {
       return this.promesses.map((row) => {
-        const paid = this.paidByLoan.get(this.loanKey(row.no_pret)) || 0;
+        const current = this.paidByLoan.get(this.loanKey(row.no_pret)) || 0;
+        const baseline = Number(row.montant_deja_paye) || 0;
+        const settled = Math.max(0, current - baseline);
         const promis = Number(row.montant_promis) || 0;
         return {
           ...row,
-          montant_regle: paid,
-          reliquat: Math.max(0, promis - paid),
-          statut_calcule: this.promiseStatut(row, paid),
+          montant_regle: settled,
+          reliquat: Math.max(0, promis - settled),
+          statut_calcule: this.promiseStatut(row, settled),
         };
       });
     },
@@ -2192,9 +2207,30 @@ export default {
         .filter((row) => row.no_pret === noPret)
         .reduce((sum, row) => sum + (Number(row.mt_global_due_a_date) || 0), 0);
     },
+    findDossier(query, exactOnly = false) {
+      const text = String(query || '').trim().toLowerCase();
+      if (text.length < 2) return null;
+      const seen = new Map();
+      this.rowsInObjectif.forEach((row) => {
+        if (!row.no_pret || seen.has(row.no_pret)) return;
+        seen.set(row.no_pret, row);
+      });
+      const rows = [...seen.values()];
+      const exact = rows.find((row) => String(row.no_pret).toLowerCase() === text
+        || String(row.matricule_client || '').toLowerCase() === text);
+      if (exact || exactOnly) return exact || null;
+      const hits = rows.filter((row) => [
+        row.no_pret,
+        row.nom_client,
+        row.matricule_client,
+        row.charge_affaire,
+      ].filter(Boolean).join(' ').toLowerCase().includes(text));
+      return hits.length === 1 ? hits[0] : null;
+    },
     pickDossier(row) {
       this.promiseDossier = row;
       this.dossierQuery = '';
+      this.promiseError = '';
       this.promiseForm.montant_exigible = Math.round(this.loanExigible(row.no_pret));
     },
     clearDossier() {
@@ -2217,13 +2253,22 @@ export default {
         date_paiement: this.promiseForm.date_paiement,
         date_relance: this.promiseForm.date_relance || null,
         commentaire: this.promiseForm.commentaire || null,
+        montant_deja_paye: this.paidByLoan.get(this.loanKey(dossier.no_pret)) || 0,
       };
+    },
+    chooseTypedDossier() {
+      const found = this.findDossier(this.dossierQuery) || (this.dossierHits.length === 1 ? this.dossierHits[0] : null);
+      if (!found) {
+        this.promiseError = 'Choisissez un client dans la liste.';
+        return;
+      }
+      this.pickDossier(found);
     },
     async submitPromise() {
       if (!this.promiseDossier) {
-        this.promiseError = 'Choisissez un dossier.';
-        return;
+        this.chooseTypedDossier();
       }
+      if (!this.promiseDossier) return;
       if (!(Number(this.promiseForm.montant_promis) > 0) || !this.promiseForm.date_paiement) {
         this.promiseError = 'Le montant promis et la date de paiement sont obligatoires.';
         return;
@@ -2262,6 +2307,7 @@ export default {
           date_paiement: this.promiseForm.date_paiement,
           date_relance: this.promiseForm.date_relance || null,
           commentaire: this.promiseForm.commentaire || null,
+          montant_deja_paye: this.paidByLoan.get(this.loanKey(this.promiseTarget.no_pret)) || 0,
         }, { headers: this.authHeaders() });
         this.closePromiseForm();
         await this.loadPromesses();
@@ -3169,23 +3215,77 @@ tbody tr:hover {
 .promesses .table-wrap { background: #fff; border: 1px solid #e7eeea; border-radius: 14px; overflow: auto; }
 .promesses table { width: 100%; }
 .promesses .empty { padding: 28px 16px; text-align: center; color: #64748b; }
-.promise-panel { max-width: 560px; }
-.promise-form { display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 8px; }
-.promise-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 700; color: #143d2e; }
-.promise-field input, .promise-field select, .promise-field textarea {
-  font-weight: 500;
-  border: 1px solid #e3eee8;
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: #fff;
+.promise-panel {
+  width: min(520px, calc(100% - 32px));
+  height: auto;
+  max-height: calc(100vh - 48px);
+  margin: auto;
+  border-radius: 18px;
+  overflow: auto;
 }
-.promise-hint { margin: 0; font-size: 12px; color: #64748b; }
-.dossier-hits { list-style: none; margin: 0; padding: 0; border: 1px solid #e3eee8; border-radius: 10px; overflow: hidden; }
-.dossier-hits button { display: flex; flex-direction: column; width: 100%; text-align: left; padding: 8px 10px; border: 0; background: #fff; cursor: pointer; }
-.dossier-hits button:hover { background: #f3faf6; }
+.kpi-overlay:has(.promise-panel) {
+  justify-content: center;
+  align-items: center;
+}
+.promise-form { display: flex; flex-direction: column; gap: 14px; padding: 8px 20px 20px; }
+.promise-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+.promise-field { display: flex; flex-direction: column; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #5f7368; }
+.promise-field input, .promise-field select, .promise-field textarea {
+  width: 100%;
+  height: 42px;
+  font-weight: 600;
+  font-size: 14px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #12261c;
+  border: 1px solid #d7e5dc;
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #fff;
+  box-sizing: border-box;
+}
+.promise-field textarea { height: 84px; padding: 10px 12px; resize: none; }
+.promise-hint { margin: 0; font-size: 13px; color: #5f7368; }
+.promise-reste {
+  margin: -4px 0 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #f4f7f5;
+  color: #5f7368;
+  font-size: 13px;
+}
+.promise-reste strong { color: #12261c; }
+.promise-inline-error { margin: 0; padding: 8px 10px; border-radius: 10px; background: #fde8ea; color: #9f1239; font-size: 13px; font-weight: 700; }
+.dossier-hits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.dossier-hits button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid #d7e5dc;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+}
+.dossier-hits button:hover { border-color: #1a4d3a; background: #f3faf6; }
 .dossier-hits span { font-size: 12px; color: #64748b; }
-.dossier-picked { display: flex; justify-content: space-between; gap: 8px; margin: 0; padding: 8px 10px; border-radius: 10px; background: #f3faf6; }
-.dossier-picked button { border: 0; background: transparent; color: #1a4d3a; font-weight: 700; cursor: pointer; }
+.dossier-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #f3faf6;
+  border: 1px solid #cfe3d6;
+}
+.dossier-card strong { display: block; font-size: 16px; color: #12261c; }
+.dossier-card span { display: block; margin-top: 2px; font-size: 12px; color: #5f7368; }
+.dossier-card button { border: 0; background: #fff; color: #1a4d3a; font-weight: 700; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+.promise-form .promise-add { width: 100%; height: 44px; border-radius: 12px; }
 .podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
 .podium article {
   --pod: #d97706;

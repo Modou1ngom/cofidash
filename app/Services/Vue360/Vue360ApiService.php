@@ -148,8 +148,16 @@ class Vue360ApiService
         $params = $this->scopedParams($user);
         if ($clientId) {
             $params['client_id'] = $clientId;
+            $params['limit'] = 200;
         }
-        $resolvedCode = trim((string) ($cafCode ?: $this->cafCodeForUser($user) ?: ''));
+
+        // Fiche client : tous les prêts du client, quel que soit le GP du profil.
+        // Le code gestionnaire ne restreint que le portefeuille (appel sans client).
+        $explicitCode = trim((string) ($cafCode ?? ''));
+        $resolvedCode = $explicitCode;
+        if ($resolvedCode === '' && ! $clientId) {
+            $resolvedCode = trim((string) ($this->cafCodeForUser($user) ?: ''));
+        }
         if ($resolvedCode !== '') {
             $params['caf_code'] = $resolvedCode;
             $params['limit'] = 200;
