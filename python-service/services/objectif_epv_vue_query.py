@@ -1,6 +1,6 @@
 # Objectifs collecte épargne à vue — snapshot mensuel (Flexcube).
-# Pas de filtre date : photo des encours / objectifs à l'instant T (typiquement le 1er du mois).
-# Périmètre ENCOURS_CLIENT aligné sur requete mobile/collecte_epargne_a_vue/collecte_epargne_a_vue.sql.
+# Même périmètre que collecte_epargne_a_vue.sql : déblocages antérieurs au 1er du mois.
+# Bind :date_debut (YYYY-MM-DD) = premier jour du mois figé.
 
 OBJECTIF_EPV_VUE_SNAPSHOT_QUERY = """
 WITH ENCOURS AS (
@@ -48,12 +48,31 @@ WITH ENCOURS AS (
         W.FIELD_CHAR_19,
         W.FIELD_CHAR_7
 ),
-ENCOURS_CLIENT AS (
+ENCOURS_CLIENT_EN AS (
     SELECT *
     FROM ENCOURS
     WHERE REBOOKER != 'YES'
       AND ID_PROTOCOLES NOT LIKE 'PC%'
       AND CODE_REF_CREDIT_RESTRUCTURE != 'YES'
+),
+DEBLOCAGE AS (
+    SELECT
+        E.RELATED_ACCOUNT,
+        E.TRN_DT AS DT_DEBLOCAGE
+    FROM CFSFCUBS145.ACVW_ALL_AC_ENTRIES E
+    WHERE E.TRN_CODE = '040'
+      AND E.MODULE = 'CL'
+      AND E.EVENT = 'DSBR'
+      AND E.AC_NO LIKE '251%'
+),
+ENCOURS_CLIENT AS (
+    SELECT
+        C.*,
+        D.DT_DEBLOCAGE
+    FROM DEBLOCAGE D
+    LEFT JOIN ENCOURS_CLIENT_EN C
+        ON D.RELATED_ACCOUNT = C.ACCOUNT_NUMBER
+    WHERE D.DT_DEBLOCAGE < TO_DATE(:date_debut, 'YYYY-MM-DD')
 ),
 OBJ_COL_EPV AS (
     SELECT

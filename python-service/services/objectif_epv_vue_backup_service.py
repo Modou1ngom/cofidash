@@ -3,8 +3,8 @@ Sauvegarde des objectifs collecte épargne à vue (OBJ_COL_EPV_VUE).
 
 La photo est écrite dans la base de l'application (database/database.sqlite),
 table objectif_collecte, un jeu de lignes par mois (month_key = YYYY-MM).
-La requête Flexcube n'a pas de date : c'est l'encours et l'objectif à l'instant
-de l'exécution, figés pour le mois.
+La photo reprend le périmètre de la collecte : prêts débloqués avant le 1er
+du mois, objectif à 10 % jusqu'à 10 000 000 et 5 % au-delà.
 """
 from __future__ import annotations
 
@@ -189,14 +189,18 @@ def get_objectif_snapshot_meta(month: int, year: int) -> Optional[Dict[str, Any]
         conn.close()
 
 
-def _fetch_objectifs_from_flexcube() -> List[Dict[str, Any]]:
+def _fetch_objectifs_from_flexcube(month: int, year: int) -> List[Dict[str, Any]]:
+    date_debut = f"{int(year):04d}-{int(month):02d}-01"
     pool = get_pool_flexcube()
     with pool.get_connection_context() as conn:
         cursor = conn.cursor()
         try:
             if hasattr(cursor, "callTimeout"):
                 cursor.callTimeout = _CALL_TIMEOUT_MS
-            cursor.execute(OBJECTIF_EPV_VUE_SNAPSHOT_QUERY)
+            cursor.execute(
+                OBJECTIF_EPV_VUE_SNAPSHOT_QUERY,
+                {"date_debut": date_debut},
+            )
             columns = [str(col[0]).lower() for col in cursor.description]
             rows: List[Dict[str, Any]] = []
             for raw in cursor.fetchall():
@@ -255,7 +259,7 @@ def refresh_objectif_epv_vue_snapshot(
     logger.info("📸 Snapshot objectifs EPV vue — mois %s", key)
 
     try:
-        rows = _fetch_objectifs_from_flexcube()
+        rows = _fetch_objectifs_from_flexcube(m, y)
         payload = [
             (
                 key,

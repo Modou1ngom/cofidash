@@ -1,4 +1,5 @@
 -- Collecte d'épargne à vue — Flexcube CFSFCUBS145.
+-- Périmètre : prêts débloqués (DSBR / TRN 040 / compte 251%) avant le 1er du mois.
 -- Objectif : 10 % si montant financé <= 10 000 000, sinon 5 %.
 -- Binds :date_debut / :date_fin (YYYY-MM-DD, bornes inclusives).
 WITH ENCOURS  AS (
@@ -69,10 +70,35 @@ WITH ENCOURS  AS (
 ,
 
 
-ENCOURS_CLIENT  as (  select * from ENCOURS  where REBOOKER !='YES'   and  ID_PROTOCOLES not like 'PC%' and CODE_REF_CREDIT_RESTRUCTURE !='YES'  ),
+ENCOURS_CLIENT_EN  as (  select * from ENCOURS  where REBOOKER !='YES'   and  ID_PROTOCOLES not like 'PC%' and CODE_REF_CREDIT_RESTRUCTURE !='YES'  ),
+
+DEBLOCAGE as (
+SELECT
+    e.RELATED_ACCOUNT,
+    e.AC_NO,
+    e.AMOUNT_TAG,
+    e.EVENT,
+    e.TRN_CODE,
+    e.TRN_DT as DT_DEBLOCAGE
+FROM CFSFCUBS145.acvw_all_ac_entries e
+WHERE
+    e.TRN_CODE = '040'
+    and e.MODULE = 'CL'
+    and e.EVENT = 'DSBR'
+    AND e.ac_no LIKE '251%'
+),
+
+ENCOURS_CLIENT as (
+select
+    c.*,
+    d.DT_DEBLOCAGE
+from DEBLOCAGE d
+left join ENCOURS_CLIENT_EN c on d.RELATED_ACCOUNT = c.ACCOUNT_NUMBER
+where d.DT_DEBLOCAGE < TO_DATE(:date_debut, 'YYYY-MM-DD')
+)
 
 
-OBJ_COL_EPV_LIM_DEX AS (
+,OBJ_COL_EPV_LIM_DEX AS (
     SELECT 
         BRANCH_CODE,
         FIELD_CHAR_2,
